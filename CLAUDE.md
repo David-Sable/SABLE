@@ -1,41 +1,77 @@
-# Working on SABLE (for Claude sessions, on the PC or in the cloud)
+# Working on SABLE (session guide for Claude: PC, cloud, or a fresh chat)
 
-SABLE is a local Android music player built around the Sable Intent Engine. Owners: Dana (product) and Claude
-(co-owner: architecture and engineering). Read README.md (plain language), PLAN.md (milestones, decisions log, risks)
-and MATH.md (the math, single source of truth) before changing behaviour.
+SABLE is a local Android music player built around the Sable Intent Engine. Owners: **Dana** (product) and **Claude**
+(co-owner: architecture and engineering; Dana delegates most technical decisions). You start with no memory of earlier
+chats, so:
 
-## Rules that do not bend
+## 1. Start of every session
+1. Read **docs/NOTES.md** ("Now" = current state and open items, then the newest log entries).
+2. Skim **PLAN.md** (milestones, decisions log, risks). Read the **MATH.md** sections for anything you will touch.
+3. `git pull`, then check the latest CI run (section 5). If `main` is red, fixing it comes first.
+
+## 2. End of every session (and whenever the chat is getting long)
+Dana may need to start a new chat when the context fills up, so never leave state only in the conversation:
+1. Rewrite "Now" in docs/NOTES.md and add a short log entry at the top (what changed, how it was verified, what is left).
+2. Update whatever the change touched (table below). Commit and push. Check that CI is green and tell Dana which
+   release to install, if the app changed.
+3. If a better way of working emerged, update this file too. It is the guide for the next session.
+
+| If you changed… | Also update |
+|---|---|
+| Any number, rule or threshold in the engine | MATH.md first (bump the version in its header; note it in NOTES) |
+| An owner decision or architecture choice | PLAN.md decisions log |
+| What Dana sees or does | README.md (plain language) and, for installing, docs/INSTALL.md |
+| The app's version | `versionName` in `android/app/build.gradle.kts` (versionCode is automatic) |
+| Analysis output (the cached JSON or anything that changes per-track results) | `SableDatabase.MATH_VERSION` (forces a full rescan of the library, ~40 min on the phone; only when results really change). Gain rules and planner changes do NOT need it: decisions are made at play time |
+| Planner JSON (inputs/outputs) | docs/plan-json.md |
+
+## 3. Rules that do not bend
 - **MATH.md is the source of truth.** Every engine function cites its section. If code and MATH.md disagree, fix the
-  wrong one and bump the MATH version. New numeric decisions go into MATH.md first.
-- **Correctness before features and design.** Engine changes come with tests (`engine/tests`, doctest).
+  wrong one and bump the MATH version. **Correctness before features and design.** Engine changes come with tests.
 - **Deterministic engine:** clang only, `-ffp-contract=off`, no libm in the engine (use `sable::dm`), fixed reduction
-  order. Host and phone must produce identical results.
-- **All gain math lives in the C++ engine** (planner: `engine/src/plan.cpp`, JSON over JNI). Kotlin gathers inputs and
-  applies outputs; it does not re-implement rules.
-- **Never commit audio or licensed references.** The test corpus (Dana's copyrighted albums) and the standards PDFs stay
-  on the PC (`~/dev/sable-corpus`, `~/dev/sable-refs`). `.gitignore` blocks audio files and signing keys.
-- **Never commit a signing key.** CI signs with the repository secret `SABLE_KEYSTORE_B64`.
-- Commit as the repo's noreply identity: `craigdavid209-design <327186142+craigdavid209-design@users.noreply.github.com>`.
-- Ask Dana before adding a major dependency or changing the product's philosophy (one static gain per song by default;
-  the Quiet contour is the only opt-in non-flat processing). Keep README in plain language.
+  order. Host (x86) and phone (ARM64) must give identical results.
+- **All gain math lives in the C++ engine** (planner `engine/src/plan.cpp`, JSON over JNI). Kotlin gathers inputs and
+  applies outputs; it never re-implements a rule.
+- **Portable C++:** it must build with libc++ (Android, llvm-mingw) **and** libstdc++ (Linux CI). Include what you use.
+- **Never commit audio, licensed references or keys.** Dana's corpus (copyrighted) and the standards PDFs stay on the
+  PC (`~/dev/sable-corpus`, `~/dev/sable-refs`). `.gitignore` blocks audio and keystores. The signing key exists only
+  on the PC (`~/.android/debug.keystore`) and in the GitHub secret `SABLE_KEYSTORE_B64`. Never print, copy or move it.
+- Commit identity: `craigdavid209-design <327186142+craigdavid209-design@users.noreply.github.com>`.
+- **Ask Dana first** before a major new dependency or a change to the product's philosophy: one static gain per song by
+  default; the Quiet contour is the only (opt-in) non-flat processing; files are never modified.
 
-## Owner decisions to respect (details in PLAN.md)
-- Targets: Normal (Standard) −14 LUFS, Quiet **−19** LUFS.
-- Album world vs song world by intent: Play album = one album gain; tapping a song = that song and what follows,
-  each in its own world.
-- In-engine decoding for analysis: FLAC with dr_flac, MP3 with minimp3. Playback uses Media3 + platform decoders,
-  gain applied in `SableAudioSink` (float).
-- Phone first (Galaxy A17, Android 16, 90 Hz). Easy mode is the default UI; Advanced is one switch.
+## 4. Owner decisions to respect (details in PLAN.md)
+- Targets: Normal (MATH "Standard") −14 LUFS, Quiet **−19** LUFS (not −18).
+- Album world vs song world by intent: Play album = one album gain; tapping a song = that song and what follows, each
+  in its own world.
+- Analysis decoding in the engine: FLAC with dr_flac, MP3 with minimp3. Playback: Media3 + platform decoders, gain
+  applied in float in `SableAudioSink`.
+- Phone first (Galaxy A17 5G, Android 16, One UI, 90 Hz). **Easy mode is the default UI**; Advanced is one switch.
+- Look: true black, warm ivory accent `#E8E1D3` (brass `#B5975A` alternate), tokens in `ui/theme/Tokens.kt`.
 
-## Build and test
-- Engine (host): `cmake -S engine -B build -DCMAKE_CXX_COMPILER=clang++ [-DSABLE_SANITIZE=ON] && cmake --build build -j && ./build/sable_tests`
-- App: `cd android && ./gradlew :app:testDebugUnitTest :app:assembleRelease` (JDK 21, Android SDK 37, NDK 30.0.16248370, CMake 4.1.2).
-- GitHub Actions (`.github/workflows/build.yml`) runs both on every push to `main` and publishes a signed APK as a
-  release. Dana installs it on the phone from the repo's **Releases** page; it updates in place and keeps the library.
+## 5. Build, test, release
+- Engine: `cmake -S engine -B build -DCMAKE_CXX_COMPILER=clang++ -DSABLE_SANITIZE=ON && cmake --build build -j && ./build/sable_tests`
+  (on the PC: `source ~/dev/sable-toolchain/env.sh` first; existing build dirs `engine/build-host`, `engine/build-asan`).
+- App: `cd android && ./gradlew :app:testDebugUnitTest :app:assembleRelease` (JDK 21, SDK 37, NDK 30.0.16248370, CMake 4.1.2).
+- **CI** (`.github/workflows/build.yml`), on every push to `main` that touches more than `*.md` or `docs/`: engine tests (Linux clang, ASan/UBSan) → app tests →
+  signed APK → certificate check → GitHub release `build-N` ("Latest"). Dana installs from the phone:
+  `https://github.com/craigdavid209-design/SABLE/releases/latest` → tap the APK → Update.
+- **Checking CI without signing in** (no `gh` here; logs need sign-in, annotations are public):
+  - latest run: `curl -s https://api.github.com/repos/craigdavid209-design/SABLE/actions/runs?per_page=1`
+  - jobs: `…/actions/runs/<id>/jobs`; errors: `…/check-runs/<job id>/annotations` (the workflow turns compiler and
+    Gradle errors into annotations).
+  - Validate workflow YAML before pushing (`python -c "import yaml; yaml.safe_load(open('.github/workflows/build.yml'))"`):
+    a `run:` line containing `: ` must be a block scalar (`run: |`).
 
-## What needs the PC session (not possible from the cloud)
-- Anything on the phone over USB: installing by adb, on-device benchmarks, frame timing, battery/CPU, screenshots,
-  volume-key learning tests. Debug automation commands are listed at the top of `ui/MainActivity.kt`.
-- Corpus cross-validation and the corpus reports (copyrighted audio stays on the PC).
-- Work that needs the standards texts or the TVL reference code.
-From the cloud: code, math, UI, tests, docs; push to `main`, check the Actions run, then tell Dana the release to install.
+## 6. What needs the PC session (cloud sessions cannot)
+- The phone over USB: `adb install`, on-device benchmarks, frame timing (`dumpsys gfxinfo`), CPU (`top`), screenshots,
+  volume-key learning tests. The debug commands are listed at the top of `ui/MainActivity.kt`
+  (`adb shell am start -n app.sable/.ui.MainActivity --es cmd …`). Use `MSYS_NO_PATHCONV=1` with adb in Git Bash.
+  Don't change Dana's phone settings or volume without putting them back; erase test learning (`--es cmd forget`).
+- Corpus cross-validation and corpus reports (copyrighted audio stays on the PC); work needing the standards or TVL code.
+From the cloud: code, math, UI, tests, docs → push → check CI → tell Dana the release number to install.
+
+## 7. Working with Dana
+- Plain language, short updates, honest about failures (say what failed and what you did). Dana is often on the phone.
+- Dana watches usage: be efficient, don't redo finished work, don't spawn helpers unless asked.
+- Measure before claiming (on the phone when it matters) and record numbers in the reports/NOTES.

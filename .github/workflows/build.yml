@@ -9,6 +9,9 @@ name: build
 on:
   push:
     branches: [main]
+    paths-ignore:  # notes and docs only: no new build or release
+      - "**.md"
+      - "docs/**"
   pull_request:
   workflow_dispatch:
 
