@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.12 (2026-10-26)
+**Version:** MATH-1.13 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -616,6 +616,7 @@ A volume-key event counts as feedback when **all** of these hold:
 - A/B mode is off.
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
+**Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.
 **Environment filter:** if the user's last feedback event (on the previous track) had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`.
 
 ### 19.2 Update (exponential decay + clamp)
@@ -726,7 +727,8 @@ One low-shelf + one high-shelf biquad (RBJ cookbook form, `S = 1`):
 - Low-shelf: corner `f_L` from the grid {60, 80, 100, 125, 160, 200, 250} Hz and gain `G_L ∈ [0, +3] dB` in steps of 0.1 dB
 - High-shelf: corner `f_H` from {4k, 5k, 6.3k, 8k} Hz and gain `G_H ∈ [−1, +2] dB` in steps of 0.1 dB
 - Chosen by exhaustive grid search minimizing `Σ_f (R(f) − H(f))²` over the 1/3-octave frequencies 25 Hz … 12.5 kHz, where `R` is the cascade's magnitude response in dB. Ties go to the smaller |gain|.
-Deterministic, with a hard maximum boost of +3 dB, so it is "subtle" by construction.
+Deterministic, with a hard maximum boost of +3 dB, so it is "subtle" by construction. `R` is evaluated at the reference rate 48 kHz, so the design (corners and gains) does not depend on the file's rate; the same design is then realised at the playback rate. **Result (calibration 0):** low shelf 200 Hz +2.0 dB, high shelf 8 kHz +0.6 dB, rms fit error 0.24 dB.
+Playback (MATH-1.13): the cascade runs after the gain, in double precision per channel (TDF-II). Switching it on or off crossfades wet/dry over 20 ms (raised cosine), its state is cleared after a flush, and it is off during blind A/B (§30). Off, the path is bit-identical to no contour.
 
 ### 24.4 Headroom
 `H_contour = max(0, G_L) + max(0, G_H)` dB is added to `TP_eff` (§16.4) while the contour is on. This bounds the cascade's maximum gain at all frequencies up to Nyquist, which is where the high shelf peaks. It is conservative: the boost is assumed to add to peaks.

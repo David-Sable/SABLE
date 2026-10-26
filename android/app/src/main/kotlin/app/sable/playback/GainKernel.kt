@@ -32,6 +32,17 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
     private var edgeTotal = -1L       // §30.2 excerpt length in frames (-1: not an excerpt)
     private var edgeN = 0             // fade length in frames
     private var edgePos = 0L          // frames of the current item processed so far
+    // §24 Quiet contour: low shelf then high shelf ({b0, b1, b2, a1, a2}), TDF-II in double, per channel,
+    // mixed in with a 20 ms raised-cosine crossfade when switched on or off.
+    private var lo: DoubleArray? = null
+    private var hi: DoubleArray? = null
+    private val zLo = DoubleArray(2 * MAX_CH)
+    private val zHi = DoubleArray(2 * MAX_CH)
+    private var wetFrom = 0.0
+    private var wetTo = 0.0
+    private var wet = 0.0
+    private var wetN = 0
+    private var wetI = 0
     private var s0 = seed xor 0x9E3779B97F4A7C15uL.toLong()
     private var s1 = seed * 0x2545F4914F6CDD1DL or 1L
 
@@ -69,6 +80,33 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         rampI = 0
     }
 
+    /** Turns the contour on (coefficients) or off (null). [instant] skips the crossfade (a new item, a new rate). */
+    fun setContour(low: DoubleArray?, high: DoubleArray?, sampleRate: Int, instant: Boolean = false) {
+        if (low != null && high != null) {
+            if (lo == null) { zLo.fill(0.0); zHi.fill(0.0) }
+            lo = low
+            hi = high
+        }
+        wetFrom = wet
+        wetTo = if (low != null) 1.0 else 0.0
+        if (instant) {
+            wet = wetTo
+            wetN = 0
+            if (wetTo == 0.0) lo = null
+        } else {
+            wetN = max(1, (0.020 * sampleRate).roundToInt())
+            wetI = 0
+        }
+    }
+
+    /** After a flush (seek, skip): the filter history belongs to audio that will not be played. */
+    fun resetFilter() {
+        zLo.fill(0.0)
+        zHi.fill(0.0)
+    }
+
+    val contourOn get() = lo != null && wetTo > 0.0
+
     /** Converts and scales all of [input] (position..limit) into [out]; advances both. */
     fun process(input: ByteBuffer, inEncoding: Int, channels: Int, out: ByteBuffer, outFloat: Boolean) {
         val src = input.duplicate().order(ByteOrder.LITTLE_ENDIAN)
@@ -80,6 +118,16 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         for (f in 0 until frames) {
             var g: Float = if (rampN == 0) lin else rampStep()
             if (edgeTotal >= 0) g *= edgeGain()
+            val l = lo
+            val h = hi
+            if (l != null && wetN > 0) {
+                wetI++
+                wet = wetFrom + (wetTo - wetFrom) * (1.0 - cos(PI * wetI / wetN)) / 2.0
+                if (wetI >= wetN) {
+                    wetN = 0
+                    wet = wetTo
+                }
+            }
             for (c in 0 until channels) {
                 val x: Float = when (inEncoding) {
                     C.ENCODING_PCM_16BIT -> src.getShort(p) / 32768f
@@ -91,7 +139,18 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
                     else -> 0f
                 }
                 p += bps
-                val y = x * g
+                var y = x * g
+                if (l != null && h != null && c < MAX_CH) {
+                    val k = 2 * c
+                    val u = y.toDouble()
+                    val v = l[0] * u + zLo[k]
+                    zLo[k] = l[1] * u - l[3] * v + zLo[k + 1]
+                    zLo[k + 1] = l[2] * u - l[4] * v
+                    val w = h[0] * v + zHi[k]
+                    zHi[k] = h[1] * v - h[3] * w + zHi[k + 1]
+                    zHi[k + 1] = h[2] * v - h[4] * w
+                    y = if (wet >= 1.0) w.toFloat() else (u + wet * (w - u)).toFloat()
+                }
                 if (outFloat) {
                     out.putFloat(q, y); q += 4
                 } else {
@@ -99,6 +158,7 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
                 }
             }
         }
+        if (lo != null && wet == 0.0 && wetTo == 0.0) lo = null  // faded out
         input.position(input.position() + frames * bps * channels)
         out.position(q)
     }
@@ -137,6 +197,8 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
     }
 
     companion object {
+        const val MAX_CH = 8
+
         fun linOf(db: Double): Float = 10.0.pow(db / 20.0).toFloat()
 
         fun bytesPerSample(encoding: Int): Int = when (encoding) {

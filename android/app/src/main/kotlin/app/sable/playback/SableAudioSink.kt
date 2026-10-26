@@ -25,6 +25,11 @@ class GainTable {
     private val map = ConcurrentHashMap<Any, Entry>()
     private val versions = AtomicLong()
 
+    /** The Quiet contour (§24) when on: coefficients for a playback rate, and a version that changes with the design. */
+    class Contour(val version: Long, val coeffs: (Int) -> Pair<DoubleArray, DoubleArray>?)
+
+    @Volatile var contour: Contour? = null
+
     /** Used if an item starts before it has been planned: the provisional gain for the current target (§22.1). */
     @Volatile var fallbackDb = -6.0
 
@@ -70,6 +75,8 @@ class SableAudioSink(
     private var out: ByteBuffer = ByteBuffer.allocateDirect(0)
     private var pendingSrc: ByteBuffer? = null
     private var pendingPts = Long.MIN_VALUE
+    private var contourVersion = -1L
+    private var contourRate = 0
 
     override fun supportsFormat(format: Format) = getFormatSupport(format) != AudioSink.SINK_FORMAT_UNSUPPORTED
 
@@ -112,10 +119,23 @@ class SableAudioSink(
         onItemGain(key, db, manualStart)
     }
 
+    /** §24: follow the table's contour (crossfade on a change; instant at a new rate). */
+    private fun applyContour() {
+        val c = gains.contour
+        val v = c?.version ?: -1L
+        if (v == contourVersion && sampleRate == contourRate) return
+        val instant = sampleRate != contourRate
+        contourVersion = v
+        contourRate = sampleRate
+        val co = c?.coeffs?.invoke(sampleRate)
+        kernel.setContour(co?.first, co?.second, sampleRate, instant)
+    }
+
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
         if (!pcm) return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
         if (pendingSrc !== buffer || pendingPts != presentationTimeUs) {
             applyTableChange()
+            applyContour()
             val frames = buffer.remaining() / (GainKernel.bytesPerSample(inEncoding) * channels)
             val need = frames * channels * (if (outFloat) 4 else 2)
             if (out.capacity() < need) out = ByteBuffer.allocateDirect(need * 2).order(ByteOrder.nativeOrder())
@@ -145,6 +165,7 @@ class SableAudioSink(
     }
 
     override fun flush() {
+        kernel.resetFilter()
         pendingSrc = null
         flushedSinceBuffer = true
         super.flush()

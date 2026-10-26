@@ -4,7 +4,7 @@ A local Android music player built around one idea: **understand each song befor
 
 The player exists to serve the **Sable Intent Engine**. By default the engine makes exactly one change per track: one static gain. There is no compression, no dynamic processing and no EQ (the one exception is the opt-in Quiet-mode contour described below). Your files are never modified.
 
-> Status: **Milestone 1 complete** (MATH-1.2, two independent reviews). Milestone 2 (engine baseline) next. No app code yet. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
+> Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.13), library analysis, playback with per-song gain, the designed app with the Why sheet and blind A/B, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
 
 ---
 
@@ -40,14 +40,16 @@ Each rule below is in plain language. MATH.md has the exact version (section num
 Every song has a **Why** sheet showing the measured numbers, where the anchor is, the gain applied, every rule that fired, and a one-line explanation, e.g. *"Intimate piano piece: raised 3.1 dB, held 1 dB under target to keep it quiet."*
 
 ### 4. Context (opt-in extras)
-- **Quiet-mode contour** (§24): at low volume your ears lose bass and treble. If you turn this on, Quiet mode adds a gentle correction based on ISO 226 equal-loudness contours, at most +3 dB. It is the only non-flat processing in Sable.
+- **Quiet-mode contour** (§24): at low volume your ears lose bass and treble. If you turn this on, Quiet mode adds a gentle correction based on ISO 226 equal-loudness contours (a +2 dB lift below 200 Hz and +0.6 dB of air, at most +3 dB). It is the only non-flat processing in Sable, and peaks stay protected.
+- **Your outputs** (§20): each output (speaker, Bluetooth, USB-C, wired) keeps its own level offset and peak ceiling.
+- **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet.
 
 ### 5. Proof
 - **Blind A/B**: compare Sable, plain −14 LUFS normalization and no normalization on the same shuffled sequence, unlabeled and level-matched, then see which was which.
 
 ---
 
-## Repository layout (planned)
+## Repository layout
 ```
 MATH.md            precise math (single source of truth)
 README.md          this file

@@ -27,7 +27,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import app.sable.data.LibraryRow
+import app.sable.data.SableDatabase
+import app.sable.data.TrackEntity
+import app.sable.library.GainTags
+import app.sable.playback.ListenerLearning
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import app.sable.playback.AbSession
 import app.sable.playback.NowPlaying
 import app.sable.playback.PlaybackPrefs
@@ -101,19 +111,76 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
             Section("Rules")
             for ((id, d) in rules) Measure(WhyText.ruleLabel(id), "%+.1f dB".format(d))
             if (rules.isEmpty()) Text("None", style = SableType.caption, color = SableColors.textTertiary)
+            if (isPlaying && (live.learnedDb != 0.0 || live.outputCalDb != 0.0 || live.contourOn)) {
+                Section("Your settings")
+                if (live.learnedDb != 0.0) Measure("Learned from your volume keys", "%+.1f dB".format(live.learnedDb))
+                if (live.outputCalDb != 0.0) Measure("Level offset for ${live.route}", "%+.1f dB".format(live.outputCalDb))
+                if (live.contourOn) Measure("Quiet-mode contour", "on")
+            }
+            Learned(row)
+            FileTags(row)
             Section("Notes")
             val notes = buildList {
                 if (json.optBoolean("decodeClipped")) add("This file was decoded at 16-bit, so its true peak may read low. Sable adds 1 dB of safety.")
                 if (json.optBoolean("shortFile")) add("A very short file is measured as a whole.")
                 if (settings.mode == PlaybackPrefs.Mode.QUIET) add("Quiet mode lowers the same balance by 5 dB. Perceived balance is not re-measured at the lower level.")
                 add("Peaks are kept under the output's ceiling: -1 dBTP on the speaker and wired/USB, -2 dBTP on Bluetooth (codec not visible to apps).")
-                add("Sable measures what it plays; effects after it (Dolby Atmos, Adapt Sound, EQ) can change what you hear.")
+                add("Sable measures what it plays; effects after it (Dolby Atmos, Adapt Sound, EQ) can change what you hear." +
+                    effectsOnPhone().let { if (it.isEmpty()) "" else " This phone has: ${it.joinToString(", ")}." })
             }
             for (n in notes) Text("· $n", style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(bottom = Space.xs))
             Spacer(Modifier.height(Space.xxl))
         }
     }
 }
+
+/** §19.2: learned offsets for this song and its artist, with reset (visible and resettable). */
+@Composable
+private fun Learned(row: LibraryRow) {
+    val context = LocalContext.current
+    var version by remember { mutableStateOf(0) }
+    val learning = remember { ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())) }
+    val track by produceState<TrackEntity?>(null, row.mediaId) {
+        value = withContext(Dispatchers.IO) { SableDatabase.get(context).library().track(row.mediaId) }
+    }
+    val t = track ?: return
+    val o = remember(t, version) { learning.offsets(t) }
+    if (o.trackDb == 0.0 && o.artistDb == 0.0) return
+    Section("Learned")
+    if (o.trackDb != 0.0) Measure("This song (set %.0f days ago)".format(ListenerLearning.nowDays() - o.trackDays), "%+.1f dB".format(o.trackDb))
+    if (o.artistDb != 0.0) Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(o.artistDb))
+    Row(Modifier.padding(top = Space.s), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+        if (o.trackDb != 0.0) Pill("Forget for this song", false) { learning.resetTrack(t); version++ }
+        if (o.artistDb != 0.0) Pill("Forget for the artist", false) { learning.resetArtist(t); version++ }
+    }
+}
+
+/** §28: ReplayGain / R128 tags already in the file, shown for comparison only. */
+@Composable
+private fun FileTags(row: LibraryRow) {
+    val context = LocalContext.current
+    val tags by produceState(emptyList<GainTags.Tag>(), row.mediaId) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(android.net.Uri.parse(row.uri))?.use { s ->
+                    val buf = ByteArray(256 * 1024)
+                    var n = 0
+                    while (n < buf.size) { val r = s.read(buf, n, buf.size - n); if (r <= 0) break; n += r }
+                    GainTags.read(buf.copyOf(n))
+                }
+            }.getOrNull() ?: emptyList()
+        }
+    }
+    if (tags.isEmpty()) return
+    Section("Tags in the file (not used)")
+    for (t in tags) Measure(t.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }, GainTags.describe(t))
+}
+
+private fun effectsOnPhone(): List<String> = runCatching {
+    android.media.audiofx.AudioEffect.queryEffects().map { it.name }
+        .filter { n -> listOf("dolby", "soundalive", "adapt", "atmos", "virtualizer", "equalizer").any { n.contains(it, ignoreCase = true) } }
+        .distinct().take(4)
+}.getOrDefault(emptyList())
 
 @Composable
 private fun Section(title: String) {

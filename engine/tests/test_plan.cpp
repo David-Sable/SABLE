@@ -156,3 +156,36 @@ TEST_CASE("plan: blind A/B conditions are level-matched to Sable and respect the
   const std::string capped = sable::planQueueJson(in);
   CHECK(field(capped, "gainDb", 0) <= -0.5 + 1e-12);
 }
+
+TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay bounded (MATH §19, §24.4)") {
+  const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
+  std::string in = ctx("{\"analysis\":" + capped + "}");
+  in.insert(1, "\"contourHeadroomDb\":2.6,");
+  CHECK(field(sable::planQueueJson(in), "gainDb") == doctest::Approx(1.0 - 2.6).epsilon(1e-12));
+
+  const std::string mid = analysis(-14, -14, -14, -20, -14, -14);  // g 0, cap +19
+  // Track offset -1.6 set 30 days ago -> -0.8 now; artist -1 (1 day old) ignored until 2 tracks have taught it.
+  std::string l = ctx("{\"analysis\":" + mid + ",\"learn\":{\"trackDb\":-1.6,\"trackDays\":0,\"artistDb\":-1,\"artistDays\":29,\"artistTracks\":1}}");
+  l.insert(1, "\"nowDays\":30,");
+  const std::string out = sable::planQueueJson(l);
+  CHECK(field(out, "learnedDb") == doctest::Approx(-0.8).epsilon(1e-9));
+  CHECK(field(out, "gainDb") == doctest::Approx(-0.8).epsilon(1e-9));
+  std::string l2 = l;
+  l2.replace(l2.find("\"artistTracks\":1"), 16, "\"artistTracks\":2");
+  CHECK(field(sable::planQueueJson(l2), "learnedDb") == doctest::Approx(-0.8 - std::pow(2.0, -1.0 / 30.0)).epsilon(1e-9));
+}
+
+TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)") {
+  const std::string a = sable::learnUpdateJson("{\"deltaDb\":-3,\"trackDb\":0,\"trackDays\":10,\"artistDb\":0,\"artistDays\":10,\"nowDays\":10}");
+  CHECK(field(a, "trackDb") == doctest::Approx(-1.5));
+  CHECK(field(a, "artistDb") == doctest::Approx(-0.75));
+  CHECK(field(a, "omega") == 1.0);
+  // Same sign and similar size as the previous event: weighted 0.25.
+  const std::string b = sable::learnUpdateJson("{\"deltaDb\":-3,\"prevDeltaDb\":-4,\"trackDb\":0,\"trackDays\":10,\"artistDb\":0,\"artistDays\":10,\"nowDays\":10}");
+  CHECK(field(b, "omega") == 0.25);
+  CHECK(field(b, "trackDb") == doctest::Approx(-0.375));
+  // Opposite sign: full weight. Clamp at +-2.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3,\"prevDeltaDb\":-3,\"nowDays\":0}"), "omega") == 1.0);
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);
+  CHECK(sable::learnUpdateJson("{}") == "{\"error\":\"bad input\"}");
+}

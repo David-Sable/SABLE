@@ -29,7 +29,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -52,11 +51,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import android.os.SystemClock
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
-/** A frame clock that ticks only while [active]: reading it in a draw lambda redraws at the display rate (90 Hz). */
+/**
+ * Redraw clock for the playhead. It ticks only while playing, and only as often as the playhead moves by one pixel
+ * across [widthPx] (a 3-minute song over 1000 px: every ~180 ms), so a moving playhead stays smooth without the
+ * cost of redrawing every 90 Hz frame (battery, MATH-independent UI tuning; M7).
+ */
 @Composable
-fun frameTick(active: Boolean): State<Long> = produceState(0L, active) {
-    while (active) withFrameMillis { value = it }
+fun frameTick(active: Boolean, durationMs: Long = 0L, widthPx: Int = 1000): State<Long> = produceState(0L, active, durationMs, widthPx) {
+    val step = if (durationMs > 0 && widthPx > 0) (durationMs / widthPx).coerceIn(16L, 500L) else 250L
+    while (active) {
+        delay(step)
+        value = SystemClock.uptimeMillis()
+    }
 }
 
 @Composable
@@ -74,7 +93,7 @@ fun analysisJson(trackId: Long?): JSONObject? {
 
 @Composable
 fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier) {
-    val tick by frameTick(state.playing)
+    val tick by frameTick(state.playing, state.durationMs, 1080)
     Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().clickable { state.go(Route.NowPlaying) }) {
         Canvas(Modifier.fillMaxWidth().height(2.dp)) {
             tick
@@ -99,9 +118,24 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
     val ab by AbSession.condition.collectAsState()
     val json = analysisJson(state.currentTrackId)
     val shape = remember(json) { SongShape.of(json) }
-    val tick by frameTick(state.playing)
+    val tick by frameTick(state.playing, state.durationMs, 1000)
     LaunchedEffect(state.playing) { while (true) { state.syncPosition(); delay(1000) } }
     val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
+    // Swipe down to close: the screen follows the finger, then either slides away or settles back.
+    val scope = rememberCoroutineScope()
+    val dragY = remember { Animatable(0f) }
+    val closeAt = with(LocalDensity.current) { 140.dp.toPx() }
+    val swipe = Modifier
+        .offset { IntOffset(0, dragY.value.roundToInt()) }
+        .graphicsLayer { alpha = 1f - (dragY.value / (closeAt * 4)).coerceIn(0f, 0.5f) }
+        .draggable(
+            orientation = Orientation.Vertical,
+            state = rememberDraggableState { d -> scope.launch { dragY.snapTo((dragY.value + d).coerceAtLeast(0f)) } },
+            onDragStopped = { velocity ->
+                if (dragY.value > closeAt || velocity > 2500f) state.pop()
+                else dragY.animateTo(0f, Motion.medium())
+            },
+        )
     if (row == null) {
         Column(Modifier.fillMaxSize().grain()) {
             TopBar("NOW PLAYING", { state.pop() })
@@ -111,7 +145,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
         }
         return
     }
-    Column(Modifier.fillMaxSize().grain()) {
+    Column(Modifier.fillMaxSize().then(swipe).grain()) {
         TopBar("NOW PLAYING", { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
         Column(Modifier.weight(1f).padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
             if (row != null) {
@@ -167,7 +201,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
 @Composable
 private fun Clock(state: AppState) {
     val t by produceState(0L, state.playing, state.currentQueueId) {
-        while (true) { value = state.position(); delay(250) }
+        while (true) { value = state.position(); delay(1000 - state.position() % 1000 + 5) }
     }
     Text(mmss(t), style = SableType.caption, color = SableColors.textTertiary)
 }

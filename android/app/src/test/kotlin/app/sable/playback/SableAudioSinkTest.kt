@@ -232,4 +232,26 @@ class SableAudioSinkTest {
         assertTrue(y[2 * 44099] < 1e-4f)                // ends in silence
         for (k in 1 until n) assertTrue(y[2 * k] >= y[2 * (k - 1)])  // monotone fade-in
     }
+
+    @Test fun contour_crossfadesIn_thenFiltersExactly_andOffIsBitExact() {
+        // A "filter" that is a pure x2 gain (b0 = 2) makes the wet path easy to check exactly.
+        val x2 = doubleArrayOf(2.0, 0.0, 0.0, 0.0, 0.0)
+        val one = doubleArrayOf(1.0, 0.0, 0.0, 0.0, 0.0)
+        val t = GainTable().apply { put("A", 0.0, 0.0, false) }
+        val inner = Inner()
+        val s = sink(inner, t)
+        s.configure(config(C.ENCODING_PCM_FLOAT, "A"))
+        s.handleBuffer(pcmFloat(FloatArray(200) { 0.25f }), 0, 1)  // contour off: untouched
+        t.contour = GainTable.Contour(1) { x2 to one }
+        s.handleBuffer(pcmFloat(FloatArray(44100 / 10 * 2) { 0.25f }), 1, 1)
+        val y = inner.floats()
+        assertEquals(0.25f, y[199], 0f)
+        val n = 44100 / 50
+        assertTrue(y[200 + 2 * (n / 2)] in 0.36f..0.39f)  // half way: 0.25 + 0.5 * 0.25
+        assertEquals(0.5f, y[200 + 2 * (n + 5)], 0f)       // fully wet: exactly the filter output
+        for (k in 1 until n) assertTrue(y[200 + 2 * k] >= y[200 + 2 * (k - 1)])
+        t.contour = null
+        s.handleBuffer(pcmFloat(FloatArray(44100 / 10 * 2) { 0.25f }), 2, 1)
+        assertEquals(0.25f, inner.floats().last(), 0f)      // off again: bit-exact dry path
+    }
 }

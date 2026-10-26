@@ -240,6 +240,8 @@ std::string planQueueJson(const std::string& input) {
   ctx.intimacyLu = in.num("intimacyLu", 1.0);
   ctx.ceilingDbtp = in.num("ceilingDbtp", -1.0);
   ctx.limiter = in.flag("limiter");
+  ctx.contourHeadroomDb = std::max(0.0, in.num("contourHeadroomDb", 0.0));  // §24.4, Quiet contour on
+  const double nowDays = in.num("nowDays", 0.0);
   const double outputCal = std::clamp(in.num("outputCalDb", 0.0), -3.0, 3.0);  // §20.2
   const std::string albumMode = in.str("albumMode");                            // "auto" | "track" | "album"
 
@@ -274,7 +276,13 @@ std::string planQueueJson(const std::string& input) {
     for (const J& x : list->a) {
       Item it;
       it.manual = x.flag("manual");
-      it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp
+      if (const J* l = x.get("learn"); l && l->t == J::T::Obj) {  // §19.2: decay to now, then combine
+        const double t = decayedOffset({l->num("trackDb", 0.0), l->num("trackDays", nowDays)}, nowDays);
+        const double a = decayedOffset({l->num("artistDb", 0.0), l->num("artistDays", nowDays)}, nowDays);
+        it.learnedDb = appliedOffset(t, a, static_cast<int>(l->num("artistTracks", 0.0)));
+      } else {
+        it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
+      }
       it.excerptSec = x.num("excerptSec", 0.0);
       const std::string key = x.str("album");
       const bool inAlbum = !key.empty() && albumMode != "track" && (albumMode == "album" || x.flag("albumIntent"));  // §17.1
@@ -368,11 +376,28 @@ std::string planQueueJson(const std::string& input) {
     if (!ab.empty()) gNat = gMan = abGain[i];
     if (i) o += ',';
     o += "{\"gainDb\":" + num(gNat) + ",\"manualGainDb\":" + num(gMan) + ",\"baseDb\":" + num(it.baseDb) +
+         ",\"learnedDb\":" + num(ab.empty() ? it.learnedDb : 0.0) +
          ",\"capDb\":" + num(it.capDb) + ",\"source\":\"" +
          (it.source == Item::Source::Full ? "full" : it.source == Item::Source::Jit ? "jit" : "provisional") +
          "\",\"albumRun\":" + (it.albumRun ? "true" : "false") + ",\"rules\":" + rulesJson(it.rules) + "}";
   }
   return o + "]}";
+}
+
+std::string learnUpdateJson(const std::string& input) {  // §19.1 environment filter + §19.2 update
+  J in;
+  if (!Parser(input).parse(in) || in.t != J::T::Obj || !in.num("deltaDb")) return "{\"error\":\"bad input\"}";
+  const double now = in.num("nowDays", 0.0), dv = *in.num("deltaDb");
+  double omega = 1.0;
+  if (const auto prev = in.num("prevDeltaDb"); prev && *prev != 0.0) {
+    const double ratio = dv / *prev;
+    if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
+  }
+  LearnedOffset t{in.num("trackDb", 0.0), in.num("trackDays", now)}, a{in.num("artistDb", 0.0), in.num("artistDays", now)};
+  learnEvent(t, 0.5, omega * dv, now);   // eta_t
+  learnEvent(a, 0.25, omega * dv, now);  // eta_a
+  return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
+         ",\"artistDays\":" + num(a.updatedDays) + ",\"omega\":" + num(omega) + "}";
 }
 
 }  // namespace sable

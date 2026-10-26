@@ -13,8 +13,8 @@ android {
         applicationId = "app.sable"
         minSdk = 33  // READ_MEDIA_AUDIO
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.6.0-m6"
+        versionCode = 4
+        versionName = "0.7.0-m7"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
             cmake {

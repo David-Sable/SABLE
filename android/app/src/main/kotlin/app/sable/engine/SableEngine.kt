@@ -31,6 +31,12 @@ object SableEngine {
     /** Gain of every queue item (MATH §17.1, §18, §21, §22). JSON schema: docs/plan-json.md. */
     @JvmStatic external fun planQueue(inputJson: String): String
 
+    /** One volume-key feedback event (MATH §19). JSON in/out: engine/include/sable/plan.h. */
+    @JvmStatic external fun learnUpdate(inputJson: String): String
+
+    /** Quiet-mode contour design (MATH §24) with low/high shelf biquads {b0,b1,b2,a1,a2} at [sampleRate]. */
+    @JvmStatic external fun contourDesign(calDb: Double, sampleRate: Double): String
+
     /** Engine-decodable formats: FLAC and MP3 (owner decisions 2026-10-26). */
     fun nativeKind(mime: String?): Int? = when (mime) {
         "audio/flac" -> 0

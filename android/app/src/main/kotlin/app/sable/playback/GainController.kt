@@ -71,12 +71,19 @@ class GainController(
     private val manualByItem = HashMap<String, Boolean>()  // main thread: how each started item actually began
     @Volatile private var lastPlan: Map<String, JSONObject> = emptyMap()
     private var ceilingDbtp = -1.0
-    private var route = "speaker"
+    private var route = PlaybackPrefs.Route.SPEAKER
     private val audioManager = context.getSystemService(AudioManager::class.java)
+    val learning = ListenerLearning(context, main)
+    private val frozenLearned = HashMap<String, Double>()  // §28: learning applies from the next play, never mid-track
+    private var contourKey: Pair<Boolean, Double>? = null
+    private var contourVersion = 0L
+    private var contourHeadroom = 0.0
 
     fun start() {
         player.addListener(this)
         updateRoute()
+        learning.start()
+        learning.onLearned = { replan(user = false) }
         audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
@@ -100,7 +107,13 @@ class GainController(
     fun onItemGain(key: Any?, db: Double, manual: Boolean) {
         main.post {
             val id = key as? String ?: return@post
+            val firstStart = !manualByItem.containsKey(id)
             val changed = manualByItem.put(id, manual) != manual
+            if (firstStart) {
+                lastPlan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
+                val t = QueueId.trackId(id)?.let { trackCache[it] }
+                learning.onItemStart(t, AbSession.condition.value != null)
+            }
             publish(id, db, manual)
             if (changed) replan(user = false)  // the next item's seam depends on how this one began
         }
@@ -141,7 +154,13 @@ class GainController(
     private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean, excerptMs: Map<String, Long>) {
         val settings = PlaybackPrefs.settings.value
         val ab = AbSession.condition.value  // §30: a blind A/B round is running
-        val ceiling = ceilingDbtp
+        val r = route
+        val ceiling = settings.ceiling(r)
+        ceilingDbtp = ceiling
+        val cal = settings.cal(r)
+        updateContour(settings.contour && settings.mode == PlaybackPrefs.Mode.QUIET && ab == null, cal)
+        val headroom = if (gains.contour != null) contourHeadroom else 0.0
+        val frozen = HashMap(frozenLearned)
         val result = withContext(Dispatchers.IO) {
             val items = JSONArray()
             val albums = JSONObject()
@@ -166,12 +185,14 @@ class GainController(
                 }
                 o.put("albumIntent", QueueId.albumIntent(id))
                 o.put("manual", ab != null || manual[i])
+                if (t != null) frozen[id]?.let { o.put("learnedDb", it) } ?: o.put("learn", learning.learnJson(t))
                 excerptMs[id]?.let { o.put("excerptSec", it / 1000.0) }
                 items.put(o)
             }
             val input = JSONObject()
                 .put("targetLufs", settings.mode.targetLufs).put("intimacyLu", settings.intimacyLu)
-                .put("ceilingDbtp", ceiling).put("limiter", false).put("outputCalDb", 0.0)
+                .put("ceilingDbtp", ceiling).put("limiter", false).put("outputCalDb", cal)
+                .put("contourHeadroomDb", headroom).put("nowDays", ListenerLearning.nowDays())
                 .put("albumMode", settings.albumMode.key).put("albums", albums).put("items", items)
             if (ab != null) input.put("abCondition", ab)
             val out = JSONObject(SableEngine.planQueue(input.toString()))
@@ -236,32 +257,59 @@ class GainController(
         jitRunning.remove(t.mediaId)
     }
 
-    // ---------------- Output (MATH §20.1) ----------------
+    /** §24: the Quiet contour for this calibration; the sink reads it from the gain table. */
+    private fun updateContour(on: Boolean, cal: Double) {
+        val key = on to cal
+        if (key == contourKey) return
+        contourKey = key
+        if (!on) { gains.contour = null; return }
+        val design = JSONObject(SableEngine.contourDesign(cal, 48000.0))
+        contourHeadroom = design.optDouble("headroomDb", 0.0)
+        val byRate = ConcurrentHashMap<Int, Pair<DoubleArray, DoubleArray>>()
+        gains.contour = GainTable.Contour(++contourVersion) { fs ->
+            byRate.getOrPut(fs) {
+                val j = JSONObject(SableEngine.contourDesign(cal, fs.toDouble()))
+                fun arr(k: String) = j.getJSONArray(k).let { a -> DoubleArray(5) { a.getDouble(it) } }
+                arr("low") to arr("high")
+            }
+        }
+        Log.i(TAG, "CONTOUR on: low ${design.optDouble("lowHz")} Hz %+.1f dB, high ${design.optDouble("highHz")} Hz %+.1f dB, headroom %.1f dB"
+            .format(design.optDouble("lowGainDb"), design.optDouble("highGainDb"), contourHeadroom))
+    }
+
+    // ---------------- Output (MATH §20) ----------------
     private fun onRouteMaybeChanged() {
-        val before = ceilingDbtp
+        val before = route
         updateRoute()
-        if (before != ceilingDbtp) replan(user = true)
+        if (before != route) {  // registering the callback reports the devices already present: not a change
+            learning.onRouteChanged()
+            replan(user = true)
+        }
     }
 
     private fun updateRoute() {
         val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build()
         val type = audioManager.getAudioDevicesForAttributes(attrs).firstOrNull()?.type
-        val (name, c) = when (type) {
-            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth" to -2.0  // codec not exposed to apps: "unknown" row
-            AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER, AudioDeviceInfo.TYPE_BLE_BROADCAST -> "Bluetooth LE" to -1.5
-            AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_ACCESSORY -> "USB" to -1.0
-            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Wired" to -1.0
-            else -> "Phone speaker" to -1.0
+        route = when (type) {
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> PlaybackPrefs.Route.BLUETOOTH  // codec not exposed to apps: "unknown" row
+            AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER, AudioDeviceInfo.TYPE_BLE_BROADCAST -> PlaybackPrefs.Route.BLE
+            AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_ACCESSORY -> PlaybackPrefs.Route.USB
+            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> PlaybackPrefs.Route.WIRED
+            else -> PlaybackPrefs.Route.SPEAKER
         }
-        route = name
-        ceilingDbtp = c
+        OutputState.route.value = route
+        ceilingDbtp = PlaybackPrefs.settings.value.ceiling(route)
     }
 
     private fun publish(id: String, db: Double, manual: Boolean) {
         val p = lastPlan[id]
         val rules = ArrayList<Pair<String, Double>>()
         p?.optJSONArray("rules")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { rules.add(it.optString("id") to it.optDouble("deltaDb")) } }
-        NowPlaying.gain.value = NowPlayingGain(id, db, p?.optString("source") ?: "provisional", manual, p?.optBoolean("albumRun") ?: false, rules, ceilingDbtp, route)
+        val s = PlaybackPrefs.settings.value
+        NowPlaying.gain.value = NowPlayingGain(
+            id, db, p?.optString("source") ?: "provisional", manual, p?.optBoolean("albumRun") ?: false, rules, ceilingDbtp, route.label,
+            learnedDb = p?.optDouble("learnedDb", 0.0) ?: 0.0, outputCalDb = s.cal(route), contourOn = gains.contour != null,
+        )
         Log.i(TAG, "ITEM $id gain %.2f dB manual=$manual ${p?.optString("source")} ${rules.joinToString { "${it.first} %+.2f".format(it.second) }}".format(db))
     }
 

@@ -23,7 +23,8 @@ add_library(sable_engine STATIC
   src/intent.cpp
   src/pipeline.cpp
   src/audio_source.cpp
-  src/plan.cpp)
+  src/plan.cpp
+  src/contour.cpp)
 target_include_directories(sable_engine PUBLIC include)
 target_compile_options(sable_engine PRIVATE ${SABLE_FP_FLAGS} -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 
@@ -60,7 +61,8 @@ if(SABLE_BUILD_TESTS)
     tests/test_properties.cpp
     tests/test_perceptual.cpp
     tests/test_intent.cpp
-    tests/test_plan.cpp)
+    tests/test_plan.cpp
+    tests/test_contour.cpp)
   target_include_directories(sable_tests PRIVATE third_party/doctest tests)
   target_link_libraries(sable_tests PRIVATE sable_engine)
   target_include_directories(sable_tests PRIVATE src)

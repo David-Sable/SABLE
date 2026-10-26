@@ -149,6 +149,8 @@ class MainActivity : ComponentActivity() {
                         else -> { state.whyTrack = null; while (state.pop()) Unit }
                     }
                 }
+                "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
+                "contour" -> PlaybackPrefs.update(applicationContext) { it.copy(contour = intent.getStringExtra("value") == "on") }
                 "mode" -> PlaybackPrefs.update(applicationContext) {
                     it.copy(mode = if (intent.getStringExtra("value") == "quiet") PlaybackPrefs.Mode.QUIET else PlaybackPrefs.Mode.STANDARD)
                 }
