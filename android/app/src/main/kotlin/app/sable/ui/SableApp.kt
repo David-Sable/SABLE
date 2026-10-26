@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
@@ -169,7 +170,11 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                     Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
                     Group("About")
                     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }
-                    Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SableMark(36.dp)
+                        Spacer(Modifier.width(Space.m))
+                        Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
+                    }
                     Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Reset A/B results", false) { AbTally.reset(context) } }
                 }

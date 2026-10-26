@@ -1,40 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- SABLE mark: the wordmark in thin warm-ivory strokes over true black, and beneath it a song's loudness line with
-     its anchor (the body Sable balances to) glowing. Adaptive-icon foreground: 108 dp canvas, 66 dp safe zone. -->
+<!-- SABLE mark: an S sitting on a level line (every song brought to one level), inside a fine ring.
+     Warm ivory on true black. Adaptive-icon foreground: 108 dp canvas, 66 dp safe zone. Same geometry as
+     ui/Logo.kt (SableMark). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <group android:translateY="-3">
-        <!-- S -->
-        <path
-            android:pathData="M30,43.8 C28.8,42.4 22.5,41.6 21.8,45.4 C21.2,48.6 30.8,48.6 30.4,52.2 C30,56.2 23,56.4 21.6,54.6"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-        <!-- A -->
-        <path
-            android:pathData="M35,56 L40,42 L45,56 M37,51.5 L43,51.5"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-        <!-- B -->
-        <path
-            android:pathData="M50,42 L50,56 M50,42 L55,42 C58.5,42 58.5,49 55,49 L50,49 M55,49 C59.5,49 59.5,56 55,56 L50,56"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-        <!-- L -->
-        <path
-            android:pathData="M64,42 L64,56 L72,56"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-        <!-- E -->
-        <path
-            android:pathData="M86,42 L78,42 L78,56 L86,56 M78,49 L84,49"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <!-- Ring -->
+    <path
+        android:pathData="M54,29 A25,25 0 1,1 53.99,29 Z"
+        android:strokeColor="#59E8E1D3" android:strokeWidth="1.2" />
 
-        <!-- The song: quiet intro and outro, the anchor in the middle. -->
-        <path
-            android:pathData="M24,70 C30,70 31,66.5 36,66.5 C42,66.5 44,64.5 54,64.5 C64,64.5 66,66.5 72,66.5 C77,66.5 78,70 84,70"
-            android:strokeColor="#6B665E" android:strokeWidth="1.1" android:strokeLineCap="round" />
-        <path
-            android:pathData="M43,65.1 C46,64.6 50,64.5 54,64.5 C58,64.5 62,64.6 65,65.1"
-            android:strokeColor="#E8E1D3" android:strokeWidth="1.6" android:strokeLineCap="round" />
-    </group>
+    <!-- S: two arcs meeting on the level line -->
+    <path
+        android:pathData="M61.8,40.5 A9,9 0 1,0 54,54 A9,9 0 1,1 46.2,67.5"
+        android:strokeColor="#E8E1D3" android:strokeWidth="3.2" android:strokeLineCap="round" />
+
+    <!-- Level line, fading at both ends -->
+    <path android:pathData="M30,53.1 L78,53.1 L78,54.9 L30,54.9 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="30" android:startY="54" android:endX="78" android:endY="54">
+                <item android:offset="0" android:color="#00E8E1D3" />
+                <item android:offset="0.3" android:color="#E6E8E1D3" />
+                <item android:offset="0.7" android:color="#E6E8E1D3" />
+                <item android:offset="1" android:color="#00E8E1D3" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

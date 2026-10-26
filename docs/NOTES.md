@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the app icon, and the Quiet contour on by default in Quiet (0.7.1). MATH-1.14.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), and the SABLE mark as icon and in-app logo (0.7.2). MATH-1.14.
   Latest GitHub release: **build 8 (`0.7.1`)**, signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On Dana's phone:** 0.7.0-m7 (installed from the PC; same key, same data); 0.7.1 offered via build 8, not yet confirmed installed. Library 396 songs, all analysed.
+- **On Dana's phone:** 0.7.2 (installed from the PC over USB, 2026-10-26). 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -30,6 +30,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Logo (0.7.2)
+- The SABLE mark: an S sitting on a level line inside a fine ring (warm ivory on black). Launcher icon (adaptive + monochrome themed layer) and `ui/Logo.kt` (`SableMark`, same geometry) beside the title, in About and on the empty Now Playing screen. Chosen from 4 rendered options; verified on the phone.
+- Checked on the phone before this: 0.7.1 from GitHub build 8 installed over the PC build; Quiet switched the contour on automatically.
 
 ### 2026-10-26 (PC) Contour automatic in Quiet (0.7.1)
 - Owner decision: the Quiet contour is on by default in Quiet (Easy mode always; Advanced has an off switch). MATH-1.14 §24.
