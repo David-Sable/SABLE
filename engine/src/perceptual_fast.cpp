@@ -7,6 +7,7 @@
 #include "dsp.h"
 #include "fpenv.h"
 #include "perceptual_common.h"
+#include "pink_table.inc"
 #include "sable/dmath.h"
 #include "sable/perceptual.h"
 
@@ -21,8 +22,12 @@ struct DmMath {
 using F = tvl::Formulas<DmMath>;
 
 constexpr int kFs = 32000;
-constexpr int kFrameHop32 = 128;      // 4 ms at 32 kHz (F1)
-constexpr int kFrameHop8 = 32;        // 4 ms at 8 kHz
+#ifndef SABLE_FAST_FRAME_MS
+#define SABLE_FAST_FRAME_MS 8
+#endif
+constexpr int kFrameMs = SABLE_FAST_FRAME_MS;  // F1 frame period (ms); see MATH 11.2 for the measured choice
+constexpr int kFrameHop32 = 32 * kFrameMs;
+constexpr int kFrameHop8 = 8 * kFrameMs;
 constexpr int kNa = 512, kNb = 512, kNc = 128;  // F3 window lengths (A at 8 kHz, B and C at 32 kHz)
 constexpr double kKappa = 1.6108742; // 0.75 * 10^0.332 (MATH §11.0)
 constexpr double kCompCamLow = 0.75;  // component bands from 0.75 Cam (covers 20 Hz) to 39 Cam
@@ -32,9 +37,10 @@ constexpr float kSampleFlush = 7.888609052210118e-31f;  // 2^-100 (MATH §25.3)
 constexpr int kXLo = -30, kXHi = 130; // F5 lower-slope table range (dB), 1 dB grid
 constexpr double kWFloor = 1e-8;      // filter-shape weights below this are dropped (relative contribution < 1e-8)
 
-double agc4(double a1) {  // F1: per-4 ms coefficient, exact for constant input
-  const double r = 1.0 - a1;
-  return 1.0 - r * r * r * r;
+double agcFrame(double a1) {  // F1: per-frame coefficient 1 - (1 - a1)^kFrameMs, exact for constant input
+  double r = 1.0;
+  for (int i = 0; i < kFrameMs; ++i) r *= 1.0 - a1;
+  return 1.0 - r;
 }
 
 struct BinMap {  // one analysis band: bins -> component index, with ear power weight
@@ -179,8 +185,8 @@ struct FastLoudness::Impl {
       ks += kern[static_cast<std::size_t>(k)];
     }
     for (auto& v : kern) v /= ks;
-    aStlA = agc4(tvl::kStlAttack); aStlR = agc4(tvl::kStlRelease);
-    aLtlA = agc4(tvl::kLtlAttack); aLtlR = agc4(tvl::kLtlRelease);
+    aStlA = agcFrame(tvl::kStlAttack); aStlR = agcFrame(tvl::kStlRelease);
+    aLtlA = agcFrame(tvl::kLtlAttack); aLtlR = agcFrame(tvl::kLtlRelease);
     stl[0].assign(cfs.size(), 0.0);
     stl[1].assign(cfs.size(), 0.0);
   }
@@ -368,19 +374,38 @@ PerceptualSeries FastLoudness::finish() {
   s.finishing = true;
   s.pump();
   PerceptualSeries out;
-  out.frameSeconds = 0.004;
-  // Sub-block m holds frames with t = 4n ms in [0.1m, 0.1(m+1)): n in [25m, 25m+25) (MATH §10.1 step 11).
+  out.frameSeconds = kFrameMs / 1000.0;
+  // Sub-block m holds the frames whose time lies in [0.1m, 0.1(m+1)) s (MATH §10.1 step 11).
   const std::size_t nsub = static_cast<std::size_t>(s.inFrames / s.hopIn);
   out.stlSone.assign(nsub, std::nullopt);
   out.ltlSone.assign(nsub, std::nullopt);
   for (std::size_t m = 0; m < nsub; ++m) {
     double a = 0.0, b = 0.0;
     int cnt = 0;
-    for (std::size_t n = m * 25; n < m * 25 + 25 && n < s.frameStl.size(); ++n) { a += s.frameStl[n]; b += s.frameLtl[n]; ++cnt; }
+    // frames with t = n*kFrameMs ms in [100m, 100m + 100) ms
+    for (std::size_t n = (m * 100 + kFrameMs - 1) / kFrameMs; n * kFrameMs < (m + 1) * 100 && n < s.frameStl.size(); ++n) { a += s.frameStl[n]; b += s.frameLtl[n]; ++cnt; }
     if (cnt) { out.stlSone[m] = a / cnt; out.ltlSone[m] = b / cnt; }
   }
   out.ltlPerFrame = s.frameLtl;
   return out;
+}
+
+double pleFromSone(double sone, bool* clamped) {  // MATH §12.3
+  const auto& t = tables::kPinkSone;
+  constexpr int n = 147;
+  if (clamped) *clamped = false;
+  if (!(sone > t[0])) {
+    if (clamped) *clamped = true;
+    return tables::kPinkLufsStart;
+  }
+  if (sone >= t[n - 1]) {
+    if (clamped) *clamped = true;
+    return tables::kPinkLufsStart + tables::kPinkLufsStep * (n - 1);
+  }
+  int i = 0;
+  while (i + 1 < n && t[i + 1] <= sone) ++i;
+  const double a = dm::log(t[i]), b = dm::log(t[i + 1]);
+  return tables::kPinkLufsStart + tables::kPinkLufsStep * (i + (dm::log(sone) - a) / (b - a));
 }
 
 }  // namespace sable

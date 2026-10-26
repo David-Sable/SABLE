@@ -6,6 +6,7 @@
 #include "doctest.h"
 #include "dsp.h"
 #include "perceptual_tables.inc"
+#include "pink_table.inc"
 #include "sable/perceptual.h"
 #include "signals.h"
 
@@ -82,6 +83,33 @@ TEST_CASE("Fast model: prescale is equivalent to scaling the signal; determinist
   CHECK(maxLtl(r1) == doctest::Approx(maxLtl(r2)).epsilon(1e-4));
   const auto r3 = fast(a, 0.0);
   CHECK(r2.ltlPerFrame == r3.ltlPerFrame);
+}
+
+TEST_CASE("PLE: the pink table is strictly increasing and PLE inverts it exactly at nodes (MATH 12.2-12.3)") {
+  for (int i = 0; i + 1 < 147; ++i) CHECK(sable::tables::kPinkSone[i] < sable::tables::kPinkSone[i + 1]);
+  for (int i = 1; i + 1 < 147; i += 7)
+    CHECK(sable::pleFromSone(sable::tables::kPinkSone[i]) == doctest::Approx(-70.0 + 0.5 * i).epsilon(1e-9));
+  bool clamped = false;
+  sable::pleFromSone(1e-6, &clamped);
+  CHECK(clamped);
+}
+
+TEST_CASE("PLE of independent pink-ish noise at a known LUFS reads back within 0.5 LU") {
+  // A different noise (sum of sines, -3 dB/oct) than the table's: checks the scale is meaningful, not exact.
+  for (double target : {-30.0, -14.0}) {
+    // Log-spaced sines with equal power each => power density ~ 1/f (pink). tilt must be 0 here.
+    auto a = sigs::multiSine(32000, 2, 12.0, 25.0, 14000.0, 200, -20.0, 99, 0.0);
+    for (std::size_t i = 0; i + 1 < a.x.size(); i += 2) a.x[i + 1] = a.x[i];  // diotic
+    const auto lr = sigs::analyze(a);
+    const auto r = fast(a, target - *lr.integratedLufs);
+    double sum = 0;
+    std::size_t n = 0;
+    for (std::size_t f = 0; f < r.ltlPerFrame.size(); ++f)
+      if (static_cast<double>(f) * r.frameSeconds >= 2.0) { sum += r.ltlPerFrame[f]; ++n; }
+    const double ple = sable::pleFromSone(sum / static_cast<double>(n));
+    MESSAGE("target " << target << " LUFS -> PLE " << ple);
+    CHECK(std::fabs(ple - target) <= 0.5);
+  }
 }
 
 #ifdef SABLE_HAVE_REFERENCE

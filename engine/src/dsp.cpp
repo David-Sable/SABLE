@@ -6,6 +6,10 @@
 
 #include "sable/dmath.h"
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 namespace sable::dsp {
 
 template <typename T>
@@ -96,6 +100,28 @@ std::vector<double> hannSymmetric(std::size_t n) {
 }
 
 namespace {
+// Dot product with 4 fixed lanes (lane k sums j = k mod 4 in order), reduced as (l0+l1)+(l2+l3).
+// MATH 25.4. The NEON float version performs exactly the same non-fused operations per lane.
+template <typename T>
+T dot4lanes(const T* c, const T* x, int n) {
+  T l0 = T(0), l1 = T(0), l2 = T(0), l3 = T(0);
+  for (int j = 0; j < n; j += 4) {
+    l0 = l0 + c[j] * x[j];
+    l1 = l1 + c[j + 1] * x[j + 1];
+    l2 = l2 + c[j + 2] * x[j + 2];
+    l3 = l3 + c[j + 3] * x[j + 3];
+  }
+  return (l0 + l1) + (l2 + l3);
+}
+#if defined(__aarch64__)
+template <>
+float dot4lanes<float>(const float* c, const float* x, int n) {
+  float32x4_t acc = vdupq_n_f32(0.0f);
+  for (int j = 0; j < n; j += 4) acc = vaddq_f32(acc, vmulq_f32(vld1q_f32(c + j), vld1q_f32(x + j)));
+  const float l0 = vgetq_lane_f32(acc, 0), l1 = vgetq_lane_f32(acc, 1), l2 = vgetq_lane_f32(acc, 2), l3 = vgetq_lane_f32(acc, 3);
+  return (l0 + l1) + (l2 + l3);
+}
+#endif
 long long gcdLL(long long a, long long b) { while (b) { const long long t = a % b; a = b; b = t; } return a; }
 double besselI0(double x) {
   double sum = 1.0, term = 1.0;
@@ -152,14 +178,7 @@ void Resampler<T>::produce(std::vector<T>& out, long long available) {
     const long long r = (pos + half_) % l_;
     const T* c = poly_.data() + r * taps_;
     const T* x = hist_.data() + (n0 - (taps_ - 1) - base_);
-    T l0 = T(0), l1 = T(0), l2 = T(0), l3 = T(0);  // fixed 4-lane order (MATH §25.4)
-    for (int j = 0; j < taps_; j += 4) {
-      l0 = l0 + c[j] * x[j];
-      l1 = l1 + c[j + 1] * x[j + 1];
-      l2 = l2 + c[j + 2] * x[j + 2];
-      l3 = l3 + c[j + 3] * x[j + 3];
-    }
-    out.push_back((l0 + l1) + (l2 + l3));
+    out.push_back(dot4lanes(c, x, taps_));
     ++nextOut_;
   }
   const long long need = (nextOut_ * m_ + half_) / l_ - taps_;  // oldest index still needed

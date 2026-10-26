@@ -81,7 +81,8 @@ def main():
         sl = slice(100, n)  # after the first 100 ms
         rel = np.abs(r[sl] - o[sl]) / np.maximum(o[sl], 1e-3)
         # fast frames are 4 ms: compare with the reference sampled at the same instants
-        rf = r[::4][:len(fz)]
+        step = max(1, round(len(r) / max(len(fz), 1)))  # fast frame period in ms
+        rf = r[::step][:len(fz)]
         k = min(len(rf), len(fz))
         relf = np.abs(fz[25:k] - rf[25:k]) / np.maximum(rf[25:k], 1e-3)
         worst = max(worst, float(rel.max()))
