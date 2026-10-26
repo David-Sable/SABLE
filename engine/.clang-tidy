@@ -1,0 +1,11 @@
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  performance-*,
+  clang-analyzer-*,
+  cert-flp30-c,
+  misc-redundant-expression,
+  readability-misleading-indentation
+WarningsAsErrors: ''
+HeaderFilterRegex: 'engine/(src|include)/.*'
