@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.7 (2026-10-26)
+**Version:** MATH-1.8 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -420,7 +420,8 @@ For a perceptual loudness value `N` (sones): `PLE(N) = N_pink^{-1}(N) + c_m`, wi
 
 ### 12.4 Prescaled analysis (level dependence)
 Because loudness is level-dependent, pass 2 runs on the signal **prescaled** by `s = T_std − L_I` dB (`T_std = −14`, §16). The integrated loudness is ≈ −14 LUFS during perceptual analysis. That places the analysis near the level where Standard mode plays it. Unscaled results: `PLE_unscaled = PLE(N) − s`.
-**Refinement:** let `g*` = the **Standard-mode `g_anchor`** (§16.2). It is taken before intimacy, the peak cap, learning and calibration, and is always computed with `T_std`, whatever the current mode. If `|g* − s| > 2 dB`, pass 2 is re-run once with `s' = g*` (background only, never in JIT), and the result replaces the first. One refinement at most; the iteration is not continued.
+**Refinement:** let `g*` = the **Standard-mode `g_anchor`** (§16.2). It is taken before intimacy, the peak cap, learning and calibration, and is always computed with `T_std`, whatever the current mode. If `|g* − s| > 6 dB`, pass 2 is re-run once with `s' = g*` (background only, never in JIT), and the result replaces the first. One refinement at most; the iteration is not continued.
+*Measured (MATH-1.8):* on the 22 corpus tracks where `|g* − s|` was 2.1–4.3 dB, re-running changed `PLE_anchor` by a median 0.021 LU and at most 0.109 LU, which is negligible. The trigger was therefore raised from 2 dB to 6 dB, beyond every corpus case. That removes a second perceptual pass costing ≈ 4 s on the A17.
 If `L_I` is absent (silence), pass 2 is skipped entirely and every PLE is absent. `s` is always based on `L_I`, never on `L_anchor`, which can be absent even when `L_I` exists (§16.2).
 **Quiet mode** (§16.1) reuses the Standard-mode PLE. Its −5 dB level change is not re-evaluated perceptually (the optional contour, §24, handles spectral balance at low level). This approximation is documented in the Why sheet's technical details.
 
@@ -830,7 +831,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | TVL constants | C 0.0631; STL aA 0.045, aR 0.033; LTL aA 0.01, aR 0.00133; B 0.08; θ 1.5978 | | 10 | STD |
 | D_cal | 89.0 | dB SPL | 12.1 | TUNE |
 | Pink seed | 0x5AB1E | | 12.2 | DESIGN |
-| PLE refinement trigger | 2.0 | dB | 12.4 | DESIGN |
+| PLE refinement trigger | 6.0 | dB | 12.4 | DESIGN (measured, 1.8) |
 | Feature frame | 0.5 s × max(1, ceil(D/900 s)) | s | 13.1 | DESIGN |
 | Novelty kernel half-size | 8 | s | 13.3 | TUNE |
 | Novelty threshold | max(0.1, μ + 0.5σ) | | 13.4 | TUNE |

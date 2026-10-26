@@ -148,7 +148,7 @@ std::string pct(std::vector<double> v) {  // p50, p75, p90, p95, max of anchor L
   std::string o;
   for (double q : {0.5, 0.75, 0.9, 0.95, 1.0}) {
     if (!o.empty()) o += ',';
-    o += num(v[static_cast<std::size_t>(q * static_cast<double>(v.size() - 1) + 0.5)]);
+    o += num(v[static_cast<std::size_t>(std::floor(q * static_cast<double>(v.size() - 1) + 0.5))]);
   }
   return o;
 }
@@ -179,8 +179,9 @@ int decide(const char* path) {  // MATH §12.4 two-pass pipeline, §13-§16
   sable::GainContext std;
   std.targetLufs = -14.0;
   sable::TrackUnderstanding u;
-  double s = 0.0;
+  double s = 0.0, firstS = 0.0;
   bool refined = false;
+  std::optional<double> firstPle;
   if (r.integratedLufs) {
     s = -14.0 - *r.integratedLufs;
     auto ps = perceptualPass(path, s);
@@ -188,7 +189,9 @@ int decide(const char* path) {  // MATH §12.4 two-pass pipeline, §13-§16
     const auto first = sable::decideTrackGain(r, u, std);
     double gAnchor = first.intentDb;
     for (const auto& rule : first.rules) if (rule.id == "ANCHOR_MATCH") gAnchor = rule.deltaDb;
-    if (std::fabs(gAnchor - s) > 2.0) {  // one refinement (MATH §12.4)
+    firstPle = u.anchorPle;
+    firstS = s;
+    if (std::fabs(gAnchor - s) > 6.0) {  // one refinement, safety net only (MATH §12.4, 1.8)
       s = gAnchor;
       ps = perceptualPass(path, s);
       u = sable::understand(r, &ps, s);
@@ -206,7 +209,7 @@ int decide(const char* path) {  // MATH §12.4 two-pass pipeline, §13-§16
                   ",\"character\":\"" + sable::toString(u.character) + "\",\"tilt\":" + num(u.tiltDbPerOct) + ",\"density\":" + num(u.density) +
                   ",\"densityAnchor\":" + num(u.densityAnchor) + ",\"transientsPerSec\":" + num(u.transientsPerSec) +
                   ",\"plrAnchor\":" + num(u.plrAnchorDb) + ",\"sectionContrast\":" + num(u.sectionContrastLu) + ",\"prescaleDb\":" + num(s) +
-                  ",\"refined\":" + (refined ? "true" : "false") + ",\"anchorLtlPct\":[" + pct(u.anchorLtlSone) + "],\"sections\":[";
+                  ",\"refined\":" + (refined ? "true" : "false") + ",\"firstPle\":" + num(firstPle) + ",\"firstPrescale\":" + num(firstS) + ",\"anchorLtlPct\":[" + pct(u.anchorLtlSone) + "],\"sections\":[";
   for (std::size_t i = 0; i < u.sections.size(); ++i) {
     const auto& sec = u.sections[i];
     if (i) o += ',';

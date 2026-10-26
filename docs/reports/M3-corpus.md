@@ -29,3 +29,20 @@ Adopted: 95th percentile, music-centring offset c_m = +0.65 LU, perceptual bound
 ## Open items
 - Listening check by the owner: labels and the largest moves above.
 - Refinement doubles pass-2 cost on 42% of tracks; to be measured on the A17 (M3 close-out).
+
+## Close-out (2026-10-26)
+- **Refinement study (MATH-1.8):** on the 22 tracks that triggered the 2 dB refinement, re-running the perceptual
+  pass changed PLE_anchor by a median 0.021 LU and at most 0.109 LU (level steps 2.1-4.3 dB). The trigger was
+  raised to 6 dB, so the second pass is now a safety net only.
+- **On the Galaxy A17:** test suite 2,571/2,571 assertions pass on ARM64. `--decide` output (sections, anchor,
+  character, Standard/Quiet gains, rules) is byte-identical to the host on all 5 golden tracks.
+- **Full analysis time** (pass 1 + perceptual pass + understanding + decision; decoded input; Cortex-A78 big core):
+
+  | Track | Duration | Time | Per 4 min |
+  |---|---|---|---|
+  | NIN *Discipline* | 4:19 | 5.10 s | 4.7 s |
+  | NIN *Demon Seed* | 4:59 | 5.70 s | 4.6 s |
+  | Death Grips (brickwalled) | 2:52 | 3.51 s | 4.9 s |
+
+  About 5 s of the 10 s budget remains for decoding (two passes), which M4 measures.
+- **Hygiene:** host 40/40 test cases (2,577 assertions); ASan + UBSan clean; clang-tidy clean across the engine.

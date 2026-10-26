@@ -93,7 +93,7 @@ PerceptualSeries referenceLoudness(const std::vector<float>& in, int fsIn, int c
   // Windows (symmetric Hann, centred, zero-padded to 2048) and band limits (TVL18 code).
   std::vector<std::vector<double>> win(6, std::vector<double>(kNpts, 0.0));
   for (int i = 0; i < 6; ++i) {
-    const std::size_t wl = static_cast<std::size_t>(kNpts >> i);
+    const std::size_t wl = static_cast<std::size_t>(kNpts) >> static_cast<unsigned>(i);
     const std::size_t off = (kNpts - wl) / 2;
     const auto hw = dsp::hannSymmetric(wl);
     for (std::size_t k = 0; k < wl; ++k) win[static_cast<std::size_t>(i)][off + k] = hw[k];
