@@ -142,6 +142,17 @@ std::string num(const std::optional<double>& v) {
   return b;
 }
 
+std::string pct(std::vector<double> v) {  // p50, p75, p90, p95, max of anchor LTL (sones) for the calibration study
+  if (v.empty()) return "";
+  std::sort(v.begin(), v.end());
+  std::string o;
+  for (double q : {0.5, 0.75, 0.9, 0.95, 1.0}) {
+    if (!o.empty()) o += ',';
+    o += num(v[static_cast<std::size_t>(q * static_cast<double>(v.size() - 1) + 0.5)]);
+  }
+  return o;
+}
+
 sable::PerceptualSeries perceptualPass(const char* path, double prescale) {
   std::unique_ptr<sable::FastLoudness> m;
   readWav(path, [&](const WavInfo& w) { m = std::make_unique<sable::FastLoudness>(w.fs, w.channels, prescale); },
@@ -195,7 +206,7 @@ int decide(const char* path) {  // MATH §12.4 two-pass pipeline, §13-§16
                   ",\"character\":\"" + sable::toString(u.character) + "\",\"tilt\":" + num(u.tiltDbPerOct) + ",\"density\":" + num(u.density) +
                   ",\"densityAnchor\":" + num(u.densityAnchor) + ",\"transientsPerSec\":" + num(u.transientsPerSec) +
                   ",\"plrAnchor\":" + num(u.plrAnchorDb) + ",\"sectionContrast\":" + num(u.sectionContrastLu) + ",\"prescaleDb\":" + num(s) +
-                  ",\"refined\":" + (refined ? "true" : "false") + ",\"sections\":[";
+                  ",\"refined\":" + (refined ? "true" : "false") + ",\"anchorLtlPct\":[" + pct(u.anchorLtlSone) + "],\"sections\":[";
   for (std::size_t i = 0; i < u.sections.size(); ++i) {
     const auto& sec = u.sections[i];
     if (i) o += ',';

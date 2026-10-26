@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.6 (2026-10-26)
+**Version:** MATH-1.7 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -416,7 +416,7 @@ Rationale: a 1 kHz tone at −14 dBFS peak in both channels reads −14 LUFS, an
 `N_pink` is strictly increasing. The test asserts it.
 
 ### 12.3 PLE
-For a perceptual loudness value `N` (sones): `PLE(N) = N_pink^{-1}(N)`. Inversion uses monotone piecewise-linear interpolation in `(x, log N)`. Outside the table it is clamped to the end values and flagged.
+For a perceptual loudness value `N` (sones): `PLE(N) = N_pink^{-1}(N) + c_m`, with the **music-centring offset `c_m = +0.65 LU`** **[TUNE]**: the median of `PLE_pink(N_anchor) − L_anchor` over the 52-track M3 corpus. With it, typical music lands where BS.1770 puts it, and the perceptual lens only moves songs that genuinely differ (deep bass, sparse or dense spectra). (MATH-1.7: before centring, using the *mean* LTL, all music read 3.8 LU below pink noise; see §14.7.) Inversion uses monotone piecewise-linear interpolation in `(x, log N)`. Outside the table it is clamped to the end values and flagged.
 
 ### 12.4 Prescaled analysis (level dependence)
 Because loudness is level-dependent, pass 2 runs on the signal **prescaled** by `s = T_std − L_I` dB (`T_std = −14`, §16). The integrated loudness is ≈ −14 LUFS during perceptual analysis. That places the analysis near the level where Standard mode plays it. Unscaled results: `PLE_unscaled = PLE(N) − s`.
@@ -501,7 +501,7 @@ The anchor is the sustained part the song is built around. Brief spikes, silence
 4. For `δ = 3, 4, 5, 6` LU **[TUNE: start 3, step 1, max 6]**: `A = { s ∈ Q : L_s ≥ L_top − δ }`. Stop at the first `δ` where `Σ_{s∈A} dur(s) ≥ D_req`.
 5. If no `δ ≤ 6` satisfies this, or `Q = ∅`, or `D_ns < 20 s`: **fallback anchor** = all non-silent, non-fade sections (or the whole track if that is empty), flagged `anchorFallback = true`.
 6. **Anchor loudness** `L_anchor` = §4.3 over the anchor intervals (energy-domain, gated within the set).
-7. **Perceptual anchor**: `N_anchor` = the mean of `LTL_m` (sones) over sub-blocks `m` such that `m` lies in an anchor interval, **block `m` exists, `m ∈ J_g`** (the anchor's gated block set from step 6), and `LTL_m` is defined. If that set is empty, `N_anchor` is absent. Then `PLE_anchor = PLE(N_anchor) − s` (§12.4).
+7. **Perceptual anchor**: `N_anchor` = the **95th percentile** (nearest rank, `idx = floor(0.95·(n−1) + 0.5)` of the ascending values) of `LTL_m` (sones) over sub-blocks `m` such that `m` lies in an anchor interval, **block `m` exists, `m ∈ J_g`** (the anchor's gated block set from step 6), and `LTL_m` is defined. If that set is empty, `N_anchor` is absent. *Why the 95th percentile (MATH-1.7):* sones are compressive, so the mean penalizes fluctuating material (speech, solo piano) relative to steady noise. Moore et al. predict overall loudness from the high values of long-term loudness, not its mean. On the 52-track corpus the mean gave median `PLE − L_anchor` = −3.76 LU (SD 3.72), and the 95th percentile gave −0.65 LU (SD 3.00). Then `PLE_anchor = PLE(N_anchor) − s` (§12.4).
 8. **Anchor position** (for display): the anchor intervals plus `t_center` = the duration-weighted center of the anchor.
 
 ---
@@ -535,7 +535,7 @@ All gains are in dB, computed in `double`.
 
 ### 16.2 Anchor match
 1. `g_anchor = T − PLE_anchor`
-2. **Perceptual deviation bound** (protects against model failure on unusual signals): `PLE_anchor` is clamped to `[L_anchor − B_p, L_anchor + B_p]` before step 1, with `B_p = 4.0 LU` **[TUNE]**. Rule `PERCEPTUAL_BOUND` fires if the clamp is active.
+2. **Perceptual deviation bound** (protects against model failure on unusual signals): `PLE_anchor` is clamped to `[L_anchor − B_p, L_anchor + B_p]` before step 1, with `B_p = 3.0 LU` **[TUNE]** (was 4.0 before MATH-1.7: "change less"). Rule `PERCEPTUAL_BOUND` fires if the clamp is active.
 3. If `PLE_anchor` is absent (the perceptual pass did not complete), `L_anchor` is used. Rule `BS1770_ONLY` fires. If `L_anchor` is also absent while `L_I` exists (e.g. the anchor blocks are all gated out), `L_I` is used and rule `ANCHOR_FALLBACK` fires.
 
 ### 16.3 Intimacy allowance
@@ -844,7 +844,9 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Anchor δ sequence | 3, 4, 5, 6 | LU | 14 | TUNE |
 | Labels | see §15 table | | 15 | TUNE |
 | T_std, T_quiet | −14, −19 | LUFS-eq | 16.1 | DESIGN (owner) |
-| Perceptual bound B_p | 4.0 | LU | 16.2 | TUNE |
+| Perceptual bound B_p | 3.0 | LU | 16.2 | TUNE |
+| Music-centring offset c_m | +0.65 | LU | 12.3 | TUNE |
+| Anchor perceptual statistic | 95th percentile of gated anchor LTL | | 14.7 | DESIGN |
 | Intimacy a_int | default 1.0, range [0, 2] | LU | 16.3 | DESIGN |
 | Limiter max reduction | 6.0 | dB | 16.4 | DESIGN |
 | Album intimacy share | 50 | % | 17.2 | DESIGN |

@@ -12,6 +12,7 @@ namespace sable {
 namespace {
 
 constexpr double kSub = 0.1;  // sub-block seconds (MATH §3.1)
+constexpr double kMusicCentreLu = 0.65;  // MATH §12.3 c_m: corpus median of PLE_p95 - L_anchor (52 tracks)
 
 std::optional<double> lufsOfPower(double p) {
   if (!(p > 1e-20)) return std::nullopt;
@@ -496,11 +497,15 @@ TrackUnderstanding understand(const LoudnessResult& r, const PerceptualSeries* p
   for (std::size_t j : aBlocks) u.anchorBlockPower.push_back(r.blockPower[j]);
   if (r.shortFile && r.integratedLufs) u.anchorLufs = r.integratedLufs;  // §16.6
   if (perc && !aGated.empty()) {
-    double s = 0.0;
-    int n = 0;
     for (std::size_t j : aGated)
-      if (j < perc->ltlSone.size() && perc->ltlSone[j]) { s += *perc->ltlSone[j]; ++n; }
-    if (n > 0) u.anchorPle = pleFromSone(s / n) - prescaleDb;
+      if (j < perc->ltlSone.size() && perc->ltlSone[j]) u.anchorLtlSone.push_back(*perc->ltlSone[j]);
+    const std::size_t n = u.anchorLtlSone.size();
+    if (n > 0) {  // §14.7: 95th percentile of the gated anchor LTL (nearest rank), music-centred PLE (§12.3)
+      std::vector<double> v = u.anchorLtlSone;
+      std::sort(v.begin(), v.end());
+      const double p95 = v[static_cast<std::size_t>(std::floor(0.95 * static_cast<double>(v.size() - 1) + 0.5))];
+      u.anchorPle = pleFromSone(p95) + kMusicCentreLu - prescaleDb;
+    }
   }
 
   // ---- breakdowns (§13.6.7), section contrast, anchor descriptors ----
@@ -546,7 +551,7 @@ TrackUnderstanding understand(const LoudnessResult& r, const PerceptualSeries* p
 // ---------------- Layer 3 ----------------
 
 namespace {
-constexpr double kPerceptualBound = 4.0;  // §16.2 B_p
+constexpr double kPerceptualBound = 3.0;  // §16.2 B_p
 constexpr double kLimiterAllowance = 6.0; // §16.4
 constexpr double kClipMargin = 1.0;       // §1.1 M_clipTP
 

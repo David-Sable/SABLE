@@ -96,10 +96,10 @@ TEST_CASE("Track gain: anchor match, perceptual bound, BS1770-only, peak cap (MA
   CHECK(d.intentDb == doctest::Approx(-5.0));   // -14 - (-9)
   CHECK(d.gainDb == doctest::Approx(-5.0));
   CHECK(!hasRule(d, "PEAK_CAP"));
-  u.anchorPle = -2.0;  // 8 LU above L_anchor: clamped to -10 + 4 = -6
+  u.anchorPle = -2.0;  // 8 LU above L_anchor: clamped to -10 + 3 = -7
   d = sable::decideTrackGain(r, u, c);
-  CHECK(d.intentDb == doctest::Approx(-8.0));
-  CHECK(ruleDelta(d, "PERCEPTUAL_BOUND") == doctest::Approx(-4.0));
+  CHECK(d.intentDb == doctest::Approx(-7.0));
+  CHECK(ruleDelta(d, "PERCEPTUAL_BOUND") == doctest::Approx(-5.0));
   u.anchorPle.reset();
   d = sable::decideTrackGain(r, u, c);
   CHECK(d.intentDb == doctest::Approx(-4.0));

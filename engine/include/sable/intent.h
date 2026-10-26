@@ -37,6 +37,7 @@ struct TrackUnderstanding {
   double anchorCentreSec = 0.0, anchorSec = 0.0;
   std::optional<double> anchorLufs;   // L_anchor
   std::optional<double> anchorPle;    // PLE_anchor (unscaled, §12.4)
+  std::vector<double> anchorLtlSone;  // gated anchor sub-block LTL values (diagnostics / calibration study)
   std::vector<double> anchorBlockPower;  // P_j of the anchor's member blocks (for album pooling, §17.2)
   // Seams (MATH §18): BS.1770 short-term loudness of the first / last 3 s of non-silent audio
   std::optional<double> openLufs, endLufs;
