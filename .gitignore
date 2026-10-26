@@ -1,0 +1,36 @@
+# Never commit audio (test corpus lives outside the repo, e.g. ~/dev/sable-corpus)
+*.flac
+*.mp3
+*.m4a
+*.aac
+*.alac
+*.ogg
+*.opus
+*.wav
+*.aif
+*.aiff
+*.zip
+cover.jpg
+
+# Build output
+build/
+build-*/
+out/
+.cxx/
+.gradle/
+**/build/
+*.apk
+*.aab
+local.properties
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
