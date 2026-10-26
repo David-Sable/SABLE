@@ -28,6 +28,9 @@ object SableEngine {
     @JvmStatic external fun analyzeNativeFd(fd: Int, kind: Int): String
     @JvmStatic external fun jitNativeFd(fd: Int, kind: Int, ceilingDbtp: Double): String
 
+    /** Gain of every queue item (MATH §17.1, §18, §21, §22). JSON schema: docs/plan-json.md. */
+    @JvmStatic external fun planQueue(inputJson: String): String
+
     /** Engine-decodable formats: FLAC and MP3 (owner decisions 2026-10-26). */
     fun nativeKind(mime: String?): Int? = when (mime) {
         "audio/flac" -> 0

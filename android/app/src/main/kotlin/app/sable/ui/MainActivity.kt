@@ -1,6 +1,7 @@
 package app.sable.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -9,51 +10,45 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import app.sable.data.LibraryRow
 import app.sable.data.SableDatabase
-import app.sable.data.TrackWithAnalysis
+import app.sable.playback.NowPlaying
+import app.sable.playback.PlaybackPrefs
+import app.sable.playback.PlaybackService
+import app.sable.playback.QueueId
+import com.google.common.util.concurrent.ListenableFuture
 import app.sable.library.JitAnalyzer
 import app.sable.library.LibraryScanner
 import app.sable.library.TrackAnalyzer
 import app.sable.work.ScanWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
- * Milestone 4 debug screen: grant access, scan, see per-track analysis. The real UI arrives in M6.
- * adb automation (results logged under tag "SableBench"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync
+ * M5 preview: library, Play album / song world, Standard / Quiet, now playing with the applied gain. The designed UI
+ * arrives in M6. adb automation (results logged under tags "SableBench" and "SablePlay"):
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd next | prev | pause | play | seek --el ms N
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd mode --es value quiet|standard
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class MainActivity : ComponentActivity() {
-    private val ink = Color(0xFFE8E1D3)  // warm ivory accent (PLAN decision)
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    private var controller: MediaController? = null
+    private val pending = ArrayList<(MediaController) -> Unit>()
+    private var now by mutableStateOf(NowPlayingUi())
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
@@ -62,9 +57,72 @@ class MainActivity : ComponentActivity() {
         val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) askPermissions.launch(needed.toTypedArray())
+        PlaybackPrefs.load(this)
         handleCommand(intent)
-        setContent { Screen() }
+        val rowsFlow = SableDatabase.get(applicationContext).library().observeRows(SableDatabase.MATH_VERSION)
+        setContent {
+            val rows by rowsFlow.collectAsState(initial = emptyList())
+            val settings by PlaybackPrefs.settings.collectAsState()
+            val gain by NowPlaying.gain.collectAsState()
+            PlayerScreen(
+                rows, settings, now, gain,
+                onPlayAlbum = { a -> play(a.tracks.map { QueueId.request(it.mediaId, albumIntent = true) }, 0) },
+                onPlaySongWorld = { list, i -> play(list.drop(i).map { QueueId.request(it.mediaId, albumIntent = false) }, 0) },
+                onMode = { m -> PlaybackPrefs.update(this) { it.copy(mode = m) } },
+                onAlbumMode = { PlaybackPrefs.update(this) { it.copy(albumMode = PlaybackPrefs.AlbumMode.entries[(it.albumMode.ordinal + 1) % 3]) } },
+                onPrev = { withController { it.seekToPrevious() } },
+                onPlayPause = { withController { c -> if (c.isPlaying) c.pause() else c.play() } },
+                onNext = { withController { it.seekToNext() } },
+                onRescan = {
+                    lifecycleScope.launch(Dispatchers.Default) {
+                        LibraryScanner(applicationContext).syncMediaStore()
+                        ScanWorker.enqueue(applicationContext, requireCharging = false)
+                    }
+                },
+            )
+        }
     }
+
+    override fun onStart() {
+        super.onStart()
+        val f = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
+        controllerFuture = f
+        f.addListener({
+            val c = runCatching { f.get() }.getOrNull() ?: return@addListener
+            controller = c
+            c.addListener(object : Player.Listener {
+                override fun onEvents(player: Player, events: Player.Events) = refresh(player)
+            })
+            refresh(c)
+            pending.forEach { it(c) }
+            pending.clear()
+        }, mainExecutor)
+    }
+
+    override fun onStop() {
+        controllerFuture?.let { MediaController.releaseFuture(it) }
+        controller = null
+        super.onStop()
+    }
+
+    private fun refresh(p: Player) {
+        val m = p.mediaMetadata
+        now = NowPlayingUi(m.title?.toString() ?: "", m.artist?.toString() ?: "", p.isPlaying, p.currentMediaItem != null)
+    }
+
+    private fun withController(action: (MediaController) -> Unit) {
+        controller?.let(action) ?: pending.add(action)
+    }
+
+    private fun play(requestIds: List<String>, start: Int) = withController { c ->
+        c.setMediaItems(requestIds.map { MediaItem.Builder().setMediaId(it).build() }, start, 0L)
+        c.prepare()
+        c.play()
+    }
+
+    /** The library in album order (for the adb play commands). */
+    private suspend fun libraryInAlbumOrder() = SableDatabase.get(applicationContext).library().allTracks()
+        .sortedWith(compareBy({ it.albumArtist.lowercase() }, { it.album.lowercase() }, { it.disc }, { it.track }))
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -91,6 +149,27 @@ class MainActivity : ComponentActivity() {
                 }
                 "cancel" -> androidx.work.WorkManager.getInstance(applicationContext).cancelUniqueWork(ScanWorker.NAME).also { Log.i(TAG, "scan cancelled") }
                 "bench" -> bench(intent.getStringExtra("match") ?: "", intent.getBooleanExtra("mc", false))
+                "playalbum" -> {
+                    val m = intent.getStringExtra("match") ?: ""
+                    val album = libraryInAlbumOrder().filter { it.album.contains(m, true) }.groupBy { it.albumId }.values.firstOrNull() ?: return@launch
+                    runOnUiThread { play(album.map { QueueId.request(it.mediaId, albumIntent = true) }, intent.getIntExtra("start", 0)) }
+                }
+                "playsong" -> {
+                    val m = intent.getStringExtra("match") ?: ""
+                    val all = libraryInAlbumOrder()
+                    val t = all.firstOrNull { it.title.contains(m, true) || it.displayName.contains(m, true) } ?: return@launch
+                    val album = all.filter { it.albumId == t.albumId && it.albumArtist == t.albumArtist }
+                    val from = album.indexOfFirst { it.mediaId == t.mediaId }
+                    runOnUiThread { play(album.drop(from).map { QueueId.request(it.mediaId, albumIntent = false) }, 0) }
+                }
+                "next" -> runOnUiThread { withController { it.seekToNext() } }
+                "prev" -> runOnUiThread { withController { it.seekToPrevious() } }
+                "pause" -> runOnUiThread { withController { it.pause() } }
+                "play" -> runOnUiThread { withController { it.play() } }
+                "seek" -> runOnUiThread { withController { it.seekTo(intent.getLongExtra("ms", 0L)) } }
+                "mode" -> PlaybackPrefs.update(applicationContext) {
+                    it.copy(mode = if (intent.getStringExtra("value") == "quiet") PlaybackPrefs.Mode.QUIET else PlaybackPrefs.Mode.STANDARD)
+                }
             }
         }
     }
@@ -134,44 +213,6 @@ class MainActivity : ComponentActivity() {
         Log.i(TAG, "STATS tracks ${tracks.size} analysed $analysed unique ${hashes.size} | audio ${audioMs / 60000} min | " +
             "analysis ${workMs / 1000} s total, ${"%.2f".format(workMs * 240_000.0 / maxOf(1L, audioMs) / 1000)} s per 4 min avg, worst ${"%.2f".format(worstPer4 / 1000)} s ($worstName) | " +
             "decodeClipped $clipped | characters $chars")
-    }
-
-    @Composable
-    private fun Screen() {
-        val dao = remember { SableDatabase.get(applicationContext).library() }
-        val lib by dao.observeLibrary(SableDatabase.MATH_VERSION).collectAsState(initial = emptyList())
-        val scope = rememberCoroutineScope()
-        var status by remember { mutableStateOf("") }
-        Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
-            Spacer(Modifier.height(32.dp))
-            Text("SABLE · M4 library", color = ink, fontSize = 22.sp)
-            Text("${lib.size} tracks · ${lib.count { it.gainStandardDb != null }} analysed $status", color = Color(0xFF9A948A), fontSize = 13.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 12.dp)) {
-                Button(onClick = { scope.launch(Dispatchers.Default) { status = "· found ${LibraryScanner(applicationContext).syncMediaStore()}" } }) { Text("Find music") }
-                Button(onClick = { ScanWorker.enqueue(applicationContext, requireCharging = false); status = "· scanning" }) { Text("Analyse now") }
-                Button(onClick = { ScanWorker.enqueue(applicationContext, requireCharging = true); status = "· when charging" }) { Text("While charging") }
-            }
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(lib, key = { it.mediaId }) { t -> Row(t) { scope.launch { jit(t) } } }
-            }
-        }
-    }
-
-    private suspend fun jit(t: TrackWithAnalysis) = withContext(Dispatchers.Default) {
-        val track = SableDatabase.get(applicationContext).library().track(t.mediaId) ?: return@withContext
-        val r = JitAnalyzer(applicationContext).analyze(Uri.parse(track.uri), track.durationMs)
-        Log.i(TAG, "JIT ${track.displayName}: ${r.millis} ms ${r.json}")
-    }
-
-    @Composable
-    private fun Row(t: TrackWithAnalysis, onClick: () -> Unit) {
-        Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp)) {
-            Text(t.title.ifEmpty { "(untitled)" }, color = ink, fontSize = 15.sp)
-            val detail = if (t.gainStandardDb == null) "${t.artist} · not analysed" else
-                "${t.artist} · ${t.character} · I %.1f LUFS · gain %+.1f dB (quiet %+.1f) · %d+%d ms"
-                    .format(t.integratedLufs ?: Double.NaN, t.gainStandardDb, t.gainQuietDb ?: Double.NaN, t.decodeMs ?: 0, t.engineMs ?: 0)
-            Text(detail, color = Color(0xFF8A847A), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-        }
     }
 
     companion object {

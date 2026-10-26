@@ -12,7 +12,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | M2 | Engine baseline (BS.1770, LRA, TP), host + NDK | EBU 3341/3342 pass; corpus agrees with libebur128 / FFmpeg / pyloudnorm within 0.1 LU (differences explained); property + golden tests; sanitizers + clang-tidy clean; golden files bit-identical on the A17; A17 benchmark reported | ✅ done 2026-10-26 (docs/reports/M2-report.md); perf fix carried to M3 |
 | M3 | Intent layers | Reference vs Octave-run TVL18 code; fast-model error within budget; structure/anchor/labels/gain rules unit-tested; corpus report | ✅ done 2026-10-26 (docs/reports/M3-corpus.md; MATH-1.8) |
 | M4 | Library, cache, JIT | Content-hash cache (rename/move → no rescan); WorkManager scan (charging by default); measured JIT latency | ✅ done 2026-10-26 (docs/reports/M4-report.md) |
-| M5 | Playback | Gain processor null test; float path; gapless; album/seam; MediaSession + foreground service | |
+| M5 | Playback | Gain processor null test; float path; gapless; album/seam; MediaSession + foreground service | ✅ done 2026-10-26 (docs/reports/M5-report.md); preview APK 0.5.0-m5 |
 | M6 | UI, Why sheet, A/B | Token theme; all screens; 90 Hz frame timing | |
 | M7 | Context, battery, install guide | Contour, output awareness, learning; Samsung battery walkthrough; APK + install steps | |
 
@@ -33,6 +33,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-26 | **Quiet mode target = −19 LUFS** (spec said −18) | Owner decision |
 | 2026-10-26 | **FLAC decoded in-engine with dr_flac 0.13.3** (public domain); MediaCodec for other formats and playback | Owner decision. A17: MediaCodec FLAC ~48x realtime and buggy on some files (pts 0 after 25.6 s, 17% audio lost; Samsung decoder mislabels 16-bit as float). dr_flac: analysis 6.1 s / 4 min incl. decode, JIT 0.31 s, bit-identical to FFmpeg |
 | 2026-10-26 | **MP3 decoded in-engine with minimp3** @ea99364f (CC0, scalar float build) | Owner decision. A17: 3.5 s vs 68.5 s via MediaCodec for a 2:17 MP3; keeps overs (+3.29 dBTP vs clipped +1.19); matches FFmpeg within 3e-6 LU; host == device byte-identical |
+| 2026-10-26 | **Gain applied in an AudioSink wrapper**, not an AudioProcessor; one queue planner in the engine (JSON over JNI) | Media3 1.11 runs AudioProcessors only on its 16-bit path; the sink sees each item's first sample, so per-item gain is exact and float end to end |
 | 2026-10-26 | Native engine always built optimized, even in debug APKs | -O0 was ~6x slower; results are identical (deterministic flags) |
 | 2026-10-25 | Test-only dependencies: doctest, libebur128 (built from source), FFmpeg CLI, pyloudnorm/numpy/scipy/soundfile, GNU Octave (to run the TVL18 reference) | Validation only, never shipped |
 | 2026-10-25 | App dependencies (pending M4–M6): Media3, Compose, Room, WorkManager, Coil, kotlinx-coroutines; detekt (dev). No Hilt, no FFmpeg in the app | Minimal surface; platform decoders cover all 7 formats |
@@ -42,7 +43,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 2. Full ISO 532-3 is far too slow for the phone budget. The fast model is mandatory and its error is measured (MATH §11).
 3. Samsung post-processing (Dolby Atmos, Adapt Sound, UHQ upscaler, EQ, volume limiter, Bluetooth absolute volume) happens after Sable. Sable detects what it can; the walkthrough tells you how to turn it off for fair tests.
 4. Some Android decoders may only output 16-bit, which clips lossy overs. Flagged per file, with a +1 dB TP margin (MATH §1.1). To be measured on the A17 in M4.
-5. Media3 float output vs custom AudioProcessors: to be verified on the current Media3 version (M5).
+5. Media3 float output vs custom AudioProcessors: verified in M5. Processors are skipped on the float path, so Sable applies gain in a sink wrapper (MATH §23.1).
 6. Volume-key learning is ambiguous. There is an environment filter, small rates, a clamp and decay (MATH §19).
 7. The TVL reference code's licence is "free for research; commercial use contact the author". Fine for this personal project; it would block commercial distribution without permission.
 8. Corpus (2026-10-26): 434 files, 24.1 h. 29 albums from Dana's collection (hip-hop, pop, K-pop, hyperpop, rock; FLAC 44.1/48/88.2/96 kHz, 16/24-bit), plus free-licensed recordings: solo piano (Open Goldberg, 96k), orchestral/chamber (Musopen), industrial (NIN The Slip), ambient at 48k ALAC and 96k FLAC (NIN Ghosts), acoustic (Josh Woodward MP3), jazz/electronic (Kevin MacLeod MP3), mono speech MP3 (LibriVox). Gaps: native Opus/Vorbis/AAC/WAV files (generated locally by transcoding in M2), the EBU official test set (needs a browser download), and multichannel material.

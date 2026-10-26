@@ -2,6 +2,9 @@
 
 Verified against the Media3 1.11.1 sources before writing any M5 code.
 
+**Outcome (implemented):** because of the pipeline-order finding below, the gain is applied in `SableAudioSink` (an
+`AudioSink` wrapper) instead of an `AudioProcessor`. The item comes from the same `configure(... mediaPeriodId)` call.
+
 ## Per-item gain is sample-accurate
 - Every new media item's sample stream starts with a format read. `MediaCodecRenderer.onInputFormatChanged` sets
   `waitingForFirstSampleInFormat`, so the item's first sample queues its format at that timestamp. When output reaches

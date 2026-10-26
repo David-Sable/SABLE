@@ -67,6 +67,22 @@ data class TrackWithAnalysis(
     val engineMs: Long?,
 )
 
+data class LibraryRow(
+    val mediaId: Long,
+    val title: String,
+    val displayName: String,
+    val artist: String,
+    val album: String,
+    val albumArtist: String,
+    val albumId: Long,
+    val disc: Int,
+    val track: Int,
+    val durationMs: Long,
+    val analysed: Boolean,
+    val gainStandardDb: Double?,
+    val character: String?,
+)
+
 @Dao
 interface LibraryDao {
     @Upsert suspend fun upsertTracks(tracks: List<TrackEntity>)
@@ -74,6 +90,17 @@ interface LibraryDao {
     @Query("DELETE FROM tracks WHERE mediaId NOT IN (:keep)") suspend fun deleteMissing(keep: List<Long>)
     @Query("UPDATE tracks SET contentHash = :hash WHERE mediaId = :id") suspend fun setHash(id: Long, hash: String)
     @Query("SELECT * FROM tracks WHERE mediaId = :id") suspend fun track(id: Long): TrackEntity?
+    @Query("SELECT * FROM tracks WHERE albumId = :albumId AND albumArtist = :albumArtist ORDER BY disc, track, title")
+    suspend fun albumTracks(albumId: Long, albumArtist: String): List<TrackEntity>
+
+    /** The library for the player UI: every track with its album placement and whether it is analysed. */
+    @Query(
+        """SELECT t.mediaId, t.title, t.displayName, t.artist, t.album, t.albumArtist, t.albumId, t.disc, t.track, t.durationMs,
+           a.contentHash IS NOT NULL AS analysed, a.gainStandardDb, a.character
+           FROM tracks t LEFT JOIN analysis a ON a.contentHash = t.contentHash AND a.mathVersion = :math
+           ORDER BY t.albumArtist COLLATE NOCASE, t.album COLLATE NOCASE, t.disc, t.track, t.title"""
+    )
+    fun observeRows(math: String): Flow<List<LibraryRow>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putAnalysis(a: AnalysisEntity)
     @Query("SELECT * FROM analysis WHERE contentHash = :hash AND mathVersion = :math") suspend fun analysis(hash: String, math: String): AnalysisEntity?

@@ -13,8 +13,8 @@ android {
         applicationId = "app.sable"
         minSdk = 33  // READ_MEDIA_AUDIO
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.4.0-m4"
+        versionCode = 2
+        versionName = "0.5.0-m5"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
             cmake {
@@ -59,4 +59,7 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.work.runtime.ktx)
     implementation(libs.coroutines.android)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
+    testImplementation(libs.junit)
 }

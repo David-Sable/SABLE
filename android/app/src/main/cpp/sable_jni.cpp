@@ -6,6 +6,7 @@
 
 #include "sable/audio_source.h"
 #include "sable/pipeline.h"
+#include "sable/plan.h"
 
 namespace {
 
@@ -60,6 +61,14 @@ JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_analyzeNativeFd(JNIE
 JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitNativeFd(JNIEnv* env, jclass, jint fd, jint kind, jdouble ceiling) {
   auto src = openKind(fd, kind);
   return str(env, src ? sable::jitSource(*src, ceiling) : std::string());
+}
+
+// Queue planner (MATH §17.1, §18, §21, §22). JSON in/out: docs/plan-json.md.
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_planQueue(JNIEnv* env, jclass, jstring input) {
+  const char* c = env->GetStringUTFChars(input, nullptr);
+  std::string in(c ? c : "");
+  if (c) env->ReleaseStringUTFChars(input, c);
+  return str(env, sable::planQueueJson(in));
 }
 
 }  // extern "C"

@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.10 (2026-10-26)
+**Version:** MATH-1.11 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -65,7 +65,7 @@ The engine never rounds. Display layers round to 0.1 (LU/LUFS/dB/dBTP), per the 
 - If a platform decoder can only output 16-bit integer PCM (it cannot represent overs) **for a lossy source** (MP3, AAC, Vorbis, Opus), the result is flagged `decodeClipped = true`. Lossless sources (FLAC, ALAC, WAV) decoded to their native integer depth are exact and never flagged. The true-peak value used for the peak cap (§16.4) then gets a safety margin `M_clipTP = +1.0 dB` **[TUNE]**, and the Why sheet says so. Milestone 4 records which Android decoders deliver float on the A17.
 - **FLAC is decoded inside the engine** (dr_flac 0.13.3, owner decision 2026-10-26): exact integers, converted to float by multiplying by 2⁻³¹ (exact for ≤ 24-bit sources). The result is bit-identical to FFmpeg's float decode on host and device. Third-party code in the engine is limited to this integer-exact decoder (§25.4 otherwise unchanged).
 - **MP3 is decoded inside the engine** (minimp3 @ea99364f, CC0, owner decision 2026-10-26) to float without clipping, so overs are measured (e.g. +3.29 dBTP where Android's 16-bit decoder read +1.19). It is compiled without SIMD (scalar float), so host and device decode bit-identically. It matches FFmpeg within 3·10⁻⁶ LU, with identical frame counts (LAME/Xing gapless trimming).
-- **Open (M5):** if *playback* decodes through a 16-bit platform decoder, overs are clipped before Sable's gain, and the played true peak is ≤ the measured one. The cap is then conservative, never unsafe. The final `M_clipTP` rule for formats still analysed through MediaCodec (AAC, Opus, Vorbis, ALAC) is settled with the playback decode path in M5.
+- **Playback decode (settled in M5, MATH-1.11):** playback asks every platform decoder for float output (Media3 requests `KEY_PCM_ENCODING = FLOAT` when the sink accepts float, §23.1), and prefers Android's own Codec2 decoders (`c2.android.*`). If a decoder still delivers 16-bit, overs are clipped *before* Sable's gain, so the played true peak is ≤ the measured one: the cap stays conservative, never unsafe. `M_clipTP` therefore stays exactly as defined above: it applies only when the *analysis* decode of a lossy source was 16-bit (`decodeClipped`). It never applies to FLAC or MP3, which the engine decodes itself. For an album, the album cap applies it if any member was flagged.
 - Encoder delay and padding are removed *before* the engine sees samples: LAME/Xing `enc_delay`/`enc_padding`, iTunSMPB for AAC/ALAC-in-MP4, Opus `pre_skip` and end trimming via granule position, Vorbis granule position. FLAC and WAV have none. Media3 extractors already parse these. The host CLI uses FFmpeg, which applies the same trims; cross-checked in §26.
 
 ### 1.2 Channel layouts [STD + DESIGN]
@@ -679,7 +679,8 @@ Full analysis of a 4-minute 44.1 kHz stereo FLAC in ≤ 10 s on the A17 (2× A78
 ## 23. Applying gain in playback [DESIGN]
 
 ### 23.1 Processor
-A custom Media3 `AudioProcessor` multiplies every sample by `gainLin` (float). It does no allocation, takes no locks and makes no blocking calls; it reads the target gain from a lock-free single-producer/single-consumer slot.
+A gain stage in front of Media3's audio sink (`SableAudioSink`, wrapping `DefaultAudioSink`) multiplies every sample by `gainLin` (float). Media3 1.11 runs custom `AudioProcessor`s only on its 16-bit path, so an `AudioProcessor` cannot provide the float path of §23.4 (verified in the 1.11.1 sources, docs/M5-design.md). The stage converts decoder PCM (8/16/24/32-bit or float) to float exactly (16-bit: `x/32768`; 24-bit: `x/2²³`) and multiplies once per sample, so at 0 dB the output equals the input bit for bit (the M5 null test). It does no allocation, takes no locks and makes no blocking calls. It reads each item's gains from a concurrent table written by the planner. A changed entry (new version) starts a §23.3 ramp.
+Each queue item has two planned gains: *natural* (after a gapless transition, seamed, §18) and *manual* (started by the user: skip, tap, new queue; unseamed). The sink tells them apart exactly: a reconfiguration without a flush since the last buffer is a natural transition. A seek inside the playing item keeps its gain.
 
 ### 23.2 Track boundaries
 Each media item's first output frame is identified by its presentation timestamp. The new item's gain applies exactly from its first sample: a **step**, not a ramp.

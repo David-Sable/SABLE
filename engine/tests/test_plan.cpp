@@ -1,0 +1,121 @@
+// Queue planner (MATH §17.1, §18, §21, §22): exact checks of every path through planQueueJson.
+#include <charconv>
+#include <cmath>
+#include <string>
+#include <vector>
+
+#include "doctest.h"
+#include "sable/intent.h"
+#include "sable/pipeline.h"
+#include "sable/plan.h"
+#include "signals.h"
+
+namespace {
+
+// Pulls the n-th occurrence of "key":<number> out of a JSON string (test helper only).
+double field(const std::string& js, const std::string& key, int n = 0) {
+  std::size_t p = 0;
+  for (int i = 0; i <= n; ++i) {
+    p = js.find("\"" + key + "\":", p);
+    REQUIRE(p != std::string::npos);
+    p += key.size() + 3;
+  }
+  double v = 0.0;
+  std::from_chars(js.data() + p, js.data() + js.size(), v);
+  return v;
+}
+
+std::string analysis(double li, double anchor, double ple, double tp, double open, double end, const char* character = "steady",
+                     bool fadeIn = false, bool fadeOut = false) {
+  auto n = [](double v) { return std::to_string(v); };
+  return "{\"integratedLufs\":" + n(li) + ",\"truePeakDbtp\":" + n(tp) + ",\"shortFile\":false,\"decodeClipped\":false,\"anchorLufs\":" +
+         n(anchor) + ",\"anchorPle\":" + n(ple) + ",\"anchorSec\":120,\"character\":\"" + character + "\",\"openLufs\":" + n(open) +
+         ",\"endLufs\":" + n(end) + ",\"fadeIn\":" + (fadeIn ? "true" : "false") + ",\"fadeOut\":" + (fadeOut ? "true" : "false") +
+         ",\"anchorBlockPower\":[" + n(std::pow(10.0, (anchor + 0.691) / 10.0)) + "]}";
+}
+
+std::string ctx(const std::string& items, const std::string& albums = "{}", const char* mode = "auto", double cal = 0.0) {
+  return "{\"targetLufs\":-14,\"intimacyLu\":1,\"ceilingDbtp\":-1,\"limiter\":false,\"outputCalDb\":" + std::to_string(cal) +
+         ",\"albumMode\":\"" + mode + "\",\"albums\":" + albums + ",\"items\":[" + items + "]}";
+}
+
+}  // namespace
+
+TEST_CASE("plan: track gain equals the cached Standard decision of the full pipeline") {
+  auto a = sigs::multiSine(44100, 2, 30.0, 60.0, 12000.0, 40, -20.0, 3);
+  sable::TrackPipeline p(44100, 2, 0, false);
+  p.pushPass1(a.x.data(), a.frames());
+  if (p.endPass1()) do {
+      p.beginPass2();
+      p.pushPass2(a.x.data(), a.frames());
+    } while (p.endPass2());
+  const std::string js = p.resultJson();
+  const std::string out = sable::planQueueJson(ctx("{\"analysis\":" + js + ",\"manual\":true}"));
+  const double cached = field(js, "gainDb", 0);  // "standard":{"gainDb":..}
+  CHECK(field(out, "gainDb") == cached);          // exact: same rules, exact JSON round trip
+  CHECK(field(out, "manualGainDb") == cached);
+}
+
+TEST_CASE("plan: album world shares one gain; song world and pending albums use track mode") {
+  const std::string t1 = analysis(-10, -10, -10, -0.5, -12, -12), t2 = analysis(-16, -16, -16, -6, -18, -18);
+  const std::string albums = "{\"A\":{\"complete\":true,\"tracks\":[" + t1 + "," + t2 + "]}}";
+  const std::string items = "{\"analysis\":" + t1 + ",\"album\":\"A\",\"albumIntent\":true},{\"analysis\":" + t2 +
+                            ",\"album\":\"A\",\"albumIntent\":true}";
+  const std::string out = sable::planQueueJson(ctx(items, albums));
+  CHECK(field(out, "gainDb", 0) == field(out, "gainDb", 1));
+  CHECK(out.find("\"albumRun\":true") != std::string::npos);
+  // Album cap: the loudest member's TP (-0.5) bounds the shared gain to -0.5 dB.
+  CHECK(field(out, "gainDb", 0) <= -0.5);
+
+  // Song world (tapped): each track in its own world.
+  const std::string song = "{\"analysis\":" + t1 + ",\"album\":\"A\",\"albumIntent\":false},{\"analysis\":" + t2 +
+                           ",\"album\":\"A\",\"albumIntent\":false}";
+  const std::string s = sable::planQueueJson(ctx(song, albums));
+  CHECK(field(s, "baseDb", 0) == doctest::Approx(-4.0).epsilon(1e-12));
+  CHECK(field(s, "baseDb", 1) == doctest::Approx(2.0).epsilon(1e-12));
+  CHECK(s.find("\"albumRun\":true") == std::string::npos);
+
+  // "Always album" setting overrides the intent; "always track" disables album gain.
+  CHECK(sable::planQueueJson(ctx(song, albums, "album")).find("\"albumRun\":true") != std::string::npos);
+  CHECK(sable::planQueueJson(ctx(items, albums, "track")).find("\"albumRun\":true") == std::string::npos);
+
+  // Album not fully analysed: track mode + ALBUM_PENDING.
+  const std::string pending = sable::planQueueJson(ctx(items, "{\"A\":{\"complete\":false,\"tracks\":[]}}"));
+  CHECK(pending.find("ALBUM_PENDING") != std::string::npos);
+  CHECK(field(pending, "baseDb", 0) == doctest::Approx(-4.0).epsilon(1e-12));
+}
+
+TEST_CASE("plan: seam smoothing stays within 0.5 dB, follows the applied chain, and is skipped for manual starts") {
+  // prev: anchor -14 -> g 0; ends at -10. cur: anchor -14 -> g 0; opens at -20. Ideal = -10 + 0 - (-20) = +10 -> +0.5.
+  const std::string prev = analysis(-14, -14, -14, -20, -14, -10), cur = analysis(-14, -14, -14, -20, -20, -14);
+  const std::string out = sable::planQueueJson(ctx("{\"analysis\":" + prev + ",\"manual\":true},{\"analysis\":" + cur + "}"));
+  CHECK(field(out, "gainDb", 1) == doctest::Approx(0.5).epsilon(1e-12));
+  CHECK(field(out, "manualGainDb", 1) == doctest::Approx(0.0).epsilon(1e-12));
+  CHECK(out.find("\"SEAM\"") != std::string::npos);
+  // Fade-out on prev: no seam.
+  const std::string faded = analysis(-14, -14, -14, -20, -14, -10, "steady", false, true);
+  CHECK(field(sable::planQueueJson(ctx("{\"analysis\":" + faded + "},{\"analysis\":" + cur + "}")), "gainDb", 1) == 0.0);
+  // A JIT item breaks the chain (no seam data).
+  const std::string jitPrev = "{\"jit\":{\"jitLufs\":-10,\"jitTpDbtp\":-3}}";
+  CHECK(field(sable::planQueueJson(ctx(jitPrev + ",{\"analysis\":" + cur + "}")), "gainDb", 1) == 0.0);
+}
+
+TEST_CASE("plan: JIT, provisional, calibration never breaks the cap") {
+  const std::string out = sable::planQueueJson(ctx("{\"jit\":{\"jitLufs\":-8,\"jitTpDbtp\":-3}},{\"analysis\":null}"));
+  CHECK(field(out, "gainDb", 0) == doctest::Approx(-6.0).epsilon(1e-12));  // min(-14+8, -1-(-3+1)) = min(-6, +1)
+  CHECK(out.find("\"source\":\"jit\"") != std::string::npos);
+  CHECK(field(out, "gainDb", 1) == doctest::Approx(-6.0).epsilon(1e-12));  // §22.1 T + 8
+  CHECK(out.find("\"source\":\"provisional\"") != std::string::npos);
+  // JIT peak cap: TP -0.5 + 1 margin -> cap -1.5.
+  CHECK(field(sable::planQueueJson(ctx("{\"jit\":{\"jitLufs\":-20,\"jitTpDbtp\":-0.5}}")), "gainDb") == doctest::Approx(-1.5).epsilon(1e-12));
+  // +3 dB output calibration on a track already at its cap: stays at the cap (§21 step 4).
+  const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
+  CHECK(field(sable::planQueueJson(ctx("{\"analysis\":" + capped + "}", "{}", "auto", 3.0)), "gainDb") == doctest::Approx(1.0).epsilon(1e-12));
+}
+
+TEST_CASE("plan: malformed input is rejected, output is deterministic") {
+  CHECK(sable::planQueueJson("{\"items\":[") == "{\"error\":\"bad input\"}");
+  CHECK(sable::planQueueJson("[]") == "{\"error\":\"bad input\"}");
+  const std::string in = ctx("{\"jit\":{\"jitLufs\":-9.123456789,\"jitTpDbtp\":-2}}");
+  CHECK(sable::planQueueJson(in) == sable::planQueueJson(in));
+}
