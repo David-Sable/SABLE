@@ -24,12 +24,14 @@ struct J {
   double n = 0.0;
   std::string s;
   std::vector<J> a;
-  std::vector<std::pair<std::string, J>> o;
+  // Object members as parallel lists: a pair<string, J> would need J complete here (libstdc++ rejects it).
+  std::vector<std::string> keys;
+  std::vector<J> vals;
 
   const J* get(std::string_view k) const {
     if (t != T::Obj) return nullptr;
-    for (const auto& [key, v] : o)
-      if (key == k) return &v;
+    for (std::size_t i = 0; i < keys.size(); ++i)
+      if (keys[i] == k) return &vals[i];
     return nullptr;
   }
   std::optional<double> num(std::string_view k) const {
@@ -120,7 +122,8 @@ class Parser {
           if (!string(k)) { ok = false; break; }
           ws();
           if (i_ >= s_.size() || s_[i_++] != ':' || !value(x)) { ok = false; break; }
-          v.o.emplace_back(std::move(k), std::move(x));
+          v.keys.push_back(std::move(k));
+          v.vals.push_back(std::move(x));
           ws();
           if (i_ < s_.size() && s_[i_] == ',') { ++i_; continue; }
           if (i_ < s_.size() && s_[i_] == '}') { ++i_; break; }
@@ -248,7 +251,9 @@ std::string planQueueJson(const std::string& input) {
   // §17.2 album gains, decided once per album key (only when every track of the album is analysed).
   std::map<std::string, std::optional<GainDecision>> albumGain;
   if (const J* albums = in.get("albums"); albums && albums->t == J::T::Obj)
-    for (const auto& [key, alb] : albums->o) {
+    for (std::size_t ai = 0; ai < albums->keys.size(); ++ai) {
+      const std::string& key = albums->keys[ai];
+      const J& alb = albums->vals[ai];
       std::optional<GainDecision> d;
       const J* tracks = alb.get("tracks");
       if (alb.flag("complete") && tracks && tracks->t == J::T::Arr && !tracks->a.empty()) {
