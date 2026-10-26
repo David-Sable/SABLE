@@ -30,6 +30,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-25 | Blind A/B compares level-matched **sequences across transitions** | A single track can't reveal a gain engine; louder always wins |
 | 2026-10-25 | Unscanned tracks: wait ≤ 1.5 s for JIT, else start at T + 8 dB (−6 dB in Standard) and ease in at ≤ 1 dB/s | "Never play un-normalized audio at full level" plus a responsive start |
 | 2026-10-25 | Accent: **warm ivory `#E8E1D3`** on true black; brushed brass `#B5975A` kept as an alternate token | Timeless, readable on AMOLED, not gimmicky |
+| 2026-10-26 | **Quiet mode target = −19 LUFS** (spec said −18) | Owner decision |
 | 2026-10-25 | Test-only dependencies: doctest, libebur128 (built from source), FFmpeg CLI, pyloudnorm/numpy/scipy/soundfile, GNU Octave (to run the TVL18 reference) | Validation only, never shipped |
 | 2026-10-25 | App dependencies (pending M4–M6): Media3, Compose, Room, WorkManager, Coil, kotlinx-coroutines; detekt (dev). No Hilt, no FFmpeg in the app | Minimal surface; platform decoders cover all 7 formats |
 

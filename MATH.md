@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.3 (2026-10-26)
+**Version:** MATH-1.4 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -412,7 +412,7 @@ For a perceptual loudness value `N` (sones): `PLE(N) = N_pink^{-1}(N)`. Inversio
 Because loudness is level-dependent, pass 2 runs on the signal **prescaled** by `s = T_std − L_I` dB (`T_std = −14`, §16). The integrated loudness is ≈ −14 LUFS during perceptual analysis. That places the analysis near the level where Standard mode plays it. Unscaled results: `PLE_unscaled = PLE(N) − s`.
 **Refinement:** let `g*` = the **Standard-mode `g_anchor`** (§16.2). It is taken before intimacy, the peak cap, learning and calibration, and is always computed with `T_std`, whatever the current mode. If `|g* − s| > 2 dB`, pass 2 is re-run once with `s' = g*` (background only, never in JIT), and the result replaces the first. One refinement at most; the iteration is not continued.
 If `L_I` is absent (silence), pass 2 is skipped entirely and every PLE is absent. `s` is always based on `L_I`, never on `L_anchor`, which can be absent even when `L_I` exists (§16.2).
-**Quiet mode** (§16.1) reuses the Standard-mode PLE. Its −4 dB level change is not re-evaluated perceptually (the optional contour, §24, handles spectral balance at low level). This approximation is documented in the Why sheet's technical details.
+**Quiet mode** (§16.1) reuses the Standard-mode PLE. Its −5 dB level change is not re-evaluated perceptually (the optional contour, §24, handles spectral balance at low level). This approximation is documented in the Why sheet's technical details.
 
 ---
 
@@ -520,7 +520,7 @@ Absent inputs use three-valued logic (Kleene): a comparison with an absent value
 All gains are in dB, computed in `double`.
 
 ### 16.1 Targets
-`T = T_std = −14.0` (Standard mode) or `T = T_quiet = −18.0` (Quiet mode), on the PLE (LUFS-equivalent) scale.
+`T = T_std = −14.0` (Standard mode) or `T = T_quiet = −19.0` (Quiet mode; owner decision 2026-10-26, was −18 in the original spec), on the PLE (LUFS-equivalent) scale.
 
 ### 16.2 Anchor match
 1. `g_anchor = T − PLE_anchor`
@@ -646,7 +646,7 @@ The Why sheet shows `g_track`, `g_final` and every rule that fired, with its del
 ## 22. Just-in-time analysis and provisional gain [DESIGN]
 
 ### 22.1 Provisional gain
-Never play un-normalized audio at full level. Before any analysis exists, `g_prov = T + 8.0` dB, i.e. assume the track is a loud master at −8 LUFS: Standard −6 dB, Quiet −10 dB **[TUNE]**.
+Never play un-normalized audio at full level. Before any analysis exists, `g_prov = T + 8.0` dB, i.e. assume the track is a loud master at −8 LUFS: Standard −6 dB, Quiet −11 dB **[TUNE]**.
 
 ### 22.2 JIT analysis
 Started when a never-analysed track is about to play (queue look-ahead: the next item is pre-analysed while the current one plays):
@@ -701,7 +701,7 @@ with the tables for `f, α_f, L_U, T_f` at the 29 one-third-octave frequencies 2
 Sanity test: `L_p(1000, L_N) = L_N ± 0.05` for `L_N` = 20 … 90.
 
 ### 24.2 Compensation target
-Reference loudness level `L_ref = 75 phon` (the Standard calibration, §12.1). Quiet level `L_q = L_ref + (T_quiet − T_std) = 71 phon`.
+Reference loudness level `L_ref = 75 phon` (the Standard calibration, §12.1). Quiet level `L_q = L_ref + (T_quiet − T_std) = 70 phon`.
 `H(f) = [L_p(f, L_q) − L_p(f, L_ref)] − (L_q − L_ref)` (dB). This is the extra level at `f`, relative to 1 kHz, that keeps the spectral balance perceived at `L_ref`. It is positive at low frequencies, and small and mixed at high frequencies.
 Output calibration `c_out` shifts both levels equally (`L_ref + c_out`, `L_q + c_out`).
 
@@ -832,7 +832,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Anchor duration | ≥ max(20 s, 20%) | | 14 | TUNE |
 | Anchor δ sequence | 3, 4, 5, 6 | LU | 14 | TUNE |
 | Labels | see §15 table | | 15 | TUNE |
-| T_std, T_quiet | −14, −18 | LUFS-eq | 16.1 | DESIGN (spec) |
+| T_std, T_quiet | −14, −19 | LUFS-eq | 16.1 | DESIGN (owner) |
 | Perceptual bound B_p | 4.0 | LU | 16.2 | TUNE |
 | Intimacy a_int | default 1.0, range [0, 2] | LU | 16.3 | DESIGN |
 | Limiter max reduction | 6.0 | dB | 16.4 | DESIGN |

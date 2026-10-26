@@ -27,7 +27,7 @@ Sable also gives each song a plain-language **character**: *quiet and intimate*,
 ### 3. Balancing — the gain rules
 Each rule below is in plain language. MATH.md has the exact version (section numbers in brackets).
 
-1. **Anchor matching** (§16.2). Sable sets the gain so the song's anchor *feels* as loud as every other song's anchor, at the target: **−14** (Standard) or **−18** (Quiet), on the familiar LUFS scale. A song with a quiet intro won't get over-boosted, because the intro isn't the anchor. A bass-heavy or dense song that feels louder than its meter reading is matched by how it feels.
+1. **Anchor matching** (§16.2). Sable sets the gain so the song's anchor *feels* as loud as every other song's anchor, at the target: **−14** (Standard) or **−19** (Quiet), on the familiar LUFS scale. A song with a quiet intro won't get over-boosted, because the intro isn't the anchor. A bass-heavy or dense song that feels louder than its meter reading is matched by how it feels.
 2. **Sanity bound** (§16.2). If the hearing model ever disagrees with the standard meter by more than 4 LU, Sable trusts it only up to that limit. This protects against strange signals.
 3. **Intimacy allowance** (§16.3). Songs judged *quiet and intimate* are allowed to sit a little under the target (1 dB by default, adjustable from 0 to 2 dB), so they stay intimate.
 4. **Peak integrity** (§16.4). Sable never pushes a song past the output's true-peak ceiling. If the ideal gain would clip, Sable accepts a slightly quieter song instead. A transparent limiter exists, but it is off unless you turn it on.
