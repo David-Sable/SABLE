@@ -59,7 +59,7 @@ def main():
     adb("shell", "mkdir", "-p", DEV_DIR)
     for b in ("sable_tests", "sable_cli"):
         adb("push", os.path.join(REPO, "engine", "build-android", b), f"{DEV_DIR}/{b}")
-        adb("shell", "chmod", "755", f"{DEV_DIR}/{b}")
+        adb("shell", "chmod", "755", f"{DEV_DIR}/{b}")  # pushes from Windows drop the exec bit
 
     print("\n== 1. test suite on device")
     t = adb("shell", f"cd {DEV_DIR} && ./sable_tests", check=False)
@@ -77,7 +77,7 @@ def main():
         decode(src, wav)
         host = subprocess.run([HOST_CLI, "--series", wav], capture_output=True, text=True, check=True).stdout.strip()
         adb("push", wav, f"{DEV_DIR}/fx.wav")
-        dev = adb("shell", f"{DEV_DIR}/sable_cli --series {DEV_DIR}/fx.wav").stdout.strip()
+        dev = adb("shell", f"{DEV_DIR}/sable_cli --series {DEV_DIR}/fx.wav").stdout.replace("", "").strip()
         same = host == dev
         identical &= same
         r = json.loads(host)

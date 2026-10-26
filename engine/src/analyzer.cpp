@@ -6,6 +6,10 @@
 #include <cstring>
 
 #include "fpenv.h"
+
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 #include "sable/dmath.h"
 
 namespace sable {
@@ -81,6 +85,53 @@ inline float dot4(const float* a, const float* b, int n) {
   }
   return (l0 + l1) + (l2 + l3);
 }
+
+// Four consecutive output frames at once. For each frame the arithmetic is exactly dot4's:
+// lane l accumulates taps j = l (mod 4) in increasing j, then (l0+l1)+(l2+l3). Running four frames
+// side by side only adds independent chains, so results are bit-identical. Non-fusing multiply and
+// add only (MATH §25.4): NEON vmulq/vaddq on ARM64, element-wise vector extension elsewhere.
+#if defined(__aarch64__)
+using vf4 = float32x4_t;
+inline vf4 dot4x4(const float* c, const float* w, int n) {
+  vf4 l0 = vdupq_n_f32(0.0f), l1 = l0, l2 = l0, l3 = l0;
+  for (int j = 0; j < n; j += 4) {
+    l0 = vaddq_f32(l0, vmulq_f32(vld1q_f32(w + j), vdupq_n_f32(c[j])));
+    l1 = vaddq_f32(l1, vmulq_f32(vld1q_f32(w + j + 1), vdupq_n_f32(c[j + 1])));
+    l2 = vaddq_f32(l2, vmulq_f32(vld1q_f32(w + j + 2), vdupq_n_f32(c[j + 2])));
+    l3 = vaddq_f32(l3, vmulq_f32(vld1q_f32(w + j + 3), vdupq_n_f32(c[j + 3])));
+  }
+  return vaddq_f32(vaddq_f32(l0, l1), vaddq_f32(l2, l3));
+}
+inline vf4 absMax(vf4 m, vf4 y) { return vmaxq_f32(m, vabsq_f32(y)); }
+inline vf4 zero4() { return vdupq_n_f32(0.0f); }
+inline float hmax(vf4 m) { return vmaxvq_f32(m); }
+#else
+using vf4 = float __attribute__((vector_size(16)));
+inline vf4 load4(const float* p) {
+  vf4 v;
+  std::memcpy(&v, p, sizeof v);
+  return v;
+}
+inline vf4 dot4x4(const float* c, const float* w, int n) {
+  vf4 l0 = {0, 0, 0, 0}, l1 = l0, l2 = l0, l3 = l0;
+  for (int j = 0; j < n; j += 4) {
+    l0 = l0 + load4(w + j) * c[j];
+    l1 = l1 + load4(w + j + 1) * c[j + 1];
+    l2 = l2 + load4(w + j + 2) * c[j + 2];
+    l3 = l3 + load4(w + j + 3) * c[j + 3];
+  }
+  return (l0 + l1) + (l2 + l3);
+}
+inline vf4 absMax(vf4 m, vf4 y) {
+  for (int k = 0; k < 4; ++k) {
+    const float a = y[k] < 0.0f ? -y[k] : y[k];
+    if (a > m[k]) m[k] = a;
+  }
+  return m;
+}
+inline vf4 zero4() { return vf4{0, 0, 0, 0}; }
+inline float hmax(vf4 m) { return std::max(std::max(m[0], m[1]), std::max(m[2], m[3])); }
+#endif
 
 }  // namespace
 
@@ -190,11 +241,48 @@ struct Analyzer::Impl {
   std::uint64_t frames = 0;
   float samplePeak = 0.0f, truePeak = 0.0f;
   std::vector<std::vector<float>> tpPhases;
-  // Per channel doubled ring of length 2*win: slot p and p+win hold the same sample, so the
-  // window [p+1, p+win] (oldest .. newest) is always contiguous. MATH §6.2.
-  std::vector<std::vector<float>> tpHist;
-  int tpPos = 0;
+  float tpBound = 0.0f;  // max over phases of sum|taps|, with rounding margin (exact skip test)
+  // Per channel: the last 2*Mh input samples (oldest first), followed by the current push's samples.
+  std::vector<std::vector<float>> tpBuf;
+
+  // True peak over `n` new samples of channel c (MATH §6.2). tpBuf[c][0..win) holds history.
+  void truePeakBlock(int c, std::size_t n);
 };
+
+void Analyzer::Impl::truePeakBlock(int c, std::size_t n) {
+  const int win = 2 * kTpHalfLength;
+  auto& b = tpBuf[static_cast<std::size_t>(c)];
+  constexpr std::size_t kSkipBlock = 64;
+  for (std::size_t i0 = 0; i0 < n; i0 += kSkipBlock) {
+    const std::size_t i1 = std::min(n, i0 + kSkipBlock);
+    // Exact skip: every interpolated value in this block satisfies |y| <= tpBound * max|window|.
+    // If that cannot exceed the running maximum, the block cannot change the final result.
+    float mx = 0.0f;
+    for (std::size_t k = i0 + 1; k < i1 + static_cast<std::size_t>(win); ++k) {
+      const float a = b[k] < 0.0f ? -b[k] : b[k];
+      if (a > mx) mx = a;
+    }
+    const float running = std::max(truePeak, samplePeak);
+    if (mx * tpBound <= running) continue;
+    std::size_t i = i0;
+    vf4 m = zero4();
+    for (; i + 4 <= i1; i += 4) {
+      const float* w = b.data() + i + 1;  // window of frame i: oldest .. newest
+      for (int phi = 1; phi < tpL; ++phi) m = absMax(m, dot4x4(tpPhases[static_cast<std::size_t>(phi)].data(), w, win));
+    }
+    truePeak = std::max(truePeak, hmax(m));  // max is exact; order does not matter
+    for (; i < i1; ++i) {
+      const float* w = b.data() + i + 1;
+      for (int phi = 1; phi < tpL; ++phi) {
+        const float y = dot4(tpPhases[static_cast<std::size_t>(phi)].data(), w, win);
+        const float a = y < 0.0f ? -y : y;
+        if (a > truePeak) truePeak = a;
+      }
+    }
+  }
+  // Keep the last win samples as history for the next block.
+  std::memmove(b.data(), b.data() + n, static_cast<std::size_t>(win) * sizeof(float));
+}
 
 Analyzer::Analyzer(int sampleRateHz, int channels, std::vector<double> w) : impl_(new Impl) {
   auto& s = *impl_;
@@ -208,7 +296,15 @@ Analyzer::Analyzer(int sampleRateHz, int channels, std::vector<double> w) : impl
   s.s2.assign(2 * static_cast<std::size_t>(channels), 0.0);
   s.tpL = sampleRateHz < 96000 ? 8 : 4;          // MATH §6.1
   s.tpPhases = designTruePeak(s.tpL);
-  s.tpHist.assign(static_cast<std::size_t>(channels), std::vector<float>(4 * static_cast<std::size_t>(kTpHalfLength), 0.0f));
+  double bound = 0.0;
+  for (int phi = 1; phi < s.tpL; ++phi) {
+    double sum = 0.0;
+    for (float v : s.tpPhases[static_cast<std::size_t>(phi)]) sum += v < 0.0f ? -static_cast<double>(v) : static_cast<double>(v);
+    bound = std::max(bound, sum);
+  }
+  // Float rounding of a 32-term dot product is below 32 * 2^-24 relative; 1e-4 is a wide margin.
+  s.tpBound = static_cast<float>(bound * (1.0 + 1e-4));
+  s.tpBuf.assign(static_cast<std::size_t>(channels), std::vector<float>(2 * static_cast<std::size_t>(kTpHalfLength), 0.0f));
 }
 
 Analyzer::~Analyzer() { delete impl_; }
@@ -217,7 +313,8 @@ void Analyzer::push(const float* in, std::size_t n) {
   FpEnvGuard fp;  // MATH §25.3
   auto& s = *impl_;
   const auto& k = s.kw;
-  const int win = 2 * kTpHalfLength;
+  const std::size_t win = 2 * static_cast<std::size_t>(kTpHalfLength);
+  for (auto& b : s.tpBuf) b.resize(win + n);  // grows only when a larger chunk arrives
   for (std::size_t f = 0; f < n; ++f) {
     double weighted = 0.0, raw = 0.0;
     for (int c = 0; c < s.ch; ++c) {
@@ -225,6 +322,7 @@ void Analyzer::push(const float* in, std::size_t n) {
       if (xf < kSampleFlush && xf > -kSampleFlush) xf = 0.0f;  // MATH §25.3
       const float ax = xf < 0.0f ? -xf : xf;
       if (ax > s.samplePeak) s.samplePeak = ax;
+      s.tpBuf[static_cast<std::size_t>(c)][win + f] = xf;
       const double x = static_cast<double>(xf);
       raw += x * x;
       // Stage 1, TDF-II (MATH §2.3)
@@ -244,22 +342,6 @@ void Analyzer::push(const float* in, std::size_t n) {
       const double y2 = (y < kSquareFlush && y > -kSquareFlush) ? 0.0 : y * y;
       weighted += s.g[static_cast<std::size_t>(c)] * y2;
     }
-    // True peak per channel (MATH §6.2)
-    for (int c = 0; c < s.ch; ++c) {
-      float xf = in[f * static_cast<std::size_t>(s.ch) + static_cast<std::size_t>(c)];
-      if (xf < kSampleFlush && xf > -kSampleFlush) xf = 0.0f;
-      auto& hb = s.tpHist[static_cast<std::size_t>(c)];
-      // Doubled ring of length win: positions p and p+win hold the same sample.
-      hb[static_cast<std::size_t>(s.tpPos)] = xf;
-      hb[static_cast<std::size_t>(s.tpPos) + static_cast<std::size_t>(win)] = xf;
-      const float* w = hb.data() + s.tpPos + 1;  // oldest .. newest, newest at tpPos+win
-      for (int phi = 1; phi < s.tpL; ++phi) {
-        const float yv = dot4(s.tpPhases[static_cast<std::size_t>(phi)].data(), w, win);
-        const float a = yv < 0.0f ? -yv : yv;
-        if (a > s.truePeak) s.truePeak = a;
-      }
-    }
-    s.tpPos = (s.tpPos + 1) % win;
     s.curSub += weighted;
     s.curRaw += raw;
     s.curFine += weighted;
@@ -278,28 +360,22 @@ void Analyzer::push(const float* in, std::size_t n) {
       s.fineCount = 0;
     }
   }
+  for (int c = 0; c < s.ch; ++c) s.truePeakBlock(c, n);  // MATH §6.2
 }
 
 LoudnessResult Analyzer::finish() {
   auto& s = *impl_;
   {
     // Flush the true-peak interpolator with Mh zeros so the tail is measured (MATH §6.2).
-    // Done through a dedicated loop, not push(), so loudness series are not extended.
+    // Done directly, not via push(), so loudness series are not extended.
     FpEnvGuard fp;
-    const int win = 2 * kTpHalfLength;
-    for (int z = 0; z < kTpHalfLength; ++z) {
-      for (int c = 0; c < s.ch; ++c) {
-        auto& hb = s.tpHist[static_cast<std::size_t>(c)];
-        hb[static_cast<std::size_t>(s.tpPos)] = 0.0f;
-        hb[static_cast<std::size_t>(s.tpPos) + static_cast<std::size_t>(win)] = 0.0f;
-        const float* w = hb.data() + s.tpPos + 1;
-        for (int phi = 1; phi < s.tpL; ++phi) {
-          const float yv = dot4(s.tpPhases[static_cast<std::size_t>(phi)].data(), w, win);
-          const float a = yv < 0.0f ? -yv : yv;
-          if (a > s.truePeak) s.truePeak = a;
-        }
-      }
-      s.tpPos = (s.tpPos + 1) % win;
+    const std::size_t win = 2 * static_cast<std::size_t>(kTpHalfLength);
+    const std::size_t z = static_cast<std::size_t>(kTpHalfLength);
+    for (int c = 0; c < s.ch; ++c) {
+      auto& b = s.tpBuf[static_cast<std::size_t>(c)];
+      b.resize(win + z);
+      std::fill(b.begin() + static_cast<std::ptrdiff_t>(win), b.end(), 0.0f);
+      s.truePeakBlock(c, z);
     }
   }
 
