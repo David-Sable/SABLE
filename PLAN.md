@@ -31,6 +31,8 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-25 | Unscanned tracks: wait ≤ 1.5 s for JIT, else start at T + 8 dB (−6 dB in Standard) and ease in at ≤ 1 dB/s | "Never play un-normalized audio at full level" plus a responsive start |
 | 2026-10-25 | Accent: **warm ivory `#E8E1D3`** on true black; brushed brass `#B5975A` kept as an alternate token | Timeless, readable on AMOLED, not gimmicky |
 | 2026-10-26 | **Quiet mode target = −19 LUFS** (spec said −18) | Owner decision |
+| 2026-10-26 | **FLAC decoded in-engine with dr_flac 0.13.3** (public domain); MediaCodec for other formats and playback | Owner decision. A17: MediaCodec FLAC ~48x realtime and buggy on some files (pts 0 after 25.6 s, 17% audio lost; Samsung decoder mislabels 16-bit as float). dr_flac: analysis 6.1 s / 4 min incl. decode, JIT 0.31 s, bit-identical to FFmpeg |
+| 2026-10-26 | Native engine always built optimized, even in debug APKs | -O0 was ~6x slower; results are identical (deterministic flags) |
 | 2026-10-25 | Test-only dependencies: doctest, libebur128 (built from source), FFmpeg CLI, pyloudnorm/numpy/scipy/soundfile, GNU Octave (to run the TVL18 reference) | Validation only, never shipped |
 | 2026-10-25 | App dependencies (pending M4–M6): Media3, Compose, Room, WorkManager, Coil, kotlinx-coroutines; detekt (dev). No Hilt, no FFmpeg in the app | Minimal surface; platform decoders cover all 7 formats |
 

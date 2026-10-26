@@ -77,6 +77,18 @@ class MainActivity : ComponentActivity() {
             when (cmd) {
                 "sync" -> Log.i(TAG, "sync: ${LibraryScanner(applicationContext).syncMediaStore()} tracks")
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
+                "stats" -> stats()
+                "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
+                    LibraryScanner(applicationContext).syncMediaStore()
+                    val m = intent.getStringExtra("match") ?: ""
+                    for (t in SableDatabase.get(applicationContext).library().allTracks().filter { it.displayName.contains(m, true) }) {
+                        val t0 = System.nanoTime()
+                        val r = TrackAnalyzer(applicationContext).ensureAnalyzed(t)
+                        Log.i(TAG, "ENSURE ${t.displayName} id ${t.mediaId} reused=${r.reused} ${(System.nanoTime() - t0) / 1_000_000} ms hash ${r.analysis.contentHash.take(12)}")
+                    }
+                    Log.i(TAG, "ENSURE done")
+                }
+                "cancel" -> androidx.work.WorkManager.getInstance(applicationContext).cancelUniqueWork(ScanWorker.NAME).also { Log.i(TAG, "scan cancelled") }
                 "bench" -> bench(intent.getStringExtra("match") ?: "", intent.getBooleanExtra("mc", false))
             }
         }
@@ -95,6 +107,32 @@ class MainActivity : ComponentActivity() {
             Log.i(TAG, "JSON ${t.displayName} ${a.json.take(600)}")
         }
         Log.i(TAG, "BENCH done (${tracks.size} tracks)")
+    }
+
+    /** Whole-library summary from the cache (M4 report). */
+    private suspend fun stats() {
+        LibraryScanner(applicationContext).syncMediaStore()
+        val dao = SableDatabase.get(applicationContext).library()
+        val tracks = dao.allTracks()
+        var analysed = 0; var audioMs = 0L; var workMs = 0L; var worstPer4 = 0.0; var worstName = ""; var clipped = 0
+        val chars = HashMap<String, Int>()
+        val hashes = HashSet<String>()
+        for (t in tracks) {
+            val h = t.contentHash ?: continue
+            val a = dao.analysis(h, SableDatabase.MATH_VERSION) ?: continue
+            analysed++
+            if (!hashes.add(h)) continue
+            audioMs += t.durationMs
+            val ms = a.decodeMs + a.engineMs
+            workMs += ms
+            val per4 = ms * 240_000.0 / maxOf(1L, t.durationMs)
+            if (per4 > worstPer4) { worstPer4 = per4; worstName = t.displayName }
+            if (a.decodeClipped) clipped++
+            chars[a.character] = (chars[a.character] ?: 0) + 1
+        }
+        Log.i(TAG, "STATS tracks ${tracks.size} analysed $analysed unique ${hashes.size} | audio ${audioMs / 60000} min | " +
+            "analysis ${workMs / 1000} s total, ${"%.2f".format(workMs * 240_000.0 / maxOf(1L, audioMs) / 1000)} s per 4 min avg, worst ${"%.2f".format(worstPer4 / 1000)} s ($worstName) | " +
+            "decodeClipped $clipped | characters $chars")
     }
 
     @Composable
