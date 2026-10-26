@@ -113,7 +113,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.gutter, end = Space.xs, top = Space.m),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SableMark(26.dp)
+            SableMark(28.dp)
             Spacer(Modifier.width(Space.m))
             Text("SABLE", style = SableType.wordmark, color = SableColors.textPrimary, modifier = Modifier.weight(1f))
             IconButton(Glyph.AB, { state.go(Route.Ab) })

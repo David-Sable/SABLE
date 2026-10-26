@@ -140,7 +140,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
         Column(Modifier.fillMaxSize().grain()) {
             TopBar("NOW PLAYING", { state.pop() })
             Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                SableMark(72.dp)
+                SableMark(88.dp)
                 Spacer(Modifier.height(Space.xl))
                 Text("Nothing playing yet", style = SableType.title, color = SableColors.textTertiary)
             }

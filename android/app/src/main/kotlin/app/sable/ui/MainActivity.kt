@@ -149,6 +149,13 @@ class MainActivity : ComponentActivity() {
                         else -> { state.whyTrack = null; while (state.pop()) Unit }
                     }
                 }
+                "icontest" -> runOnUiThread {
+                    for ((name, id) in listOf("lion_mark" to app.sable.R.drawable.lion_mark, "foreground" to app.sable.R.drawable.ic_launcher_foreground,
+                        "launcher" to app.sable.R.mipmap.ic_launcher)) {
+                        runCatching { getDrawable(id) }.onSuccess { Log.i(TAG, "ICON $name ok ${it?.javaClass?.simpleName}") }
+                            .onFailure { Log.e(TAG, "ICON $name failed", it) }
+                    }
+                }
                 "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
                 "contour" -> PlaybackPrefs.update(applicationContext) { it.copy(contour = intent.getStringExtra("value") == "on") }
                 "mode" -> PlaybackPrefs.update(applicationContext) {
