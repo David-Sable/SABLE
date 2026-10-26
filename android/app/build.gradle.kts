@@ -24,6 +24,17 @@ android {
             }
         }
     }
+    // One signing key everywhere, so every build installs over the copy on the phone: the key file named by
+    // SABLE_KEYSTORE (GitHub Actions decodes it from a secret), otherwise this PC's debug key.
+    signingConfigs {
+        create("sable") {
+            val ci = System.getenv("SABLE_KEYSTORE")?.takeIf { it.isNotBlank() }
+            storeFile = file(ci ?: "${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     buildTypes {
         release {
             // Optimized preview build: R8 makes Compose markedly smoother. Signed with the debug key so it installs over
@@ -31,7 +42,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sable")
         }
     }
     externalNativeBuild {

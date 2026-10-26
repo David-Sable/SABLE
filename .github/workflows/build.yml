@@ -63,8 +63,8 @@ jobs:
           KEYSTORE_B64: ${{ secrets.SABLE_KEYSTORE_B64 }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            mkdir -p ~/.android
-            echo "$KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/sable.keystore"
+            echo "SABLE_KEYSTORE=$RUNNER_TEMP/sable.keystore" >> "$GITHUB_ENV"
             echo "SIGNED=1" >> "$GITHUB_ENV"
           else
             echo "::warning::SABLE_KEYSTORE_B64 is not set: the APK will not match the phone's copy and is not published."
@@ -87,6 +87,15 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check the signature matches the phone's copy
+        if: env.SIGNED == '1'
+        run: |
+          # Public fingerprint of the key the installed SABLE was signed with (not a secret).
+          WANT="0786a9322826d1ff2a795e5e479a173882ef37f4c056ba4d0dc196d846193be2"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          GOT=$("$BT/apksigner" verify --print-certs "${{ steps.apk.outputs.name }}" | grep -m1 "SHA-256" | awk '{print $NF}')
+          echo "certificate $GOT"
+          if [ "$GOT" != "$WANT" ]; then echo "::error::APK signed with $GOT, expected $WANT: it would not install over the phone's copy"; exit 1; fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.apk.outputs.name }}
