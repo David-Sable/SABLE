@@ -49,6 +49,7 @@ Dana may need to start a new chat when the context fills up, so never leave stat
 - Phone first (Galaxy A17 5G, Android 16, One UI, 90 Hz). **Easy mode is the default UI**; Advanced is one switch.
 - Quiet mode includes the gentle contour by default (MATH-1.14 §24); Advanced can turn it off.
 - Look: true black, warm ivory accent `#E8E1D3` (brass `#B5975A` alternate), tokens in `ui/theme/Tokens.kt`.
+- Logo: the white lion (Dana's choice). Regenerate icon and mark only with `tools/branding/trace_logo.py`; Android caps a resource string at 32,767 chars, so keep one `<path>` per shape. Keep the app minimal: the mark appears only beside the title, in About and on empty states.
 
 ## 5. Build, test, release
 - Engine: `cmake -S engine -B build -DCMAKE_CXX_COMPILER=clang++ -DSABLE_SANITIZE=ON && cmake --build build -j && ./build/sable_tests`

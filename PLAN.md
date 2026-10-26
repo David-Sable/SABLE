@@ -37,6 +37,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-26 | Blind A/B = level-matched excerpt sequences, math in the engine (MATH §30); preview APKs are R8-optimized release builds signed with the debug key | Fair comparison by construction; R8 needed for smooth 90 Hz Compose |
 | 2026-10-26 | Learning measures volume presses with AOSP's default media curve where One UI's getStreamVolumeDb is flat (MATH-1.13 §19.1) | Measured: One UI returns ~0 dB at every index |
 | 2026-10-26 | Playhead redraws once per pixel of movement, not every 90 Hz frame | Measured: UI CPU 80% → 24–33% of a core; screen-off playback ~2% |
+| 2026-10-26 | **Logo: the white lion** (Dana's AI-generated artwork, traced to vector; `tools/branding/`). App icon, and sparingly in the app | Owner choice; calm, regal, reads at small sizes |
 | 2026-10-26 | **Quiet contour on by default in Quiet** (Easy always; Advanced has an off switch). MATH-1.14 | Owner decision: Easy-mode listeners at low volume lose the bass; the lift is subtle (+2 dB < 200 Hz) and peak-protected |
 | 2026-10-26 | **Easy mode by default**: Settings shows Normal/Quiet only; Advanced (one switch) reveals albums, intimacy, per-output, contour, learning. Easy uses Sable's defaults for those; stored advanced values are kept | Owner request: people confused by sliders; the engine already decides everything |
 | 2026-10-26 | Native engine always built optimized, even in debug APKs | -O0 was ~6x slower; results are identical (deterministic flags) |
