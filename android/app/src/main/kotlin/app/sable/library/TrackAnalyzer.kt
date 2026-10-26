@@ -19,12 +19,22 @@ class TrackAnalyzer(private val context: Context) {
     /** Hash if needed, reuse a cached analysis of identical audio, otherwise analyze and store. */
     suspend fun ensureAnalyzed(track: TrackEntity): Result {
         val uri = Uri.parse(track.uri)
+        val t0 = System.nanoTime()
         val hash = track.contentHash ?: ContentHasher.hash(context, uri).also { dao.setHash(track.mediaId, it) }
+        val t1 = System.nanoTime()
         dao.analysis(hash, SableDatabase.MATH_VERSION)?.let { return Result(it, true) }
         val a = analyze(uri, hash)
         dao.putAnalysis(a)
+        val t2 = System.nanoTime()
+        android.util.Log.i("SableScan", "${track.displayName}: hash ${(t1 - t0) / 1_000_000} ms, analysis ${(t2 - t1) / 1_000_000} ms " +
+            "(audio ${track.durationMs / 1000} s), cpu ${cpuOfThisThread()}")
         return Result(a, false)
     }
+
+    /** CPU the calling thread last ran on (field 39 of /proc/thread-self/stat), for scheduling diagnostics. */
+    private fun cpuOfThisThread(): Int = runCatching {
+        java.io.File("/proc/thread-self/stat").readText().substringAfterLast(')').trim().split(' ')[36].toInt()
+    }.getOrDefault(-1)
 
     fun analyze(uri: Uri, hash: String, boost: Boolean = true, forceMediaCodec: Boolean = false): AnalysisEntity {
         if (!forceMediaCodec && context.contentResolver.getType(uri) == "audio/flac") analyzeFlac(uri, hash, boost)?.let { return it }
