@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.4 (2026-10-26)
+**Version:** MATH-1.5 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -370,7 +370,7 @@ Without κ the fast model would read 2.07 dB quieter, a 12–15% loudness error.
 
 | # | Reference (§10) | Fast model |
 |---|---|---|
-| F1 | 1 ms frame | 4 ms frame. AGC coefficients converted per frame: `a_4 = 1 − (1 − a_1)^4`. This is exact for a constant input across the 4 steps. |
+| F1 | 1 ms frame | **8 ms** frame (measured choice, §11.2). AGC coefficients converted per frame: `a_8 = 1 − (1 − a_1)^8`. This is exact for a constant input across the 8 steps. |
 | F2 | Ear FIR convolution in time | Ear transfer applied as `|H_ff(f)|²` weighting of bin powers, using a 1/12-octave magnitude table derived from `ff_32000` (`engine/src/perceptual_tables.inc`). |
 | F3 | 6 windows (64…2 ms), each zero-padded to 2048 | 3 windows, unpadded: 64 ms for 20–500 Hz (computed on a 4× decimated 8 kHz signal, 512-pt FFT), 16 ms for 500–2540 Hz (512-pt at 32 kHz), 4 ms for 2540–15000 Hz (128-pt at 32 kHz). Windows are symmetric Hann like the reference. Bin power is **scaled to match the reference's total intensity** (§11.0): `P_k = κ · 2|X_k|²/(N·Σw²) · 10^(D_cal/10)`, with `κ = 0.75·10^0.332 = 1.61087` (+2.07 dB). |
 | F4 | Every FFT bin is a component | Bin powers are summed into 150 component bands of 0.25 Cam (edges at ±0.125 Cam around 1.75 … 39 Cam). Each component sits at its band centre. The same −30 dB SPL / −60 dB-re-max pruning applies. |
@@ -385,8 +385,18 @@ Measured on the full test corpus (§26) for the quantity actually used, the anch
 
 If a target is missed, the resolution is increased in this order until it passes: F1 → 2 ms, F5 → 0.25 Cam, F3 → 6 windows. The final configuration and the measured errors are recorded in a "Measured" table appended here, with a version bump.
 
-### 11.2 Measured
-*(empty until Milestone 3)*
+### 11.2 Measured (2026-10-26, `tools/perceptual/validate_reference.py`)
+**Chosen configuration:** F1 = **8 ms** frames (`a_8 = 1 − (1 − a_1)^8`). F3, F5, F6 and F7 are as tabulated. The frame was coarsened from the planned 4 ms after measurement: on the A17 big core it cuts full analysis from 10.8 s to 6.9 s, and the accuracy below stays inside the §11.1 budget.
+
+| Check (12 signals at 32 kHz: tones, noise, AM, dichotic, 3 music excerpts) | Result | Budget |
+|---|---|---|
+| C++ reference (§10) vs authors' TVL18 MATLAB code in GNU Octave, LTL frame-wise after 100 ms | **max relative error 0.000000** on every signal | ≤ 1% |
+| Fast vs reference, song-level mean LTL | worst **2.40%** (100 Hz tone), average 0.81% | ≤ 3% mean / 8% max |
+| Fast vs reference, frame-wise LTL | worst **6.4%** (quiet piano), frame-mean ≤ 2.5% | – |
+| 1 kHz diotic tone at 40 dB SPL | reference 1.00005 sone; fast 0.99995 | 1 sone by definition |
+| PLE read-back of an independent pink tone complex | −29.97 (for −30), −13.92 (for −14) | ≤ 0.05 LU on the table's own noise; ±0.5 otherwise |
+
+A 2.4% loudness error corresponds to ≈ 0.34 LU (loudness doubles per ~10 dB). The anchor-PLE error on full songs is measured on the corpus in the M3 corpus report.
 
 ### 11.3 Cost budget
 The analysis budget (§22.3) is for the whole of pass 1 + pass 2 + decode. The fast model is expected to use ≤ 50% of it on the A78 cores. Milestone 3 reports measured numbers.
