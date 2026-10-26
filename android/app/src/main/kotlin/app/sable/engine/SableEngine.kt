@@ -23,4 +23,8 @@ object SableEngine {
     @JvmStatic external fun jitEnd(handle: Long)
     @JvmStatic external fun jitResult(handle: Long, ceilingDbtp: Double): String
     @JvmStatic external fun jitDestroy(handle: Long)
+
+    /** FLAC: full analysis / JIT decoded inside the engine (dr_flac). Empty string if the file cannot be opened. */
+    @JvmStatic external fun analyzeFlacFd(fd: Int): String
+    @JvmStatic external fun jitFlacFd(fd: Int, ceilingDbtp: Double): String
 }

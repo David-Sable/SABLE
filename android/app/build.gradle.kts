@@ -17,7 +17,10 @@ android {
         versionName = "0.4.0-m4"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
-            cmake { arguments += listOf("-DANDROID_STL=c++_static") }
+            cmake {
+                // The engine is always built optimized (debug APKs included): -O0 made analysis ~6x slower.
+                arguments += listOf("-DANDROID_STL=c++_static", "-DCMAKE_BUILD_TYPE=Release")
+            }
         }
     }
     buildTypes {

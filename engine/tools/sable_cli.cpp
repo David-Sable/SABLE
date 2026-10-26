@@ -22,6 +22,7 @@
 #include "sable/intent.h"
 #include "sable/perceptual.h"
 #include "sable/pipeline.h"
+#include "sable/flac_source.h"
 
 namespace {
 
@@ -195,6 +196,18 @@ int run(int argc, char** argv) {
     if (std::strcmp(argv[i], "--series") == 0) series = true;
     else if (std::strcmp(argv[i], "--perceptual") == 0) perceptual = true;
     else if (std::strcmp(argv[i], "--decide") == 0) decideMode = true;
+    else if (std::strcmp(argv[i], "--decide-flac") == 0 && i + 1 < argc) {  // in-engine dr_flac path (as on the phone)
+      auto src = sable::FlacSource::openPath(argv[++i]);
+      if (!src) return fail("cannot open FLAC");
+      std::puts(sable::analyzeFlac(*src).c_str());
+      return 0;
+    }
+    else if (std::strcmp(argv[i], "--jit-flac") == 0 && i + 1 < argc) {
+      auto src = sable::FlacSource::openPath(argv[++i]);
+      if (!src) return fail("cannot open FLAC");
+      std::puts(sable::jitFlac(*src, -1.0).c_str());
+      return 0;
+    }
     else if (std::strcmp(argv[i], "--prescale") == 0 && i + 1 < argc) prescaleDb = std::strtod(argv[++i], nullptr);
     else if (std::strcmp(argv[i], "--mask") == 0 && i + 1 < argc) maskOverride = static_cast<std::uint32_t>(std::strtoul(argv[++i], nullptr, 16));
     else path = argv[i];

@@ -6,6 +6,7 @@ import app.sable.data.AnalysisEntity
 import app.sable.data.SableDatabase
 import app.sable.data.TrackEntity
 import app.sable.decode.AudioDecoder
+import app.sable.decode.PerfBoost
 import app.sable.engine.SableEngine
 import org.json.JSONObject
 
@@ -25,7 +26,9 @@ class TrackAnalyzer(private val context: Context) {
         return Result(a, false)
     }
 
-    fun analyze(uri: Uri, hash: String): AnalysisEntity {
+    fun analyze(uri: Uri, hash: String, boost: Boolean = true, forceMediaCodec: Boolean = false): AnalysisEntity {
+        if (!forceMediaCodec && context.contentResolver.getType(uri) == "audio/flac") analyzeFlac(uri, hash, boost)?.let { return it }
+        val perf = if (boost) PerfBoost(context) else null
         var handle = 0L
         var decodeNs = 0L
         var engineNs = 0L
@@ -33,6 +36,7 @@ class TrackAnalyzer(private val context: Context) {
         try {
             val s1 = dec.decode(
                 onFormat = { f -> handle = SableEngine.trackCreate(f.sampleRate, f.channels, f.waveChannelMask, !f.floatOutput && isLossy(f.mime)) },
+                boost = perf,
                 sink = { buf, n -> SableEngine.trackPushPass1(handle, buf, n) },
             )
             decodeNs += s1.decodeNanos
@@ -42,14 +46,34 @@ class TrackAnalyzer(private val context: Context) {
             engineNs += System.nanoTime() - t
             while (again) {
                 SableEngine.trackBeginPass2(handle)
-                val s2 = AudioDecoder(context, uri).decode(sink = { buf, n -> SableEngine.trackPushPass2(handle, buf, n) })
+                val s2 = AudioDecoder(context, uri).decode(boost = perf, sink = { buf, n -> SableEngine.trackPushPass2(handle, buf, n) })
                 decodeNs += s2.decodeNanos
                 engineNs += s2.sinkNanos
                 t = System.nanoTime()
                 again = SableEngine.trackEndPass2(handle)
                 engineNs += System.nanoTime() - t
             }
-            val json = SableEngine.trackResult(handle)
+            return entity(hash, SableEngine.trackResult(handle), decodeNs / 1_000_000, engineNs / 1_000_000)
+        } finally {
+            if (handle != 0L) SableEngine.trackDestroy(handle)
+            perf?.close()
+        }
+    }
+
+    /** FLAC: decoded inside the engine (dr_flac, owner decision 2026-10-26); decode time is part of engineMs. */
+    private fun analyzeFlac(uri: Uri, hash: String, boost: Boolean): AnalysisEntity? {
+        val perf = if (boost) PerfBoost(context).keepAlive() else null
+        try {
+            val t0 = System.nanoTime()
+            val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { SableEngine.analyzeFlacFd(it.fd) } ?: return null
+            if (json.isEmpty()) return null
+            return entity(hash, json, 0, (System.nanoTime() - t0) / 1_000_000)
+        } finally {
+            perf?.close()
+        }
+    }
+
+    private fun entity(hash: String, json: String, decodeMs: Long, engineMs: Long): AnalysisEntity {
             val o = JSONObject(json)
             fun d(k: String) = if (o.isNull(k)) null else o.getDouble(k)
             return AnalysisEntity(
@@ -62,12 +86,9 @@ class TrackAnalyzer(private val context: Context) {
                 character = o.optString("character"),
                 decodeClipped = o.optBoolean("decodeClipped"),
                 analyzedAt = System.currentTimeMillis(),
-                decodeMs = decodeNs / 1_000_000,
-                engineMs = engineNs / 1_000_000,
+                decodeMs = decodeMs,
+                engineMs = engineMs,
             )
-        } finally {
-            if (handle != 0L) SableEngine.trackDestroy(handle)
-        }
     }
 
     companion object {
@@ -81,6 +102,12 @@ class JitAnalyzer(private val context: Context) {
 
     fun analyze(uri: Uri, durationMs: Long, ceilingDbtp: Double = -1.0): Result {
         val t0 = System.nanoTime()
+        if (context.contentResolver.getType(uri) == "audio/flac") {
+            PerfBoost(context).keepAlive().use {
+                val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> SableEngine.jitFlacFd(pfd.fd, ceilingDbtp) }
+                if (!json.isNullOrEmpty()) return Result(json, (System.nanoTime() - t0) / 1_000_000)
+            }
+        }
         val dur = durationMs * 1000L
         val windows = buildList {
             add(Triple(0L, minOf(10_000_000L, dur), false))
@@ -91,6 +118,7 @@ class JitAnalyzer(private val context: Context) {
             }
         }
         var handle = 0L
+        val perf = PerfBoost(context)
         try {
             for ((start, len, middle) in windows) {
                 if (len <= 0) continue
@@ -100,6 +128,7 @@ class JitAnalyzer(private val context: Context) {
                         if (handle == 0L) handle = SableEngine.jitCreate(f.sampleRate, f.channels, f.waveChannelMask)
                         SableEngine.jitBegin(handle, middle)
                     },
+                    boost = perf,
                     sink = { buf, n -> SableEngine.jitPush(handle, buf, n) },
                 )
                 SableEngine.jitEnd(handle)
@@ -107,6 +136,7 @@ class JitAnalyzer(private val context: Context) {
             return Result(SableEngine.jitResult(handle, ceilingDbtp), (System.nanoTime() - t0) / 1_000_000)
         } finally {
             if (handle != 0L) SableEngine.jitDestroy(handle)
+            perf.close()
         }
     }
 }

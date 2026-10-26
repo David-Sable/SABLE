@@ -4,6 +4,7 @@
 
 #include <string>
 
+#include "sable/flac_source.h"
 #include "sable/pipeline.h"
 
 namespace {
@@ -48,5 +49,15 @@ JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitResult(JNIEnv* en
   return str(env, jit(h)->resultJson(ceiling));
 }
 JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitDestroy(JNIEnv*, jclass, jlong h) { delete jit(h); }
+
+// FLAC files: decode inside the engine (dr_flac) from a file descriptor; returns "" if the file cannot be opened.
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_analyzeFlacFd(JNIEnv* env, jclass, jint fd) {
+  auto src = sable::FlacSource::openFd(fd);
+  return str(env, src ? sable::analyzeFlac(*src) : std::string());
+}
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitFlacFd(JNIEnv* env, jclass, jint fd, jdouble ceiling) {
+  auto src = sable::FlacSource::openFd(fd);
+  return str(env, src ? sable::jitFlac(*src, ceiling) : std::string());
+}
 
 }  // extern "C"

@@ -77,18 +77,18 @@ class MainActivity : ComponentActivity() {
             when (cmd) {
                 "sync" -> Log.i(TAG, "sync: ${LibraryScanner(applicationContext).syncMediaStore()} tracks")
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
-                "bench" -> bench(intent.getStringExtra("match") ?: "")
+                "bench" -> bench(intent.getStringExtra("match") ?: "", intent.getBooleanExtra("mc", false))
             }
         }
     }
 
     /** Full analysis + JIT on matching tracks, logging decode/engine/JIT timings. */
-    private suspend fun bench(match: String) {
+    private suspend fun bench(match: String, forceMediaCodec: Boolean = false) {
         LibraryScanner(applicationContext).syncMediaStore()
         val dao = SableDatabase.get(applicationContext).library()
         val tracks = dao.allTracks().filter { it.title.contains(match, ignoreCase = true) || it.displayName.contains(match, ignoreCase = true) }
         for (t in tracks) {
-            val a = TrackAnalyzer(applicationContext).analyze(Uri.parse(t.uri), "bench")
+            val a = TrackAnalyzer(applicationContext).analyze(Uri.parse(t.uri), "bench", forceMediaCodec = forceMediaCodec)
             val j = JitAnalyzer(applicationContext).analyze(Uri.parse(t.uri), t.durationMs)
             Log.i(TAG, "BENCH ${t.displayName} | ${t.mime} | dur ${t.durationMs / 1000.0}s | decode ${a.decodeMs} ms | engine ${a.engineMs} ms | " +
                 "clipped ${a.decodeClipped} | I ${a.integratedLufs} | gainStd ${a.gainStandardDb} | ${a.character} | JIT ${j.millis} ms ${j.json}")
