@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "sable/flac_source.h"
+#include "sable/audio_source.h"
 #include "sable/pipeline.h"
 
 namespace {
@@ -50,14 +50,16 @@ JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitResult(JNIEnv* en
 }
 JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitDestroy(JNIEnv*, jclass, jlong h) { delete jit(h); }
 
-// FLAC files: decode inside the engine (dr_flac) from a file descriptor; returns "" if the file cannot be opened.
-JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_analyzeFlacFd(JNIEnv* env, jclass, jint fd) {
-  auto src = sable::FlacSource::openFd(fd);
-  return str(env, src ? sable::analyzeFlac(*src) : std::string());
+// FLAC (dr_flac) and MP3 (minimp3) are decoded inside the engine from a file descriptor.
+// kind: 0 = FLAC, 1 = MP3. Returns "" if the file cannot be opened.
+static std::unique_ptr<sable::AudioSource> openKind(int fd, int kind) { return kind == 1 ? sable::openMp3Fd(fd) : sable::openFlacFd(fd); }
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_analyzeNativeFd(JNIEnv* env, jclass, jint fd, jint kind) {
+  auto src = openKind(fd, kind);
+  return str(env, src ? sable::analyzeSource(*src) : std::string());
 }
-JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitFlacFd(JNIEnv* env, jclass, jint fd, jdouble ceiling) {
-  auto src = sable::FlacSource::openFd(fd);
-  return str(env, src ? sable::jitFlac(*src, ceiling) : std::string());
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitNativeFd(JNIEnv* env, jclass, jint fd, jint kind, jdouble ceiling) {
+  auto src = openKind(fd, kind);
+  return str(env, src ? sable::jitSource(*src, ceiling) : std::string());
 }
 
 }  // extern "C"

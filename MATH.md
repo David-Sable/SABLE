@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.9 (2026-10-26)
+**Version:** MATH-1.10 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -64,7 +64,8 @@ The engine never rounds. Display layers round to 0.1 (LU/LUFS/dB/dBTP), per the 
 - The engine receives **decoded, interleaved float** PCM in nominal range [−1, 1]. It is never clipped: values beyond ±1.0 from lossy decodes are kept and measured, as the spec requires.
 - If a platform decoder can only output 16-bit integer PCM (it cannot represent overs) **for a lossy source** (MP3, AAC, Vorbis, Opus), the result is flagged `decodeClipped = true`. Lossless sources (FLAC, ALAC, WAV) decoded to their native integer depth are exact and never flagged. The true-peak value used for the peak cap (§16.4) then gets a safety margin `M_clipTP = +1.0 dB` **[TUNE]**, and the Why sheet says so. Milestone 4 records which Android decoders deliver float on the A17.
 - **FLAC is decoded inside the engine** (dr_flac 0.13.3, owner decision 2026-10-26): exact integers, converted to float by multiplying by 2⁻³¹ (exact for ≤ 24-bit sources). The result is bit-identical to FFmpeg's float decode on host and device. Third-party code in the engine is limited to this integer-exact decoder (§25.4 otherwise unchanged).
-- **Open (M5):** for lossy files decoded by a 16-bit-only platform decoder (Android MP3), the clipped true peak under-reads real overs (observed +1.19 vs +3.29 dBTP). The correct TP for the peak cap is the TP of the signal *as played*: it depends on whether playback decodes to float. The `M_clipTP` rule will be settled together with the playback decode path in M5.
+- **MP3 is decoded inside the engine** (minimp3 @ea99364f, CC0, owner decision 2026-10-26) to float without clipping, so overs are measured (e.g. +3.29 dBTP where Android's 16-bit decoder read +1.19). It is compiled without SIMD (scalar float), so host and device decode bit-identically. It matches FFmpeg within 3·10⁻⁶ LU, with identical frame counts (LAME/Xing gapless trimming).
+- **Open (M5):** if *playback* decodes through a 16-bit platform decoder, overs are clipped before Sable's gain, and the played true peak is ≤ the measured one. The cap is then conservative, never unsafe. The final `M_clipTP` rule for formats still analysed through MediaCodec (AAC, Opus, Vorbis, ALAC) is settled with the playback decode path in M5.
 - Encoder delay and padding are removed *before* the engine sees samples: LAME/Xing `enc_delay`/`enc_padding`, iTunSMPB for AAC/ALAC-in-MP4, Opus `pre_skip` and end trimming via granule position, Vorbis granule position. FLAC and WAV have none. Media3 extractors already parse these. The host CLI uses FFmpeg, which applies the same trims; cross-checked in §26.
 
 ### 1.2 Channel layouts [STD + DESIGN]

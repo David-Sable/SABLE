@@ -22,7 +22,7 @@
 #include "sable/intent.h"
 #include "sable/perceptual.h"
 #include "sable/pipeline.h"
-#include "sable/flac_source.h"
+#include "sable/audio_source.h"
 
 namespace {
 
@@ -196,16 +196,14 @@ int run(int argc, char** argv) {
     if (std::strcmp(argv[i], "--series") == 0) series = true;
     else if (std::strcmp(argv[i], "--perceptual") == 0) perceptual = true;
     else if (std::strcmp(argv[i], "--decide") == 0) decideMode = true;
-    else if (std::strcmp(argv[i], "--decide-flac") == 0 && i + 1 < argc) {  // in-engine dr_flac path (as on the phone)
-      auto src = sable::FlacSource::openPath(argv[++i]);
-      if (!src) return fail("cannot open FLAC");
-      std::puts(sable::analyzeFlac(*src).c_str());
-      return 0;
-    }
-    else if (std::strcmp(argv[i], "--jit-flac") == 0 && i + 1 < argc) {
-      auto src = sable::FlacSource::openPath(argv[++i]);
-      if (!src) return fail("cannot open FLAC");
-      std::puts(sable::jitFlac(*src, -1.0).c_str());
+    else if ((std::strcmp(argv[i], "--decide-native") == 0 || std::strcmp(argv[i], "--jit-native") == 0) && i + 1 < argc) {
+      // In-engine decode, exactly as on the phone: .flac via dr_flac, .mp3 via minimp3.
+      const bool jit = std::strcmp(argv[i], "--jit-native") == 0;
+      const std::string f = argv[++i];
+      const bool mp3 = f.size() > 4 && (f.substr(f.size() - 4) == ".mp3" || f.substr(f.size() - 4) == ".MP3");
+      auto src = mp3 ? sable::openMp3Path(f.c_str()) : sable::openFlacPath(f.c_str());
+      if (!src) return fail("cannot open audio file");
+      std::puts((jit ? sable::jitSource(*src, -1.0) : sable::analyzeSource(*src)).c_str());
       return 0;
     }
     else if (std::strcmp(argv[i], "--prescale") == 0 && i + 1 < argc) prescaleDb = std::strtod(argv[++i], nullptr);

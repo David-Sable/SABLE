@@ -37,7 +37,7 @@ class TrackAnalyzer(private val context: Context) {
     }.getOrDefault(-1)
 
     fun analyze(uri: Uri, hash: String, boost: Boolean = true, forceMediaCodec: Boolean = false): AnalysisEntity {
-        if (!forceMediaCodec && context.contentResolver.getType(uri) == "audio/flac") analyzeFlac(uri, hash, boost)?.let { return it }
+        if (!forceMediaCodec) SableEngine.nativeKind(context.contentResolver.getType(uri))?.let { k -> analyzeNative(uri, hash, k, boost)?.let { return it } }
         val perf = if (boost) PerfBoost(context) else null
         var handle = 0L
         var decodeNs = 0L
@@ -70,12 +70,12 @@ class TrackAnalyzer(private val context: Context) {
         }
     }
 
-    /** FLAC: decoded inside the engine (dr_flac, owner decision 2026-10-26); decode time is part of engineMs. */
-    private fun analyzeFlac(uri: Uri, hash: String, boost: Boolean): AnalysisEntity? {
+    /** FLAC / MP3: decoded inside the engine (owner decisions 2026-10-26); decode time is part of engineMs. */
+    private fun analyzeNative(uri: Uri, hash: String, kind: Int, boost: Boolean): AnalysisEntity? {
         val perf = if (boost) PerfBoost(context).keepAlive() else null
         try {
             val t0 = System.nanoTime()
-            val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { SableEngine.analyzeFlacFd(it.fd) } ?: return null
+            val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { SableEngine.analyzeNativeFd(it.fd, kind) } ?: return null
             if (json.isEmpty()) return null
             return entity(hash, json, 0, (System.nanoTime() - t0) / 1_000_000)
         } finally {
@@ -112,9 +112,9 @@ class JitAnalyzer(private val context: Context) {
 
     fun analyze(uri: Uri, durationMs: Long, ceilingDbtp: Double = -1.0): Result {
         val t0 = System.nanoTime()
-        if (context.contentResolver.getType(uri) == "audio/flac") {
+        SableEngine.nativeKind(context.contentResolver.getType(uri))?.let { kind ->
             PerfBoost(context).keepAlive().use {
-                val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> SableEngine.jitFlacFd(pfd.fd, ceilingDbtp) }
+                val json = context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> SableEngine.jitNativeFd(pfd.fd, kind, ceilingDbtp) }
                 if (!json.isNullOrEmpty()) return Result(json, (System.nanoTime() - t0) / 1_000_000)
             }
         }

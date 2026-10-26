@@ -24,7 +24,14 @@ object SableEngine {
     @JvmStatic external fun jitResult(handle: Long, ceilingDbtp: Double): String
     @JvmStatic external fun jitDestroy(handle: Long)
 
-    /** FLAC: full analysis / JIT decoded inside the engine (dr_flac). Empty string if the file cannot be opened. */
-    @JvmStatic external fun analyzeFlacFd(fd: Int): String
-    @JvmStatic external fun jitFlacFd(fd: Int, ceilingDbtp: Double): String
+    /** In-engine decode (kind 0 = FLAC via dr_flac, 1 = MP3 via minimp3). Empty string if the file cannot be opened. */
+    @JvmStatic external fun analyzeNativeFd(fd: Int, kind: Int): String
+    @JvmStatic external fun jitNativeFd(fd: Int, kind: Int, ceilingDbtp: Double): String
+
+    /** Engine-decodable formats: FLAC and MP3 (owner decisions 2026-10-26). */
+    fun nativeKind(mime: String?): Int? = when (mime) {
+        "audio/flac" -> 0
+        "audio/mpeg" -> 1
+        else -> null
+    }
 }
