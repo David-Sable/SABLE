@@ -40,6 +40,7 @@ jobs:
 
   app:
     name: App tests and APK
+    needs: engine  # never publish an APK whose engine failed its tests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
