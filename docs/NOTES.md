@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing and the app icon. MATH-1.13.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the app icon, and the Quiet contour on by default in Quiet (0.7.1). MATH-1.14.
   Latest GitHub release: build 6 (`0.7.0-m7`), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
 - **On Dana's phone:** 0.7.0-m7 (installed from the PC; same key, same data). Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
@@ -30,6 +30,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Contour automatic in Quiet (0.7.1)
+- Owner decision: the Quiet contour is on by default in Quiet (Easy mode always; Advanced has an off switch). MATH-1.14 §24.
+- Stored under a new preference key (`contourOn`, default true) so the "off" left by an earlier device test does not carry over.
 
 ### 2026-10-26 (PC) GitHub builds and handoff setup
 - GitHub Actions (`.github/workflows/build.yml`): engine tests with ASan/UBSan on Linux clang, app JVM tests, signed

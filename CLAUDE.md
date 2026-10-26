@@ -18,7 +18,7 @@ Dana may need to start a new chat when the context fills up, so never leave stat
 
 | If you changed… | Also update |
 |---|---|
-| Any number, rule or threshold in the engine | MATH.md first (bump the version in its header; note it in NOTES) |
+| Any number, rule or threshold in the engine | MATH.md first (bump the version in its header and `MATH_DOC_VERSION` in `ui/SableApp.kt`; note it in NOTES) |
 | An owner decision or architecture choice | PLAN.md decisions log |
 | What Dana sees or does | README.md (plain language) and, for installing, docs/INSTALL.md |
 | The app's version | `versionName` in `android/app/build.gradle.kts` (versionCode is automatic) |
@@ -38,7 +38,7 @@ Dana may need to start a new chat when the context fills up, so never leave stat
   on the PC (`~/.android/debug.keystore`) and in the GitHub secret `SABLE_KEYSTORE_B64`. Never print, copy or move it.
 - Commit identity: `craigdavid209-design <327186142+craigdavid209-design@users.noreply.github.com>`.
 - **Ask Dana first** before a major new dependency or a change to the product's philosophy: one static gain per song by
-  default; the Quiet contour is the only (opt-in) non-flat processing; files are never modified.
+  default; the Quiet contour (on by default in Quiet, switchable in Advanced) is the only non-flat processing; files are never modified.
 
 ## 4. Owner decisions to respect (details in PLAN.md)
 - Targets: Normal (MATH "Standard") −14 LUFS, Quiet **−19** LUFS (not −18).
@@ -47,6 +47,7 @@ Dana may need to start a new chat when the context fills up, so never leave stat
 - Analysis decoding in the engine: FLAC with dr_flac, MP3 with minimp3. Playback: Media3 + platform decoders, gain
   applied in float in `SableAudioSink`.
 - Phone first (Galaxy A17 5G, Android 16, One UI, 90 Hz). **Easy mode is the default UI**; Advanced is one switch.
+- Quiet mode includes the gentle contour by default (MATH-1.14 §24); Advanced can turn it off.
 - Look: true black, warm ivory accent `#E8E1D3` (brass `#B5975A` alternate), tokens in `ui/theme/Tokens.kt`.
 
 ## 5. Build, test, release

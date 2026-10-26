@@ -20,7 +20,7 @@ object PlaybackPrefs {
         val mode: Mode = Mode.STANDARD,
         val albumMode: AlbumMode = AlbumMode.AUTO,
         val intimacyLu: Double = 1.0,
-        val contour: Boolean = false,                           // §24, Quiet mode only
+        val contour: Boolean = true,                            // §24, Quiet mode only; on by default (owner decision)
         val routeCal: Map<String, Double> = emptyMap(),         // §20.2 c_out per route
         val routeCeiling: Map<String, Double> = emptyMap(),     // §20.1 overrides
         val advanced: Boolean = false,                          // Easy mode unless the listener opts in
@@ -30,7 +30,7 @@ object PlaybackPrefs {
          * Normal/Quiet; the advanced values stay stored, so switching Advanced back on restores them untouched.
          */
         fun effective(): Settings = if (advanced) this else copy(
-            albumMode = AlbumMode.AUTO, intimacyLu = 1.0, contour = false, routeCal = emptyMap(), routeCeiling = emptyMap(),
+            albumMode = AlbumMode.AUTO, intimacyLu = 1.0, contour = true, routeCal = emptyMap(), routeCeiling = emptyMap(),
         )
 
         fun ceiling(r: Route) = (routeCeiling[r.key] ?: r.defaultCeilingDbtp).coerceIn(-3.0, -0.5)
@@ -48,7 +48,7 @@ object PlaybackPrefs {
             mode = runCatching { Mode.valueOf(p.getString("mode", null)!!) }.getOrDefault(Mode.STANDARD),
             albumMode = runCatching { AlbumMode.valueOf(p.getString("albumMode", null)!!) }.getOrDefault(AlbumMode.AUTO),
             intimacyLu = p.getFloat("intimacyLu", 1.0f).toDouble().coerceIn(0.0, 2.0),
-            contour = p.getBoolean("contour", false),
+            contour = p.getBoolean("contourOn", true),
             advanced = p.getBoolean("advanced", false),
             routeCal = Route.entries.mapNotNull { r -> if (p.contains("cal_${r.key}")) r.key to p.getFloat("cal_${r.key}", 0f).toDouble() else null }.toMap(),
             routeCeiling = Route.entries.mapNotNull { r -> if (p.contains("ceil_${r.key}")) r.key to p.getFloat("ceil_${r.key}", 0f).toDouble() else null }.toMap(),
@@ -62,7 +62,7 @@ object PlaybackPrefs {
         state.value = s
         val e = context.getSharedPreferences("sable", Context.MODE_PRIVATE).edit()
             .putString("mode", s.mode.name).putString("albumMode", s.albumMode.name).putFloat("intimacyLu", s.intimacyLu.toFloat())
-            .putBoolean("contour", s.contour).putBoolean("advanced", s.advanced)
+            .putBoolean("contourOn", s.contour).putBoolean("advanced", s.advanced)
         for (r in Route.entries) {
             s.routeCal[r.key]?.let { e.putFloat("cal_${r.key}", it.toFloat()) } ?: e.remove("cal_${r.key}")
             s.routeCeiling[r.key]?.let { e.putFloat("ceil_${r.key}", it.toFloat()) } ?: e.remove("ceil_${r.key}")

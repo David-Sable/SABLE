@@ -83,6 +83,9 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     }
 }
 
+/** The MATH.md version this build implements (keep equal to the header of MATH.md). */
+const val MATH_DOC_VERSION = "MATH-1.14"
+
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
     val context = LocalContext.current
@@ -98,7 +101,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                 }
             }
             Hint(if (s.advanced) "Normal balances every song to −14 LUFS. Quiet balances to −19 LUFS for late nights and quiet rooms."
-                else "Sable listens to every song and sets its level for you. Quiet is the same balance, softer, for late nights.")
+                else "Sable listens to every song and sets its level for you. Quiet is the same balance, softer, with a gentle bass lift so it still sounds full at low volume.")
             Group("Battery")
             BatteryRow()
             Group("Library")
@@ -122,7 +125,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                         Pill("Off", !s.contour) { PlaybackPrefs.update(context) { it.copy(contour = false) } }
                         Pill("On", s.contour) { PlaybackPrefs.update(context) { it.copy(contour = true) } }
                     }
-                    Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected.")
+                    Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected. On by default; turn it off for level changes only.")
                     Group("Albums")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }
@@ -165,7 +168,8 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                     Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song and, after two of their songs, for the artist. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
                     Group("About")
-                    Text("SABLE 0.7 · Intent Engine MATH-1.13", style = SableType.body, color = SableColors.textPrimary)
+                    val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }
+                    Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
                     Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Reset A/B results", false) { AbTally.reset(context) } }
                 }

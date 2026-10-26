@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.13 (2026-10-26)
+**Version:** MATH-1.14 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -705,9 +705,9 @@ Off by default. When on: 5 ms look-ahead, peak detection on an oversampled sidec
 
 ---
 
-## 24. Quiet-mode loudness contour (opt-in) [STD + DESIGN]
+## 24. Quiet-mode loudness contour [STD + DESIGN]
 
-The only non-flat processing, and only when enabled in Quiet mode.
+The only non-flat processing, and only in Quiet mode. **On by default in Quiet** (owner decision 2026-10-26, MATH-1.14; it was opt-in until 1.13): Easy mode always uses it in Quiet, and Advanced settings has a switch to turn it off. It never acts in Normal (Standard) mode or during blind A/B.
 
 ### 24.1 Equal-loudness contours [ISO226] [PROVISIONAL]
 `L_p(f, L_N)` (dB SPL of a pure tone at frequency `f` with loudness level `L_N` phon), using the **ISO 226:2003** formula and tables:
