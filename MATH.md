@@ -1,7 +1,7 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.1 (2026-10-26)
-**Status:** Revised after the independent review of 1.0-draft (docs/reviews/MATH-1.0-draft-review.md); second review pending. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
+**Version:** MATH-1.2 (2026-10-26)
+**Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
 Constants are collected in §27. Sources are listed in §29 and cited inline as **[BS1770]**, **[T3341]**, **[T3342]**, **[TVL16]**, **[TVL18]**, **[ISO226]**, etc.
@@ -76,12 +76,26 @@ Channel weights `G_i` **[BS1770 Table 3]**:
 | Height channels (\|φ\| ≥ 30°) | 1.0 |
 | LFE | 0 (excluded) |
 
-These are the position-dependent weights of **[BS1770-5 Annex 3, Tables 4–5]**. Channel positions come from the container's channel mask: WAVE_FORMAT_EXTENSIBLE `dwChannelMask`, FLAC/Vorbis `WAVEFORMATEXTENSIBLE_CHANNEL_MASK`, or the MP4 channel layout. With no mask, the standard default order for that channel count is assumed (FLAC/Vorbis/WAV order).
+These are the position-dependent weights of **[BS1770-5 Annex 3, Tables 4–5]**. Channel positions come from the container's channel mask (WAVE_FORMAT_EXTENSIBLE `dwChannelMask`, FLAC/Vorbis `WAVEFORMATEXTENSIBLE_CHANNEL_MASK`, MP4 channel layout). With no mask, the standard default order for the channel count is used (FLAC/Vorbis/WAV order: 6 ch = L R C LFE BL BR; 8 ch = L R C LFE BL BR SL SR). Mask bits map to azimuth as follows:
+
+| Mask bits | Assumed azimuth | G |
+|---|---|---|
+| FRONT_LEFT / FRONT_RIGHT | ±30° | 1.0 |
+| FRONT_CENTER | 0° | 1.0 |
+| FRONT_LEFT_OF_CENTER / FRONT_RIGHT_OF_CENTER | ±15° | 1.0 |
+| SIDE_LEFT / SIDE_RIGHT | ±90° | 1.41 |
+| BACK_LEFT / BACK_RIGHT, **no SIDE bits present** (5.1 "back" = surround) | ±110° | 1.41 |
+| BACK_LEFT / BACK_RIGHT, SIDE bits also present (7.1) | ±135° | 1.0 |
+| BACK_CENTER | 180° | 1.0 |
+| TOP_* | elevated | 1.0 |
+| LOW_FREQUENCY | – | 0 |
+
+This mapping gives T3341 case 6 = −23.02 LUFS. Treating 5.1 BACK as ±135° would give −23.40 LUFS and fail the test.
 
 - **Mono (1 channel) [DESIGN]:** treated as **dual-mono**. The mono signal plays from both speakers / both earpieces, which BS.1770 would measure as a 2-channel signal with identical channels, so the measurement is `Σ G_i z_i = 2·z_mono`. That is +3.01 dB relative to measuring it as a single channel. This matches libebur128's `EBUR128_DUAL_MONO` and FFmpeg `ebur128=dualmono=true`. pyloudnorm treats mono as one channel, so pyloudnorm mono results are 3.01 LU lower by construction; the cross-validation corrects for this explicitly (§26).
 - **More than 2 channels [DESIGN]:** Sable plays on a stereo device, so the measured signal must be what is played. Files with >2 channels are downmixed by Sable before *both* analysis and playback (the same code), using ITU-R BS.775 coefficients:
-  `L' = L + 0.7071·C + 0.7071·Ls`, `R' = R + 0.7071·C + 0.7071·Rs`, LFE dropped. Other surround channels follow their side (left/right).
-  The downmix is then measured as stereo (G = 1, 1). **True peak is also measured on the downmix**, the signal that is actually played: the un-normalized BS.775 sum can exceed the raw channels' TP by up to +7.7 dB. The raw multichannel BS.1770 loudness and TP (weights above) are *also* reported for compliance testing (§26, EBU 3341 case 6) but are not used for gain.
+  `L' = L + 0.7071·C + 0.7071·Σ(left surrounds)`, `R' = R + 0.7071·C + 0.7071·Σ(right surrounds)`. The left surrounds are every side, back and top channel on the left, each with coefficient 0.7071. FRONT_LEFT_OF_CENTER is 1.0 into L. The right side mirrors this. BACK_CENTER and TOP_CENTER add 0.5 to both sides. LFE is dropped.
+  The downmix is then measured as stereo (G = 1, 1). **True peak is also measured on the downmix**, the signal that is actually played: the un-normalized sum can exceed the raw channels' TP by `20·log10(1 + 0.7071·n_s)` dB, where `n_s` is the number of 0.7071-weighted channels feeding one side. That is +7.7 dB for 5.1 (C + 1 surround) and +9.9 dB for 7.1 (C + side + back). The raw multichannel BS.1770 loudness and TP (weights above) are *also* reported for compliance testing (§26, EBU 3341 case 6) but are not used for gain.
 
 ### 1.3 Sample rates [DESIGN]
 Supported: 8 kHz to 384 kHz. Every rate-dependent constant is derived from `fs` (filters §2, hop §3, true-peak factor §6). None are hard-coded for 48 kHz.
@@ -120,10 +134,10 @@ The bilinear transform warps frequencies near Nyquist. Stage 2's unnormalized `b
 |---|---|
 | ≥ 32 kHz (incl. 44.1, 88.2, 96, 192, 384) | ≤ 0.05 dB |
 | 22.05 / 24 kHz | ≈ 0.08 dB |
-| 11.025 / 12 / 16 kHz | ≤ 0.27 dB |
-| 8 kHz | ≤ 0.42 dB (at 2–3 kHz) |
+| 11.025 / 12 / 16 kHz | ≤ 0.30 dB |
+| 8 kHz | ≤ 0.51 dB (at ≈ 2.4 kHz) |
 
-Music at ≥ 32 kHz, which is all of the supported formats in practice, meets the 0.1 LU cross-rate requirement. For fs < 32 kHz Sable keeps the libebur128 behaviour, for cross-validation parity, and **reports `lowRateKWeighting = true`**; the Why sheet notes possible ±0.3 LU error. **Test:** pink noise at every supported rate measures within the tolerance in the table above of its 48 kHz result.
+Music at ≥ 32 kHz, which is all of the supported formats in practice, meets the 0.1 LU cross-rate requirement. For fs < 32 kHz Sable keeps the libebur128 behaviour, for cross-validation parity, and **reports `lowRateKWeighting = true`**; the Why sheet notes a possible error of up to ±0.5 LU. **Test:** pink noise **band-limited to 20 Hz – 0.45·min(fs, 48 kHz)**, the same band at both rates, measures within the table's tolerance of the same band-limited noise at 48 kHz. Full-band noise would differ by construction, because low rates lose the upper octaves.
 
 ---
 
@@ -150,16 +164,16 @@ Block `j` = sub-blocks `j, j+1, j+2, j+3`, i.e. samples `[j·H, j·H + 4H)`. Tha
 ### 3.5 Maximum momentary / short-term (fine grid)
 A 100 ms grid can miss the true maximum of a 400 ms window by up to 0.46 dB, for example on T3341 case 13, where tones start at 20 ms offsets. Maxima are therefore computed on a fine grid:
 - Fine hop `h = round_half_up(fs/100)` samples (10 ms). Fine sub-block sums are `r_{i,u} = Σ y_i²` over `[u·h, (u+1)·h)`.
-- `M^fine_u` uses 40 fine sub-blocks (400 ms); `S^fine_u` uses 300 (3 s). Both are computed exactly as in §3.3/§3.4.
+- `M^fine_u` uses 40 fine sub-blocks (window 40h samples) and `S^fine_u` uses 300 (300h samples). Otherwise both are computed as in §3.3/§3.4: mean square over the window, channel weights, −0.691. When fs is divisible by 100, 40h = 4H exactly. Otherwise the windows differ from 4H/30H by < 0.5% (e.g. 4400 vs 4412 samples at 11.025 kHz), which is accepted for these display and compliance maxima.
 - `Mmax = max_u M^fine_u` and `Smax = max_u S^fine_u`, over defined values only.
 
-Worst-case under-read with a 10 ms hop: a 400 ms window misses ≤ 5 ms of each edge, which is −0.05 dB on the steady tones of the T3341 cases. These maxima are reported for compliance tests (**[T3341]** cases 9–14) and the UI. Gating, LRA, structure and all gain decisions use the 100 ms grid only.
+Worst-case under-read with a 10 ms hop: a 400 ms window misses ≤ 5 ms in total, because the onset lies at most half a hop from a grid point. That is −0.05 dB on the steady tones of the T3341 cases. These maxima are reported for compliance tests (**[T3341]** cases 9–14) and the UI. Gating, LRA, structure and all gain decisions use the 100 ms grid only.
 
 ### 3.6 Timestamps
 A value computed over the window `[a, b)` carries the timestamp `b`, its window end:
 - `M_j` → `(j + 4)·H/fs`
 - `S_k` → `(k + 30)·H/fs`
-- sub-block `m` → its centre, `(m + 0.5)·H/fs`
+- **exception:** sub-block `m` is stamped at its centre, `(m + 0.5)·H/fs`, because it is used for interval membership, not as a windowed measurement
 
 Any reference to "S at time t" means the `S_k` whose timestamp is the largest one ≤ t.
 
@@ -306,7 +320,7 @@ The reference is the Moore–Glasberg–Schlittenlacher time-varying loudness mo
    - Cam ↔ Hz: `Cam(f) = 21.366·log10(0.004368·f + 1)`, `f(Cam) = (10^(Cam/21.366) − 1)/0.004368`
    - `ERB(f) = 24.673·(0.004368·f + 1)`, `p(f) = 4f/ERB(f)`
    - `W(p, g) = (1 + p|g|)·exp(−p|g|)`, `g = (f − f_c)/f_c`, and `W = 0` for `g > 4`
-   - Input level per ERB at each component `i`: `X_i = 10·log10( Σ_k 10^(L_k/10) · W(p(f_i), (f_k − f_i)/f_i)·[g ≤ 4] )`
+   - Input level per ERB at each component `k`, **exactly as `InputLevelPerERB.m`**, where each *source* component `i` spreads with its own filter: `X_k = 10·log10( Σ_i 10^(L_i/10) · W(p(f_i), g_ik)·[g_ik ≤ 4] )`, with `g_ik = (f_k − f_i)/f_i`. `g_ik` is signed in the `≤ 4` test and absolute inside W.
    - Lower slope: `p_l(f_c, X) = p(f_c) − 0.35·(p(f_c)/p(1000))·(X − 51)`
    - `E(f_c) = Σ_k 10^(L_k/10) · W(p_k, g_k)·[g_k ≤ 4]`, with `p_k = p(f_c)` if `f_k ≥ f_c`, else `p_l(f_c, X_k)`. Level `10·log10(E)`.
 6. Specific loudness (binaural-model constant):
@@ -328,7 +342,7 @@ The reference is the Moore–Glasberg–Schlittenlacher time-varying loudness mo
    - `N'_L,inh = N'_L/INH_L`
 9. Short-term loudness per ear: `STL_e = Σ_CF N'_e,inh / 4` (0.25 Cam spacing). Binaural `STL = STL_L + STL_R`.
 10. Long-term loudness per ear: AGC on `STL_e` with `a_A = 0.01`, `a_R = 0.00133` per 1 ms **[TVL18]**. `LTL = LTL_L + LTL_R`.
-11. Outputs at 1 ms are reduced to the 10 Hz analysis grid by averaging in sones. `STL_m` and `LTL_m` are the means over the frames `n` whose time `t = n ms` lies in sub-block `m`'s interval `[0.1m, 0.1(m+1))` s. Sub-blocks with no frames (the first 32 ms and the last 32 ms of the file) are absent.
+11. Outputs at 1 ms are reduced to the 10 Hz analysis grid by averaging in sones. `STL_m` and `LTL_m` are the means over the frames `n` whose time `t = n ms` lies in sub-block `m`'s interval `[0.1m, 0.1(m+1))` s. Every complete sub-block contains frames.
 
 ### 10.2 Reference validation [§26]
 - A diotic 1 kHz steady tone at 40 dB SPL gives `max LTL = 1.00 ± 0.02` sone (the model's definition of C) **[TVL16]**.
@@ -341,15 +355,24 @@ The reference is the Moore–Glasberg–Schlittenlacher time-varying loudness mo
 The same model as §10, with these approximations, chosen for the A17 budget (§11.3).
 
 ### 11.0 Intensity-scale invariant
-For a stationary signal, the fast model's total component intensity must equal the reference's. The reference (§10.1 step 3) sums to `2·(3/8)·10^0.332·MS ≈ 1.611·MS` for mean square MS. That comes from its amplitude-squared bin convention and its empirical 3.32 dB Hann correction. The fast model's Parseval-normalized power sums to `MS`, so it carries the factor `κ = 1.6106`.
+For a stationary signal, the fast model's total component intensity should approximately equal the reference's. For a sine whose lobe lies inside one window's band, the reference (§10.1 step 3) sums to `2·(3/8)·10^0.332·MS = 1.61087·MS` for mean square MS, because of its amplitude-squared bins and empirical 3.32 dB Hann correction. The fast model's Parseval-normalized power sums to `MS`, so it carries `κ = 0.75·10^0.332 = 1.61087`.
 
-**Test:** for a 1 kHz sine and for white noise, the total intensity of each model agrees within 0.1 dB. Without κ the fast model would read 2.07 dB quieter, which is a 12–15% loudness error.
+The equality is **approximate**. The reference's band-assembled total varies with frequency, because main lobes leak across band edges: +0.51 dB at 50 Hz, −0.07 dB at 8 kHz. So residual low-frequency differences remain, and they are measured.
+
+In the fast model each window's band is **half-open** `[f_lo, f_hi)` in bin-centre frequency, except the top band, which includes 15 000 Hz.
+
+**Test:** total intensity, fast vs reference:
+- white noise and sines at 1, 3, 8 kHz: ≤ 0.1 dB
+- sines at 100, 200, 500, 2540 Hz: ≤ 0.25 dB
+- 50 Hz: ≤ 0.6 dB
+
+Without κ the fast model would read 2.07 dB quieter, a 12–15% loudness error.
 
 | # | Reference (§10) | Fast model |
 |---|---|---|
 | F1 | 1 ms frame | 4 ms frame. AGC coefficients converted per frame: `a_4 = 1 − (1 − a_1)^4`. This is exact for a constant input across the 4 steps. |
 | F2 | Ear FIR convolution in time | Ear transfer applied as `|H_ff(f)|²` weighting of bin powers, using a 1/12-octave magnitude table derived from `ff_32000` (`engine/src/perceptual_tables.inc`). |
-| F3 | 6 windows (64…2 ms), each zero-padded to 2048 | 3 windows, unpadded: 64 ms for 20–500 Hz (computed on a 4× decimated 8 kHz signal, 512-pt FFT), 16 ms for 500–2540 Hz (512-pt at 32 kHz), 4 ms for 2540–15000 Hz (128-pt at 32 kHz). Windows are symmetric Hann like the reference. Bin power is **scaled to match the reference's total intensity** (§11.0): `P_k = κ · 2|X_k|²/(N·Σw²) · 10^(D_cal/10)`, with `κ = 2·(3/8)·10^(0.332) = 1.6106` (+2.07 dB). |
+| F3 | 6 windows (64…2 ms), each zero-padded to 2048 | 3 windows, unpadded: 64 ms for 20–500 Hz (computed on a 4× decimated 8 kHz signal, 512-pt FFT), 16 ms for 500–2540 Hz (512-pt at 32 kHz), 4 ms for 2540–15000 Hz (128-pt at 32 kHz). Windows are symmetric Hann like the reference. Bin power is **scaled to match the reference's total intensity** (§11.0): `P_k = κ · 2|X_k|²/(N·Σw²) · 10^(D_cal/10)`, with `κ = 0.75·10^0.332 = 1.61087` (+2.07 dB). |
 | F4 | Every FFT bin is a component | Bin powers are summed into 150 component bands of 0.25 Cam (edges at ±0.125 Cam around 1.75 … 39 Cam). Each component sits at its band centre. The same −30 dB SPL / −60 dB-re-max pruning applies. |
 | F5 | Excitation at 150 CFs (0.25 Cam) | Excitation at 75 CFs (0.5 Cam: 1.75, 2.25, …, 38.75). `W` for the upper side precomputed per (component, CF). For the lower side, `W` is tabulated on a 1 dB grid of `X` in [−30, 130] dB, with linear interpolation. |
 | F6 | Binaural kernel at 0.25 Cam | Same kernel sampled at 0.5 Cam (Δ = −18 … 18 step 0.5), normalized by its own sum. |
@@ -387,8 +410,8 @@ For a perceptual loudness value `N` (sones): `PLE(N) = N_pink^{-1}(N)`. Inversio
 
 ### 12.4 Prescaled analysis (level dependence)
 Because loudness is level-dependent, pass 2 runs on the signal **prescaled** by `s = T_std − L_I` dB (`T_std = −14`, §16). The integrated loudness is ≈ −14 LUFS during perceptual analysis. That places the analysis near the level where Standard mode plays it. Unscaled results: `PLE_unscaled = PLE(N) − s`.
-**Refinement:** let `g*` = the **Standard-mode `g_intent`** (§16.3: before the peak cap, learning and calibration, always computed with `T_std`, whatever the current mode). If `|g* − s| > 2 dB`, pass 2 is re-run once with `s' = g*` (background only, never in JIT), and the result replaces the first. One refinement at most; the iteration is not continued.
-If `L_I` is absent (silence), pass 2 is skipped entirely and every PLE is absent. If only `L_anchor` exists (it always does when `L_I` does), `s` uses `L_I`.
+**Refinement:** let `g*` = the **Standard-mode `g_anchor`** (§16.2). It is taken before intimacy, the peak cap, learning and calibration, and is always computed with `T_std`, whatever the current mode. If `|g* − s| > 2 dB`, pass 2 is re-run once with `s' = g*` (background only, never in JIT), and the result replaces the first. One refinement at most; the iteration is not continued.
+If `L_I` is absent (silence), pass 2 is skipped entirely and every PLE is absent. `s` is always based on `L_I`, never on `L_anchor`, which can be absent even when `L_I` exists (§16.2).
 **Quiet mode** (§16.1) reuses the Standard-mode PLE. Its −4 dB level change is not re-evaluated perceptually (the optional contour, §24, handles spectral balance at low level). This approximation is documented in the Why sheet's technical details.
 
 ---
@@ -412,10 +435,15 @@ Foote checkerboard kernel, half-size `K = round(8 s / T_fr)` frames:
 `ν(r) = Σ_{a,b} k(a, b)·S(r + a, r + b)` with `S = 0` outside the matrix. Then `ν ← max(ν, 0)/max_r ν` (if the max is 0, there are no novelty boundaries).
 
 ### 13.4 Boundaries
-1. Novelty peaks: `r` with `ν(r) = max ν(r ± 4 frames)`, `ν(r) ≥ max(0.1, mean(ν) + 0.5·sd(ν))` **[TUNE]**. Then greedy selection by height with minimum separation `round(8 s/T_fr)` frames.
-2. Silence edges: every start or end of a run of ≥ 2 s of silent sub-blocks. **Silent sub-block** (the single silence definition used everywhere in §13–§18): sub-block `m` is silent iff the loudness of the 400 ms window *centred* on it — sub-blocks `m−2 … m+1`, clipped to the signal and computed like §3.2 over the available sub-blocks — is absent or `< Θ_sil = max(−60, L_I − 35)` LUFS. If `L_I` is absent, `Θ_sil = −60`. §13.1's frame exclusion uses the same test: a frame is silent iff all its sub-blocks are silent.
+1. Novelty peaks: `r` with `ν(r) = max ν(r ± 4 frames)`, `ν(r) ≥ max(0.1, mean(ν) + 0.5·sd(ν))` **[TUNE]**. Then greedy selection by height (ties: the earlier frame) with minimum separation `round(8 s/T_fr)` frames. Novelty boundaries strictly inside a fade interval (§13.5) are dropped.
+2. Silence edges: every start or end of a run of ≥ 2 s of silent sub-blocks. **Silent sub-block** (the single silence definition used everywhere in §13–§18): sub-block `m` is silent iff the loudness of the 400 ms window of sub-blocks `m−2 … m+1` (centred on the *start* of `m`, half a sub-block early, which is accepted), clipped to the signal and computed like §3.2 over the available sub-blocks — is absent or `< Θ_sil = max(−60, L_I − 35)` LUFS. If `L_I` is absent, `Θ_sil = −60`. §13.1's frame exclusion uses the same test: a frame is silent iff all its sub-blocks are silent.
 3. Fade edges (§13.5).
-4. Sections = intervals between sorted unique boundaries, plus 0 and the end. **Merging**, repeated until no candidate remains:
+4. Sections = intervals between sorted unique boundaries, plus 0 and the end. Before merging, each section is typed:
+   - **silence**: ≥ 90% silent sub-blocks
+   - **fade**: equal to a §13.5 interval
+   - non-silent: everything else
+
+   *Mean-feature distance* between two sections = the Euclidean distance between their mean normalized feature vectors `x̃` (§13.1), over non-silent frames. **Merging**, repeated until no candidate remains:
    - a candidate is a non-silent, non-fade section shorter than 8 s
    - pick the **shortest** candidate (ties: the earliest)
    - merge it into the adjacent non-fade, non-silent neighbour with the smaller mean-feature distance (ties: the earlier neighbour)
@@ -425,14 +453,19 @@ Foote checkerboard kernel, half-size `K = round(8 s / T_fr)` frames:
 
 ### 13.5 Fade detection
 On `S_k` (10 Hz):
-`S(t)` uses the window-end timestamps of §3.6. `t_last` = the end time of the last non-silent sub-block (§13.4.2). Absent `S_k` values (power ≤ 1e-20) are treated as −70 LUFS for slope purposes.
+Fade detection uses a symmetric **1 s loudness series** `F_k`: 10 consecutive sub-blocks `k … k+9`, computed like §3.4 and stamped at the window **centre** `(k + 5)·H/fs`. This makes fade-in and fade-out mirror images. Values exist from 0.5 s after the start to 0.5 s before the end.
+- `F(t)` = the value with the nearest stamp.
+- `t_first` / `t_last` = the start of the first / end of the last non-silent sub-block (§13.4.2), clamped to the available stamps.
+- Absent values are treated as −70 LUFS.
+
+In the fade-out rule below, read `S` as `F`.
 - **Fade-out:** a candidate start `t_f` *passes* if, over the `S` values with timestamps in `[t_f, t_last]`:
   - the least-squares slope is ≤ −1.5 LU/s **[TUNE]**
   - the drop `S(t_f) − S(t_last) ≥ 10 LU`
   - `t_last − t_f ≥ 4 s`
 
   Scan `t_f = t_last − 4.0, t_last − 4.5, t_last − 5.0, …` (backwards in 0.5 s steps, never before the first `S` value). **Stop at the first candidate that fails**, after at least one has passed, and take the **last passing** (earliest) `t_f`. If the very first candidate fails, scanning continues until one passes or the start of the track is reached. If none passes, there is no fade-out.
-- **Fade-in:** the mirror image at the start, scanning forwards from `t_first + 4 s` (slope ≥ +1.5 LU/s, rise ≥ 10 LU, ≥ 4 s).
+- **Fade-in:** the mirror image at the start. Scan `t_f = t_first + 4.0, +4.5, …` forwards with the conditions slope ≥ +1.5 LU/s, rise `F(t_f) − F(t_first) ≥ 10 LU` and `t_f − t_first ≥ 4 s`, and the same stop rule.
 
 ### 13.6 Section types (assigned in this order)
 1. **silence**: ≥ 90% of its sub-blocks are silent (§13.4).
@@ -502,7 +535,7 @@ If the label is **quiet and intimate**: `g_intent = g_anchor − a_int`. Otherwi
 `g_cap = C_out − TP_eff`, where `C_out` is the output ceiling (§20.1) and `TP_eff = truePeakDbtp + (decodeClipped ? M_clipTP : 0) + H_contour` (`H_contour` §24.4; 0 when the contour is off).
 `g_track = min(g_intent, g_cap)`. Rule `PEAK_CAP` fires if `g_cap < g_intent`, and the Why sheet reports how much quieter the song is because of it (`g_intent − g_cap`).
 If TP is absent (digital silence), `g_cap = +∞` and the rule never fires.
-With the opt-in limiter (§23.5), the cap becomes `g_cap_lim = g_cap + 6.0` (at most 6 dB of limiting **[DESIGN]**), and `g_track = min(g_intent, g_cap_lim)`. Rule `LIMITER` fires only if `g_intent > g_cap`, i.e. only when the limiter actually has work to do. §21 uses `g_cap_lim` as the effective cap.
+With the opt-in limiter (§23.5), the cap becomes `g_cap_lim = g_cap + 6.0` (at most 6 dB of limiting **[DESIGN]**), and `g_track = min(g_intent, g_cap_lim)`. Rule `LIMITER` fires only if `g_intent > g_cap`, i.e. only when the limiter actually has work to do. `PEAK_CAP` then also fires only if `g_intent > g_cap_lim`. §17, §18 and §21 use `g_cap_eff` as the effective cap: `g_cap_lim` with the limiter, `g_cap` without.
 
 ### 16.5 Formal statement
 Track mode solves: `g_track = argmin_g |g − g_intent|  s.t.  g ≤ g_cap`. The solution is `min(g_intent, g_cap)`.
@@ -524,10 +557,10 @@ Track mode solves: `g_track = argmin_g |g − g_intent|  s.t.  g ≤ g_cap`. The
 ### 17.2 Album gain
 - Album members `𝒜` = the album's tracks with a defined `L_I` that are **not** `shortFile` (§4.5). Short files and silent tracks in an album run use album gain but do not contribute to it. If `𝒜` is empty, the run uses track mode.
 - `L_album_anchor = Integrated(⋃_{t∈𝒜} anchorBlocks_t)`: §4.1 over the pooled anchor blocks.
-- `PLE_album = 10·log10( Σ_{t∈𝒜} w_t·10^(P_t/10) / Σ_t w_t )`, with `w_t` = anchor duration of track `t`, and `P_t = PLE_anchor,t` after its §16.2 clamp, or `L_anchor,t` if the PLE is absent. This is energy-domain pooling of LUFS-equivalent values (§0.2).
+- `PLE_album = 10·log10( Σ_{t∈𝒜} w_t·10^(P_t/10) / Σ_t w_t )`, with `w_t` = anchor duration of track `t`, and `P_t = PLE_anchor,t` after its §16.2 clamp; `L_anchor,t` if the PLE is absent; `L_I,t` if both are absent. This is energy-domain pooling of LUFS-equivalent values (§0.2).
 - Perceptual bound as in §16.2, relative to `L_album_anchor`.
 - `g_album_intent = T − PLE_album − (a_int if ≥ 50% of Σ w_t comes from tracks labelled quiet and intimate, else 0)`.
-- `g_album = min(g_album_intent, C_out − max_t TP_eff,t)`. One gain for the whole album, so the artist's contrast between songs is preserved exactly.
+- `g_album = min(g_album_intent, g_album_cap)`, with `g_album_cap = C_out − max_t TP_eff,t`, plus 6.0 dB when the limiter is on (as in §16.4). One gain for the whole album, so the artist's contrast between songs is preserved exactly.
 - No seam smoothing inside an album run (§18).
 
 ---
@@ -539,6 +572,8 @@ Applies only to adjacent queue items `(prev → cur)` that are **not** in the sa
 - `L_end(prev)` = the short-term loudness of the last 3 s of `prev`'s non-silent audio. It is `S_k` for the window ending at the last non-silent sub-block, or the energy mean over what exists if the non-silent audio is shorter than 3 s.
 - `L_open(cur)` = the short-term loudness of the first 3 s of `cur`'s non-silent audio. Both use the BS.1770 short-term values plus each track's **PLE offset** `(PLE_anchor − L_anchor)` (clamped as in §16.2), so seams are compared on the same perceptual scale as anchors.
 - `g_prev` = `prev`'s **`g_seamed`** (§21 step 2): its base/seam gain, *before* the learning offset and the output calibration. Seams are solved in the "engine" domain. The user offsets `o` and `c_out` are added afterwards to both tracks alike: `c_out` is the same for both, and `o` is a deliberate per-track preference the seam must not undo. So they are not counted twice.
+
+Here `g_cap,cur` means the **effective** cap `g_cap_eff` (= `g_cap_lim` when the limiter is on, §16.4). If either term of a track's PLE offset is absent, that offset is 0.
 
 **Problem:** `g_cur = argmin_g |(L_open + g) − (L_end + g_prev)|  s.t.  |g − g_track,cur| ≤ 0.5 dB,  g ≤ g_cap,cur`.
 **Solution:** `g_cur = min( clamp(L_end + g_prev − L_open, g_track,cur − 0.5, g_track,cur + 0.5), g_cap,cur )`.
@@ -634,7 +669,7 @@ Each media item's first output frame is identified by its presentation timestamp
 - Between different songs, a step applied exactly at the first sample of a new item adds a discontinuity of `(g₂ − g₁)·x[0]` only if the next track's first sample is non-zero. Songs almost always begin with near-zero samples, and any step there is masked by the track change itself. This is preferred over ramping into the new song, which would alter its attack.
 
 ### 23.3 In-track changes
-For gain changes that happen while a track is playing (JIT → full analysis, provisional → JIT, learning updates, setting changes):
+For gain changes that happen while a track is playing (JIT → full analysis, provisional → JIT, setting changes; learning offsets never change mid-track, §28):
 - Rate-limited changes (analysis updates): the gain moves in dB along a raised-cosine curve over `T = max(0.5 s, (π/2)·|Δ| s)`. The curve's peak slope is `(π/2)·|Δ|/T`, which is ≤ 1 dB/s whenever `T ≥ (π/2)|Δ|`.
 - User-initiated changes (mode switch, A/B switch): a 20 ms raised-cosine crossfade in linear amplitude: `g(n) = g₀ + (g₁ − g₀)·(1 − cos(π·n/N))/2`, `N = round(0.020·fs)`.
 
@@ -692,7 +727,11 @@ Goal: the same PCM produces **bit-identical** analysis results on x86-64 (host) 
 ### 25.3 Denormals
 - Filter states are flushed explicitly when `|s| < 1e-30`. This is for speed; it is not what makes results identical.
 - **Every analysis thread sets the FP control state explicitly** at the start of every analysis call: FTZ **on** and DAZ **on** (x86 MXCSR bits FTZ/DAZ; ARM64 `FPCR.FZ`, which flushes both inputs and outputs). The previous state is restored on exit, with an RAII guard. Without this, subnormal decoded samples, `y²` underflow, near-zero true-peak taps times small samples, or `dm::exp` underflow could be flushed on one platform and not on the other.
-- **Caveat checked by test:** x86 FTZ+DAZ and ARM64 FZ treat subnormals identically for `+ − × ÷ sqrt` in float and double (input and output flushed to signed zero). The determinism test (§26) includes signals with subnormal samples.
+- **No ISA-identity claim for subnormal edge cases.** x86 detects tininess after rounding, while AArch64 FZ flushes before rounding. A result whose exact value lies just below the smallest normal can therefore be kept on x86 and flushed on ARM.
+- Sable therefore **flushes explicitly** wherever products can underflow, so both ISAs only ever see values far from that band:
+  - float paths flush `|v| < 2^-100` to 0: true-peak products, the perceptual fast model, and decoded samples on entry
+  - double paths flush `|v| < 2^-1000`: `y²`, `dm::` results, and filter states (via the 1e-30 rule)
+- **Test:** targeted operands whose products land in `[(1−2^-24)·FLT_MIN, FLT_MIN)`, the double analogue, and subnormal-sample signals. Host and device must agree bit for bit.
 - The real-time audio thread uses the same setting.
 
 ### 25.4 Summation order
@@ -767,7 +806,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Relative gate (integrated) | > −10 | LU | 4.1 | STD |
 | LRA gates | ≥ −70 LUFS, ≥ −20 LU | | 5 | STD |
 | LRA percentiles | 10th, 95th; idx = floor((n−1)p + 0.5) | | 5 | STD |
-| Surround weight | 1.41 | | 1.2 | STD |
+| Surround weights | 1.41 for 60°–120° (incl. 5.1 BACK); 1.0 for back 120°–180° and heights; mask mapping table | | 1.2 | STD |
 | Power floor | 1e-20 | | 0.3 | DESIGN |
 | TP oversampling | 8 (fs < 96k), 4 (else) | × | 6.1 | DESIGN |
 | TP filter Mh, β | 16, 8.0 | input samples per side, – | 6.2 | DESIGN |
@@ -820,7 +859,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Silence run for a boundary | ≥ 2 | s | 13.4 | TUNE |
 | Novelty peak window | ±4 frames | | 13.4 | TUNE |
 | Perceptual resampler | half-length 32 samples, β 10, cutoff 0.95·Nyquist | | 10.1 | DESIGN |
-| Fast-model intensity factor κ | 1.6106 (+2.07 dB) | | 11.0 | STD-derived |
+| Fast-model intensity factor κ | 1.61087 (+2.07 dB) | | 11.0 | STD-derived |
 | Fast-model W table | 1 dB grid, X ∈ [−30, 130] dB | | 11 F5 | DESIGN |
 | Learning reversal / route-change windows | 3 s / 10 s | | 19.1 | TUNE |
 | Low-rate K-weighting flag | fs < 32 kHz | | 2.4 | DESIGN |
@@ -831,10 +870,17 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 
 - **Post-processing after Sable** (Samsung Dolby Atmos/Adapt Sound/EQ, Android `LoudnessEnhancer`, Bluetooth absolute volume): all ceilings and loudness figures assume a bit-transparent path after Sable's processor. Sable reports detectable effects (`AudioEffect.queryEffects`, Samsung SoundAlive state where exposed) on the Why sheet. It does not try to compensate.
 - **Learning vs the user's own correction:** the volume press itself has already corrected the current track at the system level. Learned offsets are therefore applied **from the next play** of that track or artist, never mid-track. So there is no double correction.
-- **Mid-stream format changes** (chained Ogg with a new rate or channel count): analysis treats every link as a separate segment and measures each with its own filters. The segments' block powers are pooled exactly as an album (§4.4), and TP is the max. Playback reconfigures the processor at the link boundary.
+- **Mid-stream format changes** (chained Ogg with a new rate or channel count):
+  - At each link boundary the filters are re-initialised for the new format and the sub-block grid restarts. A partial trailing block of the previous link is discarded.
+  - All per-time series (block powers, S, F, fine M/S, perceptual LTL, feature frames) are concatenated in time order.
+  - Integrated loudness pools all blocks as in §4.4. LRA uses the concatenated S values. TP is the max.
+  - Structure runs on the concatenated frames, with a **forced boundary** at each link.
+  - The perceptual model restarts per link, with its AGC states reset.
+  - Playback reconfigures the processor at the link boundary.
 - **Cache identity:** the cache key is a hash of the decoded-audio-relevant payload (§ M4 spec: audio frames only, excluding tags). If the audio changes, the key changes and the track is re-analysed. If only tags change, nothing is re-analysed.
 - **Crossfade:** Sable does not crossfade. Transitions are gapless or hard (§23.2). If crossfade is added later, a section here will define the gain trajectory over the overlap.
 - **Existing ReplayGain / R128 tags** are read and shown for comparison on the Why sheet. They are never used for Sable's gain and never written.
+- **Learning stacking across replays:** if the user leaves the system volume lowered after a feedback press, the next play also applies the learned offset. The partial credit `η_t = 0.5` bounds this: the replay is at most half a step quieter than the user's own correction implied. Repeated presses converge rather than compound, because each new event is measured relative to the level at that time.
 
 ## 29. References
 
@@ -842,7 +888,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 - **[T3341]** EBU Tech 3341 v4 (11/2023), *Loudness Metering: 'EBU Mode'*. §2.2–2.6, Table 1 (cases 1–23).
 - **[T3342]** EBU Tech 3342 v4 (11/2023), *Loudness Range*. §3.1, Table 1, MATLAB reference.
 - **[R128]** EBU R 128 (2023), *Loudness normalisation and permitted maximum level of audio signals*.
-- **[T3344]** EBU Tech 3344, *Guidelines for distribution and reproduction in accordance with EBU R 128* (true-peak headroom for lossy codecs).
+- **[T3344]** EBU Tech 3344, *Guidelines for distribution and reproduction in accordance with EBU R 128* (listed for completeness; not consulted).
 - **[LIBEBUR128]** J. Jiixyj et al., libebur128, commit 67b33ab, `ebur128.c` `ebur128_init_filter`, LRA and true-peak code. MIT licence.
 - **[TVL16]** B.C.J. Moore, B.R. Glasberg, A. Varathanathan, J. Schlittenlacher (2016). "A loudness model for time-varying sounds incorporating binaural inhibition." *Trends in Hearing* 20:1–16. doi:10.1177/2331216516682698 (PMC5318944).
 - **[TVL18]** B.C.J. Moore, M. Jervis, L. Harries, J. Schlittenlacher (2018). "Testing and refining a loudness model for time-varying sounds incorporating binaural inhibition." *JASA* 143:1504–1513. The basis of ISO 532-3:2023.
