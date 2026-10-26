@@ -17,12 +17,12 @@ class TrackAnalyzer(private val context: Context) {
     data class Result(val analysis: AnalysisEntity, val reused: Boolean)
 
     /** Hash if needed, reuse a cached analysis of identical audio, otherwise analyze and store. */
-    suspend fun ensureAnalyzed(track: TrackEntity): Result {
+    suspend fun ensureAnalyzed(track: TrackEntity, force: Boolean = false): Result {
         val uri = Uri.parse(track.uri)
         val t0 = System.nanoTime()
         val hash = track.contentHash ?: ContentHasher.hash(context, uri).also { dao.setHash(track.mediaId, it) }
         val t1 = System.nanoTime()
-        dao.analysis(hash, SableDatabase.MATH_VERSION)?.let { return Result(it, true) }
+        if (!force) dao.analysis(hash, SableDatabase.MATH_VERSION)?.let { return Result(it, true) }
         val a = analyze(uri, hash)
         dao.putAnalysis(a)
         val t2 = System.nanoTime()

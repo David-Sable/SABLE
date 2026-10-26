@@ -81,9 +81,10 @@ class MainActivity : ComponentActivity() {
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()
                     val m = intent.getStringExtra("match") ?: ""
-                    for (t in SableDatabase.get(applicationContext).library().allTracks().filter { it.displayName.contains(m, true) }) {
+                    val mime = intent.getStringExtra("mime")
+                    for (t in SableDatabase.get(applicationContext).library().allTracks().filter { it.displayName.contains(m, true) && (mime == null || it.mime == mime) }) {
                         val t0 = System.nanoTime()
-                        val r = TrackAnalyzer(applicationContext).ensureAnalyzed(t)
+                        val r = TrackAnalyzer(applicationContext).ensureAnalyzed(t, force = intent.getBooleanExtra("force", false))
                         Log.i(TAG, "ENSURE ${t.displayName} id ${t.mediaId} reused=${r.reused} ${(System.nanoTime() - t0) / 1_000_000} ms hash ${r.analysis.contentHash.take(12)}")
                     }
                     Log.i(TAG, "ENSURE done")

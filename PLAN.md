@@ -1,6 +1,6 @@
 # SABLE — Plan, decisions, risks
 
-Owners: Dana (product) and Claude (co-owner, architecture and engineering). Last updated 2026-10-25.
+Owners: Dana (product) and Claude (co-owner, architecture and engineering). Last updated 2026-10-26.
 
 ## Milestones and exit criteria
 Each milestone ends with a test report. The next one does not start until it is green, or until an exception is explicitly accepted in writing here.
@@ -11,7 +11,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | M1 | MATH.md + independent review | Reviewer findings resolved or answered in writing | ✅ done 2026-10-26 (MATH-1.2, two reviews) |
 | M2 | Engine baseline (BS.1770, LRA, TP), host + NDK | EBU 3341/3342 pass; corpus agrees with libebur128 / FFmpeg / pyloudnorm within 0.1 LU (differences explained); property + golden tests; sanitizers + clang-tidy clean; golden files bit-identical on the A17; A17 benchmark reported | ✅ done 2026-10-26 (docs/reports/M2-report.md); perf fix carried to M3 |
 | M3 | Intent layers | Reference vs Octave-run TVL18 code; fast-model error within budget; structure/anchor/labels/gain rules unit-tested; corpus report | ✅ done 2026-10-26 (docs/reports/M3-corpus.md; MATH-1.8) |
-| M4 | Library, cache, JIT | Content-hash cache (rename/move → no rescan); WorkManager scan (charging by default); measured JIT latency | |
+| M4 | Library, cache, JIT | Content-hash cache (rename/move → no rescan); WorkManager scan (charging by default); measured JIT latency | ✅ done 2026-10-26 (docs/reports/M4-report.md) |
 | M5 | Playback | Gain processor null test; float path; gapless; album/seam; MediaSession + foreground service | |
 | M6 | UI, Why sheet, A/B | Token theme; all screens; 90 Hz frame timing | |
 | M7 | Context, battery, install guide | Contour, output awareness, learning; Samsung battery walkthrough; APK + install steps | |
