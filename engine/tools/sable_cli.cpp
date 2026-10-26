@@ -21,6 +21,7 @@
 #include "sable/analyzer.h"
 #include "sable/intent.h"
 #include "sable/perceptual.h"
+#include "sable/pipeline.h"
 
 namespace {
 
@@ -170,54 +171,18 @@ std::string decisionJson(const char* mode, const sable::GainDecision& d) {
   return o + "]}";
 }
 
-int decide(const char* path) {  // MATH §12.4 two-pass pipeline, §13-§16
-  std::unique_ptr<sable::Analyzer> an;
-  const char* err = readWav(path, [&](const WavInfo& w) { an = std::make_unique<sable::Analyzer>(w.fs, w.channels, sable::channelWeightsFor(w.channels, w.mask)); },
-                            [&](const float* x, std::size_t n) { an->push(x, n); });
+int decide(const char* path) {  // the app's exact sequence (sable::TrackPipeline), MATH §12.4, §13-§16
+  std::unique_ptr<sable::TrackPipeline> p;
+  const char* err = readWav(path, [&](const WavInfo& w) { p = std::make_unique<sable::TrackPipeline>(w.fs, w.channels, w.mask, false); },
+                            [&](const float* x, std::size_t n) { p->pushPass1(x, n); });
   if (err) return fail(err);
-  const auto r = an->finish();
-  sable::GainContext std;
-  std.targetLufs = -14.0;
-  sable::TrackUnderstanding u;
-  double s = 0.0, firstS = 0.0;
-  bool refined = false;
-  std::optional<double> firstPle;
-  if (r.integratedLufs) {
-    s = -14.0 - *r.integratedLufs;
-    auto ps = perceptualPass(path, s);
-    u = sable::understand(r, &ps, s);
-    const auto first = sable::decideTrackGain(r, u, std);
-    double gAnchor = first.intentDb;
-    for (const auto& rule : first.rules) if (rule.id == "ANCHOR_MATCH") gAnchor = rule.deltaDb;
-    firstPle = u.anchorPle;
-    firstS = s;
-    if (std::fabs(gAnchor - s) > 6.0) {  // one refinement, safety net only (MATH §12.4, 1.8)
-      s = gAnchor;
-      ps = perceptualPass(path, s);
-      u = sable::understand(r, &ps, s);
-      refined = true;
-    }
-  } else {
-    u = sable::understand(r, nullptr, 0.0);
+  if (p->endPass1()) {
+    do {
+      p->beginPass2();
+      readWav(path, [](const WavInfo&) {}, [&](const float* x, std::size_t n) { p->pushPass2(x, n); });
+    } while (p->endPass2());
   }
-  sable::GainContext quiet = std;
-  quiet.targetLufs = -19.0;
-  const auto dStd = sable::decideTrackGain(r, u, std), dQuiet = sable::decideTrackGain(r, u, quiet);
-  std::string o = "{\"integratedLufs\":" + num(r.integratedLufs) + ",\"lraLu\":" + num(r.lraLu) + ",\"truePeakDbtp\":" + num(r.truePeakDbtp) +
-                  ",\"anchorLufs\":" + num(u.anchorLufs) + ",\"anchorPle\":" + num(u.anchorPle) + ",\"anchorSec\":" + num(u.anchorSec) +
-                  ",\"nonSilentSec\":" + num(u.nonSilentSec) + ",\"anchorFallback\":" + (u.anchorFallback ? "true" : "false") +
-                  ",\"character\":\"" + sable::toString(u.character) + "\",\"tilt\":" + num(u.tiltDbPerOct) + ",\"density\":" + num(u.density) +
-                  ",\"densityAnchor\":" + num(u.densityAnchor) + ",\"transientsPerSec\":" + num(u.transientsPerSec) +
-                  ",\"plrAnchor\":" + num(u.plrAnchorDb) + ",\"sectionContrast\":" + num(u.sectionContrastLu) + ",\"prescaleDb\":" + num(s) +
-                  ",\"refined\":" + (refined ? "true" : "false") + ",\"firstPle\":" + num(firstPle) + ",\"firstPrescale\":" + num(firstS) + ",\"anchorLtlPct\":[" + pct(u.anchorLtlSone) + "],\"sections\":[";
-  for (std::size_t i = 0; i < u.sections.size(); ++i) {
-    const auto& sec = u.sections[i];
-    if (i) o += ',';
-    o += "{\"type\":\"" + std::string(sable::toString(sec.type)) + "\",\"start\":" + num(sec.startSec) + ",\"end\":" + num(sec.endSec) +
-         ",\"lufs\":" + num(sec.loudnessLufs) + "}";
-  }
-  o += "]," + decisionJson("standard", dStd) + "," + decisionJson("quiet", dQuiet) + "}";
-  std::puts(o.c_str());
+  std::puts(p->resultJson().c_str());
   return 0;
 }
 

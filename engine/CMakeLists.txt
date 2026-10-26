@@ -20,7 +20,8 @@ add_library(sable_engine STATIC
   src/analyzer.cpp
   src/dsp.cpp
   src/perceptual_fast.cpp
-  src/intent.cpp)
+  src/intent.cpp
+  src/pipeline.cpp)
 target_include_directories(sable_engine PUBLIC include)
 target_compile_options(sable_engine PRIVATE ${SABLE_FP_FLAGS} -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 
