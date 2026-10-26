@@ -40,6 +40,12 @@ struct LoudnessResult {
   std::vector<double> blockPower;                     // P_j, j = 0..J-1
   std::vector<std::optional<double>> shortTermLufs;   // S_k, k = 0..M-30
   std::vector<std::optional<double>> momentaryLufs;   // M_j = l_j
+  // Series for the intent layers (MATH §8, §9, §13):
+  std::vector<double> subPower;      // per 100 ms sub-block: sum_i G_i q_i,m / H (weighted mean square)
+  std::vector<double> rawSubPower;   // per sub-block: unweighted mean square over channels
+  std::vector<double> finePower;     // per 10 ms: sum_i G_i (sum y^2) / h  (= e_t, MATH §9)
+  std::vector<double> bandEnergy;    // per spectral frame r (100 ms hop): 25 one-third-octave energies E_r,b (MATH §8.2)
+  static constexpr int kBands = 25;  // 50 Hz .. 12.5 kHz
 };
 
 // Integrated loudness of a set of block powers (MATH §4.1). Exposed for anchors/albums.

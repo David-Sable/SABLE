@@ -19,7 +19,8 @@ add_library(sable_engine STATIC
   src/dmath.cpp
   src/analyzer.cpp
   src/dsp.cpp
-  src/perceptual_fast.cpp)
+  src/perceptual_fast.cpp
+  src/intent.cpp)
 target_include_directories(sable_engine PUBLIC include)
 target_compile_options(sable_engine PRIVATE ${SABLE_FP_FLAGS} -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 
@@ -54,7 +55,8 @@ if(SABLE_BUILD_TESTS)
     tests/test_kweighting.cpp
     tests/test_compliance.cpp
     tests/test_properties.cpp
-    tests/test_perceptual.cpp)
+    tests/test_perceptual.cpp
+    tests/test_intent.cpp)
   target_include_directories(sable_tests PRIVATE third_party/doctest tests)
   target_link_libraries(sable_tests PRIVATE sable_engine)
   target_include_directories(sable_tests PRIVATE src)

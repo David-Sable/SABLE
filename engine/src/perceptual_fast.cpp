@@ -1,6 +1,7 @@
 // Fast perceptual model shipped on the phone. MATH §11 (F1-F7), sharing formulas with the reference (§10).
 // Deterministic: sable::dm only, fixed loop order, float spectra / double accumulators.
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <memory>
 
@@ -101,7 +102,7 @@ struct FastLoudness::Impl {
       const double f = k * df;
       const double cam = F::cam(f);
       const double pos = (cam - kCompCamLow) / 0.25;
-      int idx = static_cast<int>(pos + 0.5);
+      int idx = static_cast<int>(std::floor(pos + 0.5));
       if (pos < -0.5 || idx >= kComp) idx = -1;
       b.comp.push_back(idx);
       b.weight.push_back(static_cast<float>(kKappa * 2.0 / (n * sw2) * earPower[k] * cal));

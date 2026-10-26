@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <charconv>
 #include <cstring>
+#include <memory>
 
+#include "dsp.h"
 #include "fpenv.h"
 
 #if defined(__aarch64__)
@@ -240,6 +242,16 @@ struct Analyzer::Impl {
   double totalWeighted = 0.0;
   std::uint64_t frames = 0;
   float samplePeak = 0.0f, truePeak = 0.0f;
+  // Spectral frames (MATH §8): mono-sum samples, Hann window of N_s, one frame per hop.
+  std::size_t specN = 0;
+  std::vector<double> specWin, specBuf, specPow;
+  std::vector<float> mono;           // mono-sum samples from absolute index monoBase
+  long long monoBase = 0, nextSpec = 0, monoCount = 0;
+  std::unique_ptr<dsp::RealPowerFft<double>> specFft;
+  double specScale = 0.0;
+  std::vector<int> bandOfBin;        // bin -> band index (0..24) or -1
+  std::vector<double> bandEnergy;
+  void spectralFrames(bool flush);
   std::vector<std::vector<float>> tpPhases;
   float tpBound = 0.0f;  // max over phases of sum|taps|, with rounding margin (exact skip test)
   // Per channel: the last 2*Mh input samples (oldest first), followed by the current push's samples.
@@ -284,6 +296,34 @@ void Analyzer::Impl::truePeakBlock(int c, std::size_t n) {
   std::memmove(b.data(), b.data() + n, static_cast<std::size_t>(win) * sizeof(float));
 }
 
+void Analyzer::Impl::spectralFrames(bool flush) {  // MATH §8.1-8.2
+  const long long hopL = hop;
+  const long long nL = static_cast<long long>(specN);
+  for (;;) {
+    const long long start = nextSpec * hopL;
+    if (start >= monoCount) break;                 // frames start inside the signal
+    if (!flush && start + nL > monoCount) break;   // wait for the full window
+    for (long long i = 0; i < nL; ++i) {
+      const long long idx = start + i - monoBase;
+      const double v = (start + i < monoCount) ? static_cast<double>(mono[static_cast<std::size_t>(idx)]) : 0.0;
+      specBuf[static_cast<std::size_t>(i)] = v * specWin[static_cast<std::size_t>(i)];
+    }
+    specFft->power(specBuf.data(), specPow.data());
+    double e[LoudnessResult::kBands] = {};
+    for (std::size_t k = 0; k < bandOfBin.size(); ++k)
+      if (bandOfBin[k] >= 0) e[bandOfBin[k]] += specPow[k] * specScale;
+    bandEnergy.insert(bandEnergy.end(), e, e + LoudnessResult::kBands);
+    ++nextSpec;
+  }
+  // Drop samples no future frame needs. N_s can be shorter than the hop (4096 < 4410 at 44.1 kHz), so the
+  // next frame may start beyond the samples received so far: never drop more than we hold.
+  const long long keep = std::min(nextSpec * hopL, monoCount);
+  if (keep - monoBase > 65536) {
+    mono.erase(mono.begin(), mono.begin() + static_cast<std::ptrdiff_t>(keep - monoBase));
+    monoBase = keep;
+  }
+}
+
 Analyzer::Analyzer(int sampleRateHz, int channels, std::vector<double> w) : impl_(new Impl) {
   auto& s = *impl_;
   s.fs = sampleRateHz;
@@ -305,6 +345,28 @@ Analyzer::Analyzer(int sampleRateHz, int channels, std::vector<double> w) : impl
   // Float rounding of a 32-term dot product is below 32 * 2^-24 relative; 1e-4 is a wide margin.
   s.tpBound = static_cast<float>(bound * (1.0 + 1e-4));
   s.tpBuf.assign(static_cast<std::size_t>(channels), std::vector<float>(2 * static_cast<std::size_t>(kTpHalfLength), 0.0f));
+  // MATH §8.1-8.2: N_s = 2^floor(log2(0.1 fs)); periodic Hann; 1/3-octave bands b = -13..11.
+  s.specN = 1;
+  while (s.specN * 2 <= static_cast<std::size_t>(sampleRateHz) / 10) s.specN *= 2;
+  s.specWin.resize(s.specN);
+  double sw2 = 0.0;
+  for (std::size_t i = 0; i < s.specN; ++i) {
+    s.specWin[i] = 0.5 - 0.5 * dm::cos(2.0 * dm::kPi * static_cast<double>(i) / static_cast<double>(s.specN));
+    sw2 += s.specWin[i] * s.specWin[i];
+  }
+  s.specBuf.resize(s.specN);
+  s.specPow.resize(s.specN / 2 + 1);
+  s.specFft = std::make_unique<dsp::RealPowerFft<double>>(s.specN);
+  s.bandOfBin.assign(s.specN / 2 + 1, -1);
+  for (std::size_t k = 1; k < s.specN / 2; ++k) {
+    const double f = static_cast<double>(k) * sampleRateHz / static_cast<double>(s.specN);
+    if (f > 0.45 * sampleRateHz) continue;
+    for (int b = -13; b <= 11; ++b) {
+      const double fc = 1000.0 * dm::pow(2.0, b / 3.0);
+      if (f >= fc * dm::pow(2.0, -1.0 / 6.0) && f < fc * dm::pow(2.0, 1.0 / 6.0)) { s.bandOfBin[k] = b + 13; break; }
+    }
+  }
+  s.specScale = 2.0 / (static_cast<double>(s.specN) * sw2);  // Parseval normalization (MATH §8.1)
 }
 
 Analyzer::~Analyzer() { delete impl_; }
@@ -316,13 +378,14 @@ void Analyzer::push(const float* in, std::size_t n) {
   const std::size_t win = 2 * static_cast<std::size_t>(kTpHalfLength);
   for (auto& b : s.tpBuf) b.resize(win + n);  // grows only when a larger chunk arrives
   for (std::size_t f = 0; f < n; ++f) {
-    double weighted = 0.0, raw = 0.0;
+    double weighted = 0.0, raw = 0.0, monoSum = 0.0;
     for (int c = 0; c < s.ch; ++c) {
       float xf = in[f * static_cast<std::size_t>(s.ch) + static_cast<std::size_t>(c)];
       if (xf < kSampleFlush && xf > -kSampleFlush) xf = 0.0f;  // MATH §25.3
       const float ax = xf < 0.0f ? -xf : xf;
       if (ax > s.samplePeak) s.samplePeak = ax;
       s.tpBuf[static_cast<std::size_t>(c)][win + f] = xf;
+      monoSum += static_cast<double>(xf);
       const double x = static_cast<double>(xf);
       raw += x * x;
       // Stage 1, TDF-II (MATH §2.3)
@@ -342,6 +405,8 @@ void Analyzer::push(const float* in, std::size_t n) {
       const double y2 = (y < kSquareFlush && y > -kSquareFlush) ? 0.0 : y * y;
       weighted += s.g[static_cast<std::size_t>(c)] * y2;
     }
+    s.mono.push_back(static_cast<float>(monoSum / static_cast<double>(s.ch)));
+    ++s.monoCount;
     s.curSub += weighted;
     s.curRaw += raw;
     s.curFine += weighted;
@@ -361,6 +426,7 @@ void Analyzer::push(const float* in, std::size_t n) {
     }
   }
   for (int c = 0; c < s.ch; ++c) s.truePeakBlock(c, n);  // MATH §6.2
+  s.spectralFrames(false);
 }
 
 LoudnessResult Analyzer::finish() {
@@ -415,6 +481,19 @@ LoudnessResult Analyzer::finish() {
     r.integratedLufs = powerToLufs(s.totalWeighted / static_cast<double>(s.frames));
   }
   r.lraLu = loudnessRange(r.shortTermLufs);  // MATH §5
+  {
+    FpEnvGuard fp;
+    s.spectralFrames(true);
+  }
+  r.subPower.resize(m);
+  r.rawSubPower.resize(m);
+  for (std::size_t i = 0; i < m; ++i) {
+    r.subPower[i] = s.sub[i] / hop;
+    r.rawSubPower[i] = s.rawSub[i] / (hop * static_cast<double>(s.ch));
+  }
+  r.finePower.resize(s.fine.size());
+  for (std::size_t i = 0; i < s.fine.size(); ++i) r.finePower[i] = s.fine[i] / static_cast<double>(s.fineHop);
+  r.bandEnergy = s.bandEnergy;
 
   // Fine-grid maxima (MATH §3.5)
   {

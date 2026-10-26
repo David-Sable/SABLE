@@ -1,11 +1,15 @@
 Checks: >
   -*,
   bugprone-*,
-  -bugprone-easily-swappable-parameters,
   performance-*,
   clang-analyzer-*,
   cert-flp30-c,
   misc-redundant-expression,
-  readability-misleading-indentation
+  readability-misleading-indentation,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-misplaced-widening-cast,
+  -performance-enum-size
+# Excluded: misplaced-widening-cast (indices are products of small non-negative ints, far below 2^31) and
+# enum-size (no benefit for a handful of enum values).
 WarningsAsErrors: ''
 HeaderFilterRegex: 'engine/(src|include)/.*'

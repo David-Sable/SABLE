@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.5 (2026-10-26)
+**Version:** MATH-1.6 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -449,7 +449,7 @@ Foote checkerboard kernel, half-size `K = round(8 s / T_fr)` frames:
 2. Silence edges: every start or end of a run of ≥ 2 s of silent sub-blocks. **Silent sub-block** (the single silence definition used everywhere in §13–§18): sub-block `m` is silent iff the loudness of the 400 ms window of sub-blocks `m−2 … m+1` (centred on the *start* of `m`, half a sub-block early, which is accepted), clipped to the signal and computed like §3.2 over the available sub-blocks — is absent or `< Θ_sil = max(−60, L_I − 35)` LUFS. If `L_I` is absent, `Θ_sil = −60`. §13.1's frame exclusion uses the same test: a frame is silent iff all its sub-blocks are silent.
 3. Fade edges (§13.5).
 4. Sections = intervals between sorted unique boundaries, plus 0 and the end. Before merging, each section is typed:
-   - **silence**: ≥ 90% silent sub-blocks
+   - **silence**: ≥ 90% silent sub-blocks; adjacent silence sections coalesce into one
    - **fade**: equal to a §13.5 interval
    - non-silent: everything else
 
@@ -471,11 +471,12 @@ Fade detection uses a symmetric **1 s loudness series** `F_k`: 10 consecutive su
 In the fade-out rule below, read `S` as `F`.
 - **Fade-out:** a candidate start `t_f` *passes* if, over the `S` values with timestamps in `[t_f, t_last]`:
   - the least-squares slope is ≤ −1.5 LU/s **[TUNE]**
+  - **the decline has started at `t_f`**: the slope over `[t_f, t_f + 2 s]` is ≤ −0.75 LU/s **[TUNE]**. Without this, a steep fade could pull a flat stretch of body into the fade (found by the M3 synthetic test, MATH-1.6).
   - the drop `S(t_f) − S(t_last) ≥ 10 LU`
   - `t_last − t_f ≥ 4 s`
 
   Scan `t_f = t_last − 4.0, t_last − 4.5, t_last − 5.0, …` (backwards in 0.5 s steps, never before the first `S` value). **Stop at the first candidate that fails**, after at least one has passed, and take the **last passing** (earliest) `t_f`. If the very first candidate fails, scanning continues until one passes or the start of the track is reached. If none passes, there is no fade-out.
-- **Fade-in:** the mirror image at the start. Scan `t_f = t_first + 4.0, +4.5, …` forwards with the conditions slope ≥ +1.5 LU/s, rise `F(t_f) − F(t_first) ≥ 10 LU` and `t_f − t_first ≥ 4 s`, and the same stop rule.
+- **Fade-in:** the mirror image at the start. Scan `t_f = t_first + 4.0, +4.5, …` forwards with the conditions slope ≥ +1.5 LU/s, slope over `[t_f − 2 s, t_f]` ≥ +0.75 LU/s, rise `F(t_f) − F(t_first) ≥ 10 LU` and `t_f − t_first ≥ 4 s`, and the same stop rule.
 
 ### 13.6 Section types (assigned in this order)
 1. **silence**: ≥ 90% of its sub-blocks are silent (§13.4).
@@ -795,7 +796,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | 10 | Reference vs TVL18-CODE in Octave | §10.2 criteria |
 | 11 | Fast vs reference model | §11.1 budget |
 | 12 | `N_pink` strictly increasing; PLE(pink at x) = x | `|Δ| ≤ 0.05 LU` |
-| 13–15 | Hand-labelled corpus checks + synthetic constructs (e.g. 20 s at −30, 60 s at −14, 20 s fade): sections, anchor and labels as designed | exact boundaries within ±1 s on synthetic constructs |
+| 13–15 | Hand-labelled corpus checks + synthetic constructs (e.g. 20 s at −30, 60 s at −14, 20 s fade): sections, anchor and labels as designed | boundaries within ±1.5 s on synthetic constructs (0.5 s fade scan step on a 1 s series) |
 | 16–21 | Unit tests for every rule: peak cap active/inactive, intimacy on/off and bounds, perceptual bound, album pooling and cap, album pending, seam clamps (both bounds, cap, every skip condition), learning clamp/decay/environment filter/artist threshold, composition order | exact expected values |
 | 22 | JIT vs full gain on the corpus | report the distribution; target 90% within 1.5 dB |
 | 23 | Rendered boundary: null test of the processor output vs offline `x·gain` per item | bit-exact sample alignment; ramp shapes exact |
