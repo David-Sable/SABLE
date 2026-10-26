@@ -1,6 +1,14 @@
 package app.sable.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
+import app.sable.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,34 +109,47 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 LoudnessShape(shape, { if (isPlaying) state.progress() else 0f }, Modifier.fillMaxWidth().height(64.dp))
                 Text(anchorText(shape), style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.s))
             }
-            Section("What Sable heard")
-            Measure("Loudness (BS.1770)", lufs(json, "integratedLufs"))
-            Measure("Perceived loudness of the body", lufs(json, "anchorPle"))
-            Measure("Loudness of the body (BS.1770)", lufs(json, "anchorLufs"))
-            Measure("Loudness range", num(json, "lraLu", "LU"))
-            Measure("True peak", num(json, "truePeakDbtp", "dBTP"))
-            Measure("Character", character.ifBlank { "—" })
-            Section("Rules")
-            for ((id, d) in rules) Measure(WhyText.ruleLabel(id), "%+.1f dB".format(d))
-            if (rules.isEmpty()) Text("None", style = SableType.caption, color = SableColors.textTertiary)
-            if (isPlaying && (live.learnedDb != 0.0 || live.outputCalDb != 0.0 || live.contourOn)) {
-                Section("Your settings")
-                if (live.learnedDb != 0.0) Measure("Learned from your volume keys", "%+.1f dB".format(live.learnedDb))
-                if (live.outputCalDb != 0.0) Measure("Level offset for ${live.route}", "%+.1f dB".format(live.outputCalDb))
-                if (live.contourOn) Measure("Quiet-mode contour", "on")
+            // Plain by default: the details (every measurement and rule) fold away. Advanced users see them open.
+            var open by remember(settings.advanced) { mutableStateOf(settings.advanced) }
+            Row(
+                Modifier.fillMaxWidth().padding(top = Space.xl).clickable { open = !open }.padding(vertical = Space.s),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (open) "Hide details" else "Details", style = SableType.label, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
+                Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(if (open) 180f else 0f))
             }
-            Learned(row)
-            FileTags(row)
-            Section("Notes")
-            val notes = buildList {
-                if (json.optBoolean("decodeClipped")) add("This file was decoded at 16-bit, so its true peak may read low. Sable adds 1 dB of safety.")
-                if (json.optBoolean("shortFile")) add("A very short file is measured as a whole.")
-                if (settings.mode == PlaybackPrefs.Mode.QUIET) add("Quiet mode lowers the same balance by 5 dB. Perceived balance is not re-measured at the lower level.")
-                add("Peaks are kept under the output's ceiling: -1 dBTP on the speaker and wired/USB, -2 dBTP on Bluetooth (codec not visible to apps).")
-                add("Sable measures what it plays; effects after it (Dolby Atmos, Adapt Sound, EQ) can change what you hear." +
-                    effectsOnPhone().let { if (it.isEmpty()) "" else " This phone has: ${it.joinToString(", ")}." })
+            AnimatedVisibility(open, enter = fadeIn(Motion.slow()) + expandVertically(Motion.slow()), exit = fadeOut(Motion.medium()) + shrinkVertically(Motion.medium())) {
+                Column {
+                Section("What Sable heard")
+                Measure("Loudness (BS.1770)", lufs(json, "integratedLufs"))
+                Measure("Perceived loudness of the body", lufs(json, "anchorPle"))
+                Measure("Loudness of the body (BS.1770)", lufs(json, "anchorLufs"))
+                Measure("Loudness range", num(json, "lraLu", "LU"))
+                Measure("True peak", num(json, "truePeakDbtp", "dBTP"))
+                Measure("Character", character.ifBlank { "—" })
+                Section("Rules")
+                for ((id, d) in rules) Measure(WhyText.ruleLabel(id), "%+.1f dB".format(d))
+                if (rules.isEmpty()) Text("None", style = SableType.caption, color = SableColors.textTertiary)
+                if (isPlaying && (live.learnedDb != 0.0 || live.outputCalDb != 0.0 || live.contourOn)) {
+                    Section("Your settings")
+                    if (live.learnedDb != 0.0) Measure("Learned from your volume keys", "%+.1f dB".format(live.learnedDb))
+                    if (live.outputCalDb != 0.0) Measure("Level offset for ${live.route}", "%+.1f dB".format(live.outputCalDb))
+                    if (live.contourOn) Measure("Quiet-mode contour", "on")
+                }
+                Learned(row)
+                FileTags(row)
+                Section("Notes")
+                val notes = buildList {
+                    if (json.optBoolean("decodeClipped")) add("This file was decoded at 16-bit, so its true peak may read low. Sable adds 1 dB of safety.")
+                    if (json.optBoolean("shortFile")) add("A very short file is measured as a whole.")
+                    if (settings.mode == PlaybackPrefs.Mode.QUIET) add("Quiet mode lowers the same balance by 5 dB. Perceived balance is not re-measured at the lower level.")
+                    add("Peaks are kept under the output's ceiling: -1 dBTP on the speaker and wired/USB, -2 dBTP on Bluetooth (codec not visible to apps).")
+                    add("Sable measures what it plays; effects after it (Dolby Atmos, Adapt Sound, EQ) can change what you hear." +
+                        effectsOnPhone().let { if (it.isEmpty()) "" else " This phone has: ${it.joinToString(", ")}." })
+                }
+                for (n in notes) Text("· $n", style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(bottom = Space.xs))
+                }
             }
-            for (n in notes) Text("· $n", style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(bottom = Space.xs))
             Spacer(Modifier.height(Space.xxl))
         }
     }

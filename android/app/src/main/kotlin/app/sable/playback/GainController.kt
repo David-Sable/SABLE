@@ -152,7 +152,7 @@ class GainController(
     }
 
     private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean, excerptMs: Map<String, Long>) {
-        val settings = PlaybackPrefs.settings.value
+        val settings = PlaybackPrefs.settings.value.effective()
         val ab = AbSession.condition.value  // §30: a blind A/B round is running
         val r = route
         val ceiling = settings.ceiling(r)
@@ -298,14 +298,14 @@ class GainController(
             else -> PlaybackPrefs.Route.SPEAKER
         }
         OutputState.route.value = route
-        ceilingDbtp = PlaybackPrefs.settings.value.ceiling(route)
+        ceilingDbtp = PlaybackPrefs.settings.value.effective().ceiling(route)
     }
 
     private fun publish(id: String, db: Double, manual: Boolean) {
         val p = lastPlan[id]
         val rules = ArrayList<Pair<String, Double>>()
         p?.optJSONArray("rules")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { rules.add(it.optString("id") to it.optDouble("deltaDb")) } }
-        val s = PlaybackPrefs.settings.value
+        val s = PlaybackPrefs.settings.value.effective()
         NowPlaying.gain.value = NowPlayingGain(
             id, db, p?.optString("source") ?: "provisional", manual, p?.optBoolean("albumRun") ?: false, rules, ceilingDbtp, route.label,
             learnedDb = p?.optDouble("learnedDb", 0.0) ?: 0.0, outputCalDb = s.cal(route), contourOn = gains.contour != null,

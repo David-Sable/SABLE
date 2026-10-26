@@ -3,6 +3,8 @@ package app.sable.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -91,56 +93,12 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Space.xl)) {
             Group("Listening level")
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                for (m in PlaybackPrefs.Mode.entries) Pill("${m.label}  ${m.targetLufs.toInt()}", s.mode == m) { PlaybackPrefs.update(context) { it.copy(mode = m) } }
+                for (m in PlaybackPrefs.Mode.entries) Pill(if (s.advanced) "${m.label}  ${m.targetLufs.toInt()}" else m.label, s.mode == m) {
+                    PlaybackPrefs.update(context) { it.copy(mode = m) }
+                }
             }
-            Hint("Standard balances every song to −14 LUFS. Quiet balances to −19 LUFS for late nights and quiet rooms.")
-            Group("Quiet-mode contour")
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                Pill("Off", !s.contour) { PlaybackPrefs.update(context) { it.copy(contour = false) } }
-                Pill("On", s.contour) { PlaybackPrefs.update(context) { it.copy(contour = true) } }
-            }
-            Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected.")
-            Group("Albums")
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }
-            }
-            Hint(
-                when (s.albumMode) {
-                    PlaybackPrefs.AlbumMode.AUTO -> "Auto: Play album keeps one gain for the album. Tapping a song balances it and what follows in their own world."
-                    PlaybackPrefs.AlbumMode.TRACK -> "Every song is balanced on its own, even inside an album."
-                    PlaybackPrefs.AlbumMode.ALBUM -> "Songs from the same album always share one gain, even in shuffle."
-                },
-            )
-            Group("Intimate pieces")
-            Text("Held %.1f dB under target".format(s.intimacyLu), style = SableType.body, color = SableColors.textPrimary)
-            Slider(
-                value = s.intimacyLu.toFloat(), onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(intimacyLu = (Math.round(v * 2) / 2.0)) } },
-                valueRange = 0f..2f, steps = 3,
-                colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
-            )
-            Hint("Quiet, intimate songs stay a little quieter than the rest, as they were meant to be. 0 turns this off.")
-            Group("Output")
-            val route by OutputState.route.collectAsState()
-            Text("Now: ${route.label}", style = SableType.body, color = SableColors.textPrimary)
-            Text("Level offset %+.1f dB".format(s.cal(route)), style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.m))
-            Slider(
-                value = s.cal(route).toFloat(), valueRange = -3f..3f, steps = 11,
-                onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal + (route.key to Math.round(v * 2) / 2.0)) } },
-                colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
-            )
-            Text("Peak ceiling %.1f dBTP".format(s.ceiling(route)), style = SableType.caption, color = SableColors.textSecondary)
-            Slider(
-                value = s.ceiling(route).toFloat(), valueRange = -3f..-0.5f, steps = 4,
-                onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(routeCeiling = it.routeCeiling + (route.key to Math.round(v * 2) / 2.0)) } },
-                colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
-            )
-            Hint("Each output keeps its own settings. Use the level offset if this output sounds louder or quieter than your others. The ceiling keeps peaks clean; Bluetooth starts lower because the phone re-encodes the audio.")
-            Row(Modifier.padding(top = Space.s)) {
-                Pill("Reset ${route.label}", false) { PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal - route.key, routeCeiling = it.routeCeiling - route.key) } }
-            }
-            Group("Learning")
-            Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song and, after two of their songs, for the artist. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
-            Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
+            Hint(if (s.advanced) "Normal balances every song to −14 LUFS. Quiet balances to −19 LUFS for late nights and quiet rooms."
+                else "Sable listens to every song and sets its level for you. Quiet is the same balance, softer, for late nights.")
             Group("Battery")
             BatteryRow()
             Group("Library")
@@ -150,10 +108,68 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                 Pill("Rescan now", false, onClick = onRescan)
                 Pill("Listen while charging", false, onClick = onAnalyseWhileCharging)
             }
-            Group("About")
-            Text("SABLE 0.7 · Intent Engine MATH-1.13", style = SableType.body, color = SableColors.textPrimary)
-            Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
-            Row(Modifier.padding(top = Space.m)) { Pill("Reset A/B results", false) { AbTally.reset(context) } }
+            Group("Advanced settings")
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                Pill("Off", !s.advanced) { PlaybackPrefs.update(context) { it.copy(advanced = false) } }
+                Pill("On", s.advanced) { PlaybackPrefs.update(context) { it.copy(advanced = true) } }
+            }
+            Hint(if (s.advanced) "Your own fine-tuning below is in use. Turn this off to go back to Sable's automatic choices; your settings are kept for next time."
+                else "Everything is automatic. Turn this on to fine-tune albums, quiet songs, each output, the Quiet contour and learning.")
+            AnimatedVisibility(s.advanced, enter = fadeIn(Motion.slow()) + expandVertically(Motion.slow()), exit = fadeOut(Motion.medium()) + shrinkVertically(Motion.medium())) {
+                Column {
+                    Group("Quiet-mode contour")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                        Pill("Off", !s.contour) { PlaybackPrefs.update(context) { it.copy(contour = false) } }
+                        Pill("On", s.contour) { PlaybackPrefs.update(context) { it.copy(contour = true) } }
+                    }
+                    Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected.")
+                    Group("Albums")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                        for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }
+                    }
+                    Hint(
+                        when (s.albumMode) {
+                            PlaybackPrefs.AlbumMode.AUTO -> "Auto: Play album keeps one gain for the album. Tapping a song balances it and what follows in their own world."
+                            PlaybackPrefs.AlbumMode.TRACK -> "Every song is balanced on its own, even inside an album."
+                            PlaybackPrefs.AlbumMode.ALBUM -> "Songs from the same album always share one gain, even in shuffle."
+                        },
+                    )
+                    Group("Intimate pieces")
+                    Text("Held %.1f dB under target".format(s.intimacyLu), style = SableType.body, color = SableColors.textPrimary)
+                    Slider(
+                        value = s.intimacyLu.toFloat(), onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(intimacyLu = (Math.round(v * 2) / 2.0)) } },
+                        valueRange = 0f..2f, steps = 3,
+                        colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
+                    )
+                    Hint("Quiet, intimate songs stay a little quieter than the rest, as they were meant to be. 0 turns this off.")
+                    Group("Output")
+                    val route by OutputState.route.collectAsState()
+                    Text("Now: ${route.label}", style = SableType.body, color = SableColors.textPrimary)
+                    Text("Level offset %+.1f dB".format(s.cal(route)), style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.m))
+                    Slider(
+                        value = s.cal(route).toFloat(), valueRange = -3f..3f, steps = 11,
+                        onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal + (route.key to Math.round(v * 2) / 2.0)) } },
+                        colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
+                    )
+                    Text("Peak ceiling %.1f dBTP".format(s.ceiling(route)), style = SableType.caption, color = SableColors.textSecondary)
+                    Slider(
+                        value = s.ceiling(route).toFloat(), valueRange = -3f..-0.5f, steps = 4,
+                        onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(routeCeiling = it.routeCeiling + (route.key to Math.round(v * 2) / 2.0)) } },
+                        colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
+                    )
+                    Hint("Each output keeps its own settings. Use the level offset if this output sounds louder or quieter than your others. The ceiling keeps peaks clean; Bluetooth starts lower because the phone re-encodes the audio.")
+                    Row(Modifier.padding(top = Space.s)) {
+                        Pill("Reset ${route.label}", false) { PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal - route.key, routeCeiling = it.routeCeiling - route.key) } }
+                    }
+                    Group("Learning")
+                    Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song and, after two of their songs, for the artist. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
+                    Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
+                    Group("About")
+                    Text("SABLE 0.7 · Intent Engine MATH-1.13", style = SableType.body, color = SableColors.textPrimary)
+                    Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
+                    Row(Modifier.padding(top = Space.m)) { Pill("Reset A/B results", false) { AbTally.reset(context) } }
+                }
+            }
             Spacer(Modifier.height(Space.xxxl))
         }
     }
