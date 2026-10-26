@@ -69,6 +69,8 @@ data class TrackWithAnalysis(
 
 data class LibraryRow(
     val mediaId: Long,
+    val uri: String,
+    val relativePath: String,
     val title: String,
     val displayName: String,
     val artist: String,
@@ -95,12 +97,18 @@ interface LibraryDao {
 
     /** The library for the player UI: every track with its album placement and whether it is analysed. */
     @Query(
-        """SELECT t.mediaId, t.title, t.displayName, t.artist, t.album, t.albumArtist, t.albumId, t.disc, t.track, t.durationMs,
+        """SELECT t.mediaId, t.uri, t.relativePath, t.title, t.displayName, t.artist, t.album, t.albumArtist, t.albumId, t.disc, t.track, t.durationMs,
            a.contentHash IS NOT NULL AS analysed, a.gainStandardDb, a.character
            FROM tracks t LEFT JOIN analysis a ON a.contentHash = t.contentHash AND a.mathVersion = :math
            ORDER BY t.albumArtist COLLATE NOCASE, t.album COLLATE NOCASE, t.disc, t.track, t.title"""
     )
     fun observeRows(math: String): Flow<List<LibraryRow>>
+
+    @Query(
+        """SELECT a.* FROM tracks t JOIN analysis a ON a.contentHash = t.contentHash AND a.mathVersion = :math
+           WHERE t.mediaId = :mediaId"""
+    )
+    suspend fun analysisForTrack(mediaId: Long, math: String): AnalysisEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putAnalysis(a: AnalysisEntity)
     @Query("SELECT * FROM analysis WHERE contentHash = :hash AND mathVersion = :math") suspend fun analysis(hash: String, math: String): AnalysisEntity?

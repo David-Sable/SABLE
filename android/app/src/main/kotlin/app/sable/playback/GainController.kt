@@ -82,6 +82,7 @@ class GainController(
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
         }, main)
         scope.launch { PlaybackPrefs.settings.drop(1).collect { replan(user = true) } }
+        scope.launch { AbSession.condition.drop(1).collect { replan(user = true) } }
         scope.launch(Dispatchers.Default) {
             for (t in fullAnalysis) {  // one at a time, boosted (M4: ~6 s per 4 min)
                 runCatching { TrackAnalyzer(context).ensureAnalyzed(t) }.onFailure { Log.w(TAG, "analysis failed: ${t.displayName}", it) }
@@ -107,14 +108,14 @@ class GainController(
 
     // ---------------- Planning ----------------
     /** Before a new queue reaches the player: wait up to 1.5 s for JIT of the first song (§22.2), then plan it. */
-    suspend fun prepareStart(ids: List<String>, startIndex: Int) {
+    suspend fun prepareStart(ids: List<String>, startIndex: Int, excerptMs: Map<String, Long> = emptyMap()) {
         val id = ids.getOrNull(startIndex)?.let(QueueId::trackId)
         val t = id?.let { track(it) }
         if (t != null && analysis(t) == null && !jitCache.containsKey(t.mediaId)) {
             val job = scope.async(Dispatchers.Default) { runJit(t) }
             withTimeoutOrNull(JIT_WAIT_MS) { job.await() }
         }
-        mutex.withLock { plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false) }
+        mutex.withLock { plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false, excerptMs) }
     }
 
     fun replan(user: Boolean) {
@@ -126,15 +127,20 @@ class GainController(
                 val from = maxOf(0, cur - 1)
                 val to = minOf(n, cur + WINDOW_AHEAD)
                 val ids = (from until to).map { player.getMediaItemAt(it).mediaId }
+                val excerpts = (from until to).mapNotNull { i ->
+                    val item = player.getMediaItemAt(i)
+                    excerptMsOf(item)?.let { item.mediaId to it }
+                }.toMap()
                 // How each item began: as recorded by the sink for started items; the playing one is manual until known.
                 val manual = ids.mapIndexed { i, id -> manualByItem[id] ?: (i == cur - from) }
-                plan(ids, cur - from, manual, user)
+                plan(ids, cur - from, manual, user, excerpts)
             }
         }
     }
 
-    private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean) {
+    private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean, excerptMs: Map<String, Long>) {
         val settings = PlaybackPrefs.settings.value
+        val ab = AbSession.condition.value  // §30: a blind A/B round is running
         val ceiling = ceilingDbtp
         val result = withContext(Dispatchers.IO) {
             val items = JSONArray()
@@ -159,13 +165,15 @@ class GainController(
                     }
                 }
                 o.put("albumIntent", QueueId.albumIntent(id))
-                o.put("manual", manual[i])
+                o.put("manual", ab != null || manual[i])
+                excerptMs[id]?.let { o.put("excerptSec", it / 1000.0) }
                 items.put(o)
             }
             val input = JSONObject()
                 .put("targetLufs", settings.mode.targetLufs).put("intimacyLu", settings.intimacyLu)
                 .put("ceilingDbtp", ceiling).put("limiter", false).put("outputCalDb", 0.0)
                 .put("albumMode", settings.albumMode.key).put("albums", albums).put("items", items)
+            if (ab != null) input.put("abCondition", ab)
             val out = JSONObject(SableEngine.planQueue(input.toString()))
             missing.forEach { scheduleAnalysis(it, jit = true) }
             albumMissing.forEach { scheduleAnalysis(it, jit = false) }
@@ -175,11 +183,13 @@ class GainController(
         for (i in ids.indices) {
             val p = result.optJSONObject(i) ?: continue
             plan[ids[i]] = p
-            gains.put(ids[i], p.optDouble("gainDb", settings.mode.targetLufs + 8), p.optDouble("manualGainDb", settings.mode.targetLufs + 8), user)
+            gains.put(ids[i], p.optDouble("gainDb", settings.mode.targetLufs + 8), p.optDouble("manualGainDb", settings.mode.targetLufs + 8), user,
+                excerptMs[ids[i]] ?: 0L)
         }
         gains.fallbackDb = settings.mode.targetLufs + 8.0  // §22.1
         gains.retain(ids.toSet())
         lastPlan = plan
+        NowPlaying.plan.value = plan.mapValues { (_, p) -> p.optDouble("gainDb") }
     }
 
     /** §17.1: album gain needs every track of the album analysed; otherwise they are queued at high priority. */
@@ -256,6 +266,13 @@ class GainController(
     }
 
     companion object {
+        /** An A/B excerpt's length (§30.2), from its clipping; null for a whole song. */
+        fun excerptMsOf(item: MediaItem): Long? {
+            val c = item.clippingConfiguration
+            if (c.endPositionMs == androidx.media3.common.C.TIME_END_OF_SOURCE) return null
+            return (c.endPositionMs - c.startPositionMs).takeIf { it > 0 }
+        }
+
         const val TAG = "SablePlay"
         const val JIT_WAIT_MS = 1500L   // §22.2 W_jit
         const val WINDOW_AHEAD = 30

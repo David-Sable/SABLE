@@ -9,22 +9,19 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import app.sable.data.LibraryRow
 import app.sable.data.SableDatabase
-import app.sable.playback.NowPlaying
 import app.sable.playback.PlaybackPrefs
 import app.sable.playback.PlaybackService
 import app.sable.playback.QueueId
+import app.sable.ui.theme.SableTheme
 import com.google.common.util.concurrent.ListenableFuture
 import app.sable.library.JitAnalyzer
 import app.sable.library.LibraryScanner
@@ -34,25 +31,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * M5 preview: library, Play album / song world, Standard / Quiet, now playing with the applied gain. The designed UI
- * arrives in M6. adb automation (results logged under tags "SableBench" and "SablePlay"):
+ * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
+ * adb automation (results logged under tags "SableBench" and "SablePlay"):
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd next | prev | pause | play | seek --el ms N
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd mode --es value quiet|standard
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd open --es screen nowplaying|queue|ab|settings|library|why
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class MainActivity : ComponentActivity() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
-    private var controller: MediaController? = null
-    private val pending = ArrayList<(MediaController) -> Unit>()
-    private var now by mutableStateOf(NowPlayingUi())
+    private val state = AppState()
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
@@ -60,26 +57,21 @@ class MainActivity : ComponentActivity() {
         PlaybackPrefs.load(this)
         handleCommand(intent)
         val rowsFlow = SableDatabase.get(applicationContext).library().observeRows(SableDatabase.MATH_VERSION)
+        lifecycleScope.launch(Dispatchers.Default) { LibraryScanner(applicationContext).syncMediaStore() }
         setContent {
             val rows by rowsFlow.collectAsState(initial = emptyList())
-            val settings by PlaybackPrefs.settings.collectAsState()
-            val gain by NowPlaying.gain.collectAsState()
-            PlayerScreen(
-                rows, settings, now, gain,
-                onPlayAlbum = { a -> play(a.tracks.map { QueueId.request(it.mediaId, albumIntent = true) }, 0) },
-                onPlaySongWorld = { list, i -> play(list.drop(i).map { QueueId.request(it.mediaId, albumIntent = false) }, 0) },
-                onMode = { m -> PlaybackPrefs.update(this) { it.copy(mode = m) } },
-                onAlbumMode = { PlaybackPrefs.update(this) { it.copy(albumMode = PlaybackPrefs.AlbumMode.entries[(it.albumMode.ordinal + 1) % 3]) } },
-                onPrev = { withController { it.seekToPrevious() } },
-                onPlayPause = { withController { c -> if (c.isPlaying) c.pause() else c.play() } },
-                onNext = { withController { it.seekToNext() } },
-                onRescan = {
-                    lifecycleScope.launch(Dispatchers.Default) {
-                        LibraryScanner(applicationContext).syncMediaStore()
-                        ScanWorker.enqueue(applicationContext, requireCharging = false)
-                    }
-                },
-            )
+            SableTheme {
+                SableApp(
+                    state, rows,
+                    onRescan = {
+                        lifecycleScope.launch(Dispatchers.Default) {
+                            LibraryScanner(applicationContext).syncMediaStore()
+                            ScanWorker.enqueue(applicationContext, requireCharging = false)
+                        }
+                    },
+                    onAnalyseWhileCharging = { ScanWorker.enqueue(applicationContext, requireCharging = true) },
+                )
+            }
         }
     }
 
@@ -87,38 +79,18 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         val f = MediaController.Builder(this, SessionToken(this, ComponentName(this, PlaybackService::class.java))).buildAsync()
         controllerFuture = f
-        f.addListener({
-            val c = runCatching { f.get() }.getOrNull() ?: return@addListener
-            controller = c
-            c.addListener(object : Player.Listener {
-                override fun onEvents(player: Player, events: Player.Events) = refresh(player)
-            })
-            refresh(c)
-            pending.forEach { it(c) }
-            pending.clear()
-        }, mainExecutor)
+        f.addListener({ runCatching { f.get() }.getOrNull()?.let(state::attach) }, mainExecutor)
     }
 
     override fun onStop() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
-        controller = null
+        state.controller = null
         super.onStop()
     }
 
-    private fun refresh(p: Player) {
-        val m = p.mediaMetadata
-        now = NowPlayingUi(m.title?.toString() ?: "", m.artist?.toString() ?: "", p.isPlaying, p.currentMediaItem != null)
-    }
+    private fun withController(action: (MediaController) -> Unit) = state.withController(action)
 
-    private fun withController(action: (MediaController) -> Unit) {
-        controller?.let(action) ?: pending.add(action)
-    }
-
-    private fun play(requestIds: List<String>, start: Int) = withController { c ->
-        c.setMediaItems(requestIds.map { MediaItem.Builder().setMediaId(it).build() }, start, 0L)
-        c.prepare()
-        c.play()
-    }
+    private fun play(requestIds: List<String>, start: Int) = state.play(requestIds.map { MediaItem.Builder().setMediaId(it).build() }, start)
 
     /** The library in album order (for the adb play commands). */
     private suspend fun libraryInAlbumOrder() = SableDatabase.get(applicationContext).library().allTracks()
@@ -167,6 +139,16 @@ class MainActivity : ComponentActivity() {
                 "pause" -> runOnUiThread { withController { it.pause() } }
                 "play" -> runOnUiThread { withController { it.play() } }
                 "seek" -> runOnUiThread { withController { it.seekTo(intent.getLongExtra("ms", 0L)) } }
+                "open" -> runOnUiThread {
+                    when (intent.getStringExtra("screen")) {
+                        "nowplaying" -> state.go(Route.NowPlaying)
+                        "queue" -> state.go(Route.Queue)
+                        "ab" -> state.go(Route.Ab)
+                        "settings" -> state.go(Route.Settings)
+                        "why" -> state.whyTrack = state.currentTrackId
+                        else -> { state.whyTrack = null; while (state.pop()) Unit }
+                    }
+                }
                 "mode" -> PlaybackPrefs.update(applicationContext) {
                     it.copy(mode = if (intent.getStringExtra("value") == "quiet") PlaybackPrefs.Mode.QUIET else PlaybackPrefs.Mode.STANDARD)
                 }

@@ -50,4 +50,12 @@ data class NowPlayingGain(
 
 object NowPlaying {
     val gain = MutableStateFlow(NowPlayingGain())
+    /** Planned gain (dB, natural transition) of each queue item near the playing one, for the queue screen. */
+    val plan = MutableStateFlow<Map<String, Double>>(emptyMap())
+}
+
+/** A running blind A/B round (MATH §30): the condition currently heard, or null when A/B is off. */
+object AbSession {
+    enum class Condition(val key: String, val label: String) { SABLE("sable", "Sable"), PLAIN("plain", "Plain -14 LUFS"), OFF("off", "No normalization") }
+    val condition = MutableStateFlow<String?>(null)
 }

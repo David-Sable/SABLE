@@ -119,3 +119,40 @@ TEST_CASE("plan: malformed input is rejected, output is deterministic") {
   const std::string in = ctx("{\"jit\":{\"jitLufs\":-9.123456789,\"jitTpDbtp\":-2}}");
   CHECK(sable::planQueueJson(in) == sable::planQueueJson(in));
 }
+
+TEST_CASE("plan: blind A/B conditions are level-matched to Sable and respect the cap (MATH §30)") {
+  // Three songs: anchors differ from integrated loudness, so plain -14 and Sable balance them differently.
+  const std::string a = analysis(-8, -7, -7, -12, -8, -8), b = analysis(-20, -18, -18, -20, -20, -20), c = analysis(-12, -12, -12, -14, -12, -12);
+  auto items = [&](const char*) {
+    return "{\"analysis\":" + a + ",\"excerptSec\":25},{\"analysis\":" + b + ",\"excerptSec\":25},{\"analysis\":" + c + ",\"excerptSec\":25}";
+  };
+  auto run = [&](const char* cond) {
+    std::string in = ctx(items(cond));
+    in.insert(1, std::string("\"abCondition\":\"") + cond + "\",");
+    return sable::planQueueJson(in);
+  };
+  const std::string s = run("sable"), p = run("plain"), o = run("off");
+  const double lx[3] = {-7, -18, -12};
+  auto seq = [&](const std::string& out) {
+    double e = 0;
+    for (int i = 0; i < 3; ++i) e += std::pow(10.0, (lx[i] + field(out, "gainDb", i)) / 10.0);
+    return 10 * std::log10(e / 3);
+  };
+  // Sable = its manual (unseamed) gains: T - anchor = -7, +4, -2.
+  CHECK(field(s, "gainDb", 0) == doctest::Approx(-7.0).epsilon(1e-12));
+  CHECK(field(s, "gainDb", 1) == doctest::Approx(4.0).epsilon(1e-12));
+  // Level match: every condition has Sable's sequence loudness (no cap active in this set).
+  CHECK(seq(p) == doctest::Approx(seq(s)).epsilon(1e-9));
+  CHECK(seq(o) == doctest::Approx(seq(s)).epsilon(1e-9));
+  // Off is one constant gain; plain keeps its integrated-loudness differences (-6, +6, -2) up to the shift.
+  CHECK(field(o, "gainDb", 0) == doctest::Approx(field(o, "gainDb", 1)).epsilon(1e-12));
+  CHECK(field(p, "gainDb", 1) - field(p, "gainDb", 0) == doctest::Approx(12.0).epsilon(1e-9));
+  CHECK(field(p, "manualGainDb", 2) == field(p, "gainDb", 2));
+
+  // Cap: a hot song (TP -0.5) can never be pushed above C_out - TP by the level match.
+  const std::string hot = analysis(-20, -20, -20, -0.5, -20, -20), quiet = analysis(-30, -30, -30, -20, -30, -30);
+  std::string in = ctx("{\"analysis\":" + hot + ",\"excerptSec\":25},{\"analysis\":" + quiet + ",\"excerptSec\":25}");
+  in.insert(1, "\"abCondition\":\"off\",");
+  const std::string capped = sable::planQueueJson(in);
+  CHECK(field(capped, "gainDb", 0) <= -0.5 + 1e-12);
+}

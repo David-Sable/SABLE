@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class GainTable {
     /** naturalDb: after a gapless transition (seamed, §18); manualDb: started by the user (no seam). */
-    data class Entry(val naturalDb: Double, val manualDb: Double, val version: Long, val userChange: Boolean) {
+    data class Entry(val naturalDb: Double, val manualDb: Double, val version: Long, val userChange: Boolean, val excerptMs: Long = 0) {
         fun db(manual: Boolean) = if (manual) manualDb else naturalDb
     }
 
@@ -31,10 +31,10 @@ class GainTable {
     operator fun get(key: Any?): Entry? = key?.let { map[it] }
 
     /** Sets an item's gains. A change bumps the version, which the audio thread applies as an in-track ramp (§23.3). */
-    fun put(key: Any, naturalDb: Double, manualDb: Double, userChange: Boolean) {
+    fun put(key: Any, naturalDb: Double, manualDb: Double, userChange: Boolean, excerptMs: Long = 0) {
         val old = map[key]
-        if (old != null && old.naturalDb == naturalDb && old.manualDb == manualDb) return
-        map[key] = Entry(naturalDb, manualDb, versions.incrementAndGet(), userChange)
+        if (old != null && old.naturalDb == naturalDb && old.manualDb == manualDb && old.excerptMs == excerptMs) return
+        map[key] = Entry(naturalDb, manualDb, versions.incrementAndGet(), userChange, excerptMs)
     }
 
     fun retain(keys: Set<Any>) = map.keys.retainAll(keys)
@@ -108,6 +108,7 @@ class SableAudioSink(
         val db = e?.db(manualStart) ?: gains.fallbackDb
         appliedVersion = e?.version ?: -1L
         kernel.stepTo(db)  // §23.2: the new item's gain from its first sample
+        if (e != null && e.excerptMs > 0) kernel.setEdges(e.excerptMs * sampleRate / 1000, sampleRate / 50)  // §30.2: 20 ms fades
         onItemGain(key, db, manualStart)
     }
 

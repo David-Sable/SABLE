@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.11 (2026-10-26)
+**Version:** MATH-1.12 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -902,6 +902,29 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 - **Crossfade:** Sable does not crossfade. Transitions are gapless or hard (§23.2). If crossfade is added later, a section here will define the gain trajectory over the overlap.
 - **Existing ReplayGain / R128 tags** are read and shown for comparison on the Why sheet. They are never used for Sable's gain and never written.
 - **Learning stacking across replays:** if the user leaves the system volume lowered after a feedback press, the next play also applies the learned offset. The partial credit `η_t = 0.5` bounds this: the replay is at most half a step quieter than the user's own correction implied. Repeated presses converge rather than compound, because each new event is measured relative to the level at that time.
+
+## 30. Blind A/B (proof mode) [DESIGN]
+
+The A/B mode lets the listener judge the engine without knowing which version they hear. A single song cannot reveal a gain engine: louder always sounds better. So A/B compares **level-matched sequences across transitions**, where only the balance from song to song differs.
+
+### 30.1 Conditions
+For each song `i` of the sequence, with `T`, `C_out` and `TP_eff,i` as in §16:
+- **S (Sable):** the manual-start final gain of §21, without seams (excerpts are not the songs' real openings and endings, so §18 data does not apply). Learning is off (§19.1).
+- **P (plain −14 normalization):** `g_P,i = min(T − L_I,i, C_out − TP_eff,i)`. This is integrated loudness only, with the same peak protection, so that P never loses through clipping.
+- **O (off):** `g_O,i = 0`.
+
+### 30.2 Excerpts
+Each song contributes one excerpt of `D_ab = 25 s` centred on its anchor centre (§14), shifted to lie inside the file, or the whole file if it is shorter. The same excerpts are used in every condition. Every excerpt starts and ends with a 20 ms raised-cosine fade, identical in all conditions, so cut points never click.
+
+### 30.3 Level match
+The loudness of song `i`'s excerpt is estimated by `L_x,i = L_anchor,i`, the anchor being where the excerpt is taken from; `L_I,i` is used if there is no anchor. Sequence loudness under condition `c`, with excerpt durations `w_i`:
+`L_seq(c) = 10·log10( Σ w_i·10^((L_x,i + g_c,i)/10) / Σ w_i )`.
+Conditions P and O are shifted to Sable's sequence loudness: `Δ_c = L_seq(S) − L_seq(c)`, then `g'_c,i = min(g_c,i + Δ_c, C_out − TP_eff,i)`. The cap applies to every condition, so peak integrity holds in A/B too. A capped song makes its condition slightly quieter than matched, and the reveal says so.
+
+### 30.4 Blinding
+Each round draws a uniformly random permutation of {S, P, O} onto the labels 1, 2, 3 and a random starting label. The listener can switch labels at any time (a §23.3 20 ms crossfade on every song). The mapping is revealed only after the listener picks the label whose song-to-song balance sounded most even. Results are kept as a tally of rounds per winning condition.
+
+---
 
 ## 29. References
 

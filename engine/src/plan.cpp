@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "sable/dmath.h"
 #include "sable/intent.h"
 
 namespace sable {
@@ -216,7 +217,7 @@ struct Item {
   std::optional<Track> track;
   bool albumRun = false, manual = false;
   double baseDb = 0.0, capDb = std::numeric_limits<double>::infinity();
-  double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0;
+  double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0, excerptSec = 0.0;
   std::vector<Rule> rules;
 };
 
@@ -274,6 +275,7 @@ std::string planQueueJson(const std::string& input) {
       Item it;
       it.manual = x.flag("manual");
       it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp
+      it.excerptSec = x.num("excerptSec", 0.0);
       const std::string key = x.str("album");
       const bool inAlbum = !key.empty() && albumMode != "track" && (albumMode == "album" || x.flag("albumIntent"));  // §17.1
       if (const J* a = x.get("analysis"); a && a->t == J::T::Obj) {
@@ -331,11 +333,39 @@ std::string planQueueJson(const std::string& input) {
     cur.naturalSeamedDb = seamGain(s, &cur.rules);
   }
 
-  std::string o = "{\"items\":[";
+  // §30 blind A/B: every item gets the chosen condition's level-matched gain (manual start, no seams, no learning).
+  const std::string ab = in.str("abCondition");  // "" | "sable" | "plain" | "off"
+  std::vector<double> abGain(items.size(), 0.0);
+  double abOffset = 0.0;
+  if (!ab.empty()) {
+    std::vector<double> gS(items.size()), gC(items.size()), cap(items.size(), std::numeric_limits<double>::infinity());
+    double eS = 0.0, eC = 0.0, w = 0.0;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+      const Item& it = items[i];
+      gS[i] = finalGain(it.manualSeamedDb, 0.0, outputCal, it.capDb);
+      gC[i] = gS[i];
+      if (!it.track || !it.track->r.integratedLufs) continue;
+      const Track& t = *it.track;
+      if (t.r.truePeakDbtp) cap[i] = ctx.ceilingDbtp - (*t.r.truePeakDbtp + (t.decodeClipped ? 1.0 : 0.0));  // §16.4 TP_eff
+      if (ab == "plain") gC[i] = std::min(ctx.targetLufs - *t.r.integratedLufs, cap[i]);
+      else if (ab == "off") gC[i] = 0.0;
+      const double lx = t.u.anchorLufs.value_or(*t.r.integratedLufs);  // §30.3 excerpt loudness
+      const double wi = it.excerptSec > 0.0 ? it.excerptSec : 1.0;
+      eS += wi * dm::pow(10.0, (lx + gS[i]) / 10.0);
+      eC += wi * dm::pow(10.0, (lx + gC[i]) / 10.0);
+      w += wi;
+    }
+    if (ab != "sable" && w > 0.0) abOffset = 10.0 * dm::log10(eS / w) - 10.0 * dm::log10(eC / w);
+    for (std::size_t i = 0; i < items.size(); ++i)
+      abGain[i] = ab == "sable" || !items[i].track ? gS[i] : std::min(gC[i] + abOffset, cap[i]);
+  }
+
+  std::string o = "{\"abOffsetDb\":" + num(abOffset) + ",\"items\":[";
   for (std::size_t i = 0; i < items.size(); ++i) {
     const Item& it = items[i];
-    const double gNat = finalGain(it.naturalSeamedDb, it.learnedDb, outputCal, it.capDb);  // §21
-    const double gMan = finalGain(it.manualSeamedDb, it.learnedDb, outputCal, it.capDb);
+    double gNat = finalGain(it.naturalSeamedDb, it.learnedDb, outputCal, it.capDb);  // §21
+    double gMan = finalGain(it.manualSeamedDb, it.learnedDb, outputCal, it.capDb);
+    if (!ab.empty()) gNat = gMan = abGain[i];
     if (i) o += ',';
     o += "{\"gainDb\":" + num(gNat) + ",\"manualGainDb\":" + num(gMan) + ",\"baseDb\":" + num(it.baseDb) +
          ",\"capDb\":" + num(it.capDb) + ",\"source\":\"" +

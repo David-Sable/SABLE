@@ -13,8 +13,8 @@ android {
         applicationId = "app.sable"
         minSdk = 33  // READ_MEDIA_AUDIO
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.5.0-m5"
+        versionCode = 3
+        versionName = "0.6.0-m6"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
             cmake {
@@ -25,7 +25,12 @@ android {
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Optimized preview build: R8 makes Compose markedly smoother. Signed with the debug key so it installs over
+            // development builds (personal sideload, not a store release).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     externalNativeBuild {
