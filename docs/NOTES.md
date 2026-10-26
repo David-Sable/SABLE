@@ -15,8 +15,8 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Now (keep this current)
 - **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the app icon, and the Quiet contour on by default in Quiet (0.7.1). MATH-1.14.
-  Latest GitHub release: build 6 (`0.7.0-m7`), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On Dana's phone:** 0.7.0-m7 (installed from the PC; same key, same data). Library 396 songs, all analysed.
+  Latest GitHub release: **build 8 (`0.7.1`)**, signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On Dana's phone:** 0.7.0-m7 (installed from the PC; same key, same data); 0.7.1 offered via build 8, not yet confirmed installed. Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
