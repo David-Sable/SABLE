@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@
 #endif
 
 #include "sable/analyzer.h"
+#include "sable/perceptual.h"
 
 namespace {
 
@@ -55,11 +57,14 @@ struct FileCloser {
 };
 
 int run(int argc, char** argv) {
-  bool series = false;
+  bool series = false, perceptual = false;
+  double prescaleDb = 0.0;
   std::uint32_t maskOverride = 0;
   const char* path = nullptr;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--series") == 0) series = true;
+    else if (std::strcmp(argv[i], "--perceptual") == 0) perceptual = true;
+    else if (std::strcmp(argv[i], "--prescale") == 0 && i + 1 < argc) prescaleDb = std::strtod(argv[++i], nullptr);
     else if (std::strcmp(argv[i], "--mask") == 0 && i + 1 < argc) maskOverride = static_cast<std::uint32_t>(std::strtoul(argv[++i], nullptr, 16));
     else path = argv[i];
   }
@@ -112,6 +117,8 @@ int run(int argc, char** argv) {
 
   const int ch = static_cast<int>(channels);
   sable::Analyzer an(static_cast<int>(fs), ch, sable::channelWeightsFor(ch, mask));
+  std::unique_ptr<sable::FastLoudness> fast;
+  if (perceptual) fast = std::make_unique<sable::FastLoudness>(static_cast<int>(fs), ch, prescaleDb);
   const std::size_t bytes = bits / 8;
   const std::size_t frameBytes = static_cast<std::size_t>(channels) * bytes;
   const std::size_t chunkFrames = 8192;
@@ -133,11 +140,23 @@ int run(int argc, char** argv) {
       buf[i] = v;
     }
     an.push(buf.data(), frames);
+    if (fast) fast->push(buf.data(), frames);
     carry = got - frames * frameBytes;
     if (carry != 0) std::memmove(raw.data(), raw.data() + frames * frameBytes, carry);
     if (got < raw.size() && (std::feof(f) != 0 || std::ferror(f) != 0)) break;
   }
-  std::puts(sable::toJson(an.finish(), series).c_str());
+  std::string json = sable::toJson(an.finish(), series);
+  if (fast) {  // append a perceptual summary: mean and max long-term loudness (sones)
+    const auto ps = fast->finish();
+    double sum = 0.0, mx = 0.0;
+    std::size_t n = 0;
+    for (const auto& v : ps.ltlSone) if (v) { sum += *v; mx = std::max(mx, *v); ++n; }
+    char tail[160];
+    std::snprintf(tail, sizeof tail, ",\"ltlMeanSone\":%.9g,\"ltlMaxSone\":%.9g}", n ? sum / static_cast<double>(n) : 0.0, mx);
+    json.pop_back();
+    json += tail;
+  }
+  std::puts(json.c_str());
   return 0;
 }
 
