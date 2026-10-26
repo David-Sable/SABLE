@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), and the white lion logo as icon and in-app mark (0.8.0). MATH-1.14.
-  Latest GitHub release: **build 8 (`0.7.1`)**, signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On Dana's phone:** 0.8.0 (installed from the PC over USB, 2026-10-26). 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0) and the A/B verdict line (0.8.1). MATH-1.15.
+  Latest GitHub release: see Releases (0.8.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On Dana's phone:** 0.8.1 (installed from the PC over USB, 2026-10-26). A/B tally then: Sable 13, Plain 9, Off 4 of 26 (luck ≈ 1 in 17). 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -25,11 +25,15 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
   - Release `build-3` on GitHub has the wrong key; Dana can delete it (Releases → build-3 → Delete). Harmless.
   - Dana's listening check of character labels and the largest gain moves (from M3) is still open.
-- **Ideas pending:** none.
+- **Ideas pending (agreed with Dana, 2026-10-26):** test Bluetooth/USB-C outputs and the other formats on the phone (needs USB; formats need non-copyrighted test files, e.g. generated with ffmpeg); a sleep timer that stops at the end of a song (no fades, keeps one static gain per song).
 
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) A/B verdict (0.8.1)
+- Under the A/B tally, one plain sentence: the chance that random picking would make Sable win this often (binomial tail, chance 1/3 per round), shown after 10 rounds; under 5% reads "You can hear the engine". MATH-1.15 §30.5 (display rule only). Unit tests in `AbVerdictTest`.
+- Verified on the phone: Dana's 13 of 26 shows "about 1 time in 17, so it could still be luck". One more Sable win (14 of 27) crosses 5%.
 
 ### 2026-10-26 (PC) White lion logo (0.8.0)
 - Dana chose a white lion (their AI-generated artwork, `tools/branding/lion_source.webp`) after my own drawn attempts (S mark, face lions, heraldic lions) didn't reach the quality bar. Traced with vtracer (99.6% pixel match) by `tools/branding/trace_logo.py` into `drawable/lion_mark.xml` (in-app `SableMark`) and the launcher foreground (56 dp wide in the 108 dp canvas, inside the safe circle). Monochrome themed layer reuses the foreground.

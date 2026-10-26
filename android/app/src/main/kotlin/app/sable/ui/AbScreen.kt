@@ -67,6 +67,37 @@ object AbTally {
     }
 }
 
+/**
+ * §30.5: is the tally more than luck? A listener picking at random chooses Sable in 1 of 3 rounds, so the chance of
+ * Sable winning [k] or more of [n] rounds by luck is the binomial tail P(X ≥ k), X ~ Bin(n, 1/3).
+ */
+object AbVerdict {
+    const val MIN_ROUNDS = 10
+    const val ALPHA = 0.05
+
+    fun chanceByLuck(k: Int, n: Int): Double {
+        var term = Math.pow(2.0 / 3.0, n.toDouble())  // P(X = 0)
+        var tail = 0.0
+        for (i in 0..n) {
+            if (i >= k) tail += term
+            term *= (n - i).toDouble() / (i + 1) * 0.5  // P(X = i+1) from P(X = i), odds (1/3)/(2/3)
+        }
+        return tail.coerceIn(0.0, 1.0)
+    }
+
+    /** One plain sentence about Sable's [k] wins in [n] rounds. */
+    fun sentence(k: Int, n: Int): String {
+        if (n < MIN_ROUNDS) return "After $MIN_ROUNDS rounds this will tell you whether your picks are real or luck."
+        val p = chanceByLuck(k, n)
+        val odds = "about 1 time in ${Math.round(1 / p)}"
+        return when {
+            p < ALPHA -> "Picking at random, Sable would win this often only $odds. You can hear the engine."
+            p < 0.5 -> "Picking at random, Sable would win this often $odds, so it could still be luck. Keep going."
+            else -> "So far that is what random picks would give. Keep going."
+        }
+    }
+}
+
 const val AB_SONGS = 6
 const val AB_EXCERPT_MS = 25_000L  // §30.2 D_ab
 
@@ -215,4 +246,6 @@ private fun Tally(context: Context, version: Int) {
             Text("$n of $total", style = SableType.body, color = if (c == AbSession.Condition.SABLE) SableColors.accent else SableColors.textPrimary)
         }
     }
+    Text(AbVerdict.sentence(counts.getValue(AbSession.Condition.SABLE), total), style = SableType.caption, color = SableColors.textSecondary,
+        modifier = Modifier.padding(top = Space.s))
 }

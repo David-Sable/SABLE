@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.14 (2026-10-26)
+**Version:** MATH-1.15 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -925,6 +925,9 @@ Conditions P and O are shifted to Sable's sequence loudness: `Δ_c = L_seq(S) �
 
 ### 30.4 Blinding
 Each round draws a uniformly random permutation of {S, P, O} onto the labels 1, 2, 3 and a random starting label. The listener can switch labels at any time (a §23.3 20 ms crossfade on every song). The mapping is revealed only after the listener picks the label whose song-to-song balance sounded most even. Results are kept as a tally of rounds per winning condition.
+
+### 30.5 Verdict
+A listener who cannot hear a difference picks Sable with probability 1/3. After `n ≥ 10` rounds with `k` Sable wins, the screen shows the chance of doing at least as well by luck, `p = P(X ≥ k)`, `X ~ Bin(n, 1/3)`, as "about 1 time in round(1/p)". `p < 0.05` reads as "you can hear the engine", `p < 0.5` as "could still be luck", otherwise as no difference so far. This is a display rule only; it never affects gain.
 
 ---
 
