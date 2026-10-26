@@ -13,7 +13,8 @@ android {
         applicationId = "app.sable"
         minSdk = 33  // READ_MEDIA_AUDIO
         targetSdk = 37
-        versionCode = 4
+        // Minutes since 2026-01-01 UTC: every build (this PC or GitHub) installs over the previous one.
+        versionCode = ((System.currentTimeMillis() - 1767225600000L) / 60000L).toInt()
         versionName = "0.7.0-m7"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
