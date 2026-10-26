@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.2 (2026-10-26)
+**Version:** MATH-1.3 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -551,7 +551,10 @@ Track mode solves: `g_track = argmin_g |g − g_intent|  s.t.  g ≤ g_cap`. The
 ### 17.1 When it applies (setting Auto / Always track / Always album)
 - **Always track**: never.
 - **Always album**: whenever the track belongs to an album (album id + album artist), even in shuffle.
-- **Auto**: an *album run* is a maximal run of ≥ 2 consecutive queue items with the same album id, shuffle off, where each next item is the album's next track in library order. "Next track" means the item that follows in the album's track list, sorted by `(disc, track)` over the tracks of that album present in the library. So disc 1's last track → disc 2's first track counts as consecutive, and a missing track number (not in the library) is not a gap. Every item of an album run uses album gain. Everything else uses track mode (+ seam smoothing in shuffle/mixed queues).
+- **Auto** (default) **[DESIGN, owner decision 2026-10-26]**: the listener's *intent* decides, not queue adjacency. Each queue item records how it was queued:
+  - `ALBUM` intent: queued by **Play album** (shuffle off) on an album. Every item of that album placed by that action uses **album gain**. An *album run* = the maximal run of consecutive `ALBUM`-intent items of the same album.
+  - `SONG` intent: queued by **tapping a song** (from any screen, including inside an album), by shuffle, from a playlist, or into a mixed queue. The tapped song and every item that follows it are balanced **in their own world**: track mode (§16) plus seam smoothing (§18), even if they are the same album's next tracks in order.
+  - Items added later inherit the intent of the action that added them.
 - Album gain needs **every track of that album in the library** to be fully analysed. Until then the run uses track mode, and the missing tracks are queued for analysis at high priority. Rule `ALBUM_PENDING`.
 
 ### 17.2 Album gain
