@@ -291,7 +291,19 @@ std::string planQueueJson(const std::string& input) {
       if (const J* l = x.get("learn"); l && l->t == J::T::Obj) {  // §19.2: decay to now, then combine
         const double t = decayedOffset({l->num("trackDb", 0.0), l->num("trackDays", nowDays)}, nowDays);
         const double a = decayedOffset({l->num("artistDb", 0.0), l->num("artistDays", nowDays)}, nowDays);
-        it.learnedDb = appliedOffset(t, a, static_cast<int>(l->num("artistTracks", 0.0)));
+        int n = static_cast<int>(l->num("artistTracks", 0.0));
+        bool agree = true;
+        if (const J* s = l->get("artistTrackDbs"); s && s->t == J::T::Arr) {  // the artist's taught songs: same direction?
+          int up = 0, down = 0;
+          for (const J& v : s->a) {
+            if (v.t != J::T::Num) continue;
+            up += v.n > 0.0;
+            down += v.n < 0.0;
+          }
+          n = static_cast<int>(s->a.size());
+          agree = (up == n || down == n);
+        }
+        it.learnedDb = appliedOffset(t, a, n, l->flag("trackTaught"), agree);
       } else {
         it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
       }
@@ -402,7 +414,11 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   if (!Parser(input).parse(in) || in.t != J::T::Obj || !in.num("deltaDb")) return "{\"error\":\"bad input\"}";
   const double now = in.num("nowDays", 0.0), dv = *in.num("deltaDb");
   double omega = 1.0;
-  if (const auto prev = in.num("prevDeltaDb"); prev && *prev != 0.0) {
+  // The previous event is evidence of an environment change only while recent (T_env = 10 min, MATH-1.23).
+  constexpr double kEnvWindowDays = 10.0 / 1440.0;
+  const auto prev = in.num("prevDeltaDb");
+  const auto prevAt = in.num("prevDays");
+  if (prev && *prev != 0.0 && prevAt && now - *prevAt <= kEnvWindowDays) {
     const double ratio = dv / *prev;
     if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
   }

@@ -186,15 +186,34 @@ TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay
   CHECK(field(sable::planQueueJson(l2), "learnedDb") == doctest::Approx(-0.8 - std::pow(2.0, -1.0 / 30.0)).epsilon(1e-9));
 }
 
+TEST_CASE("plan: a song's own lesson beats the artist's; the artist's needs agreeing songs (MATH-1.23 §19.2)") {
+  const std::string mid = analysis(-14, -14, -14, -20, -14, -14);  // g 0, cap +19
+  auto learned = [&](const std::string& learn) {
+    return field(sable::planQueueJson(ctx("{\"analysis\":" + mid + ",\"learn\":" + learn + "}")), "learnedDb");
+  };
+  // Owner's session: turned "its dark and hell is hot" down (-0.48) while the artist stood at +1.68 from another song.
+  // Before 1.23 the sum made the song 1.2 dB LOUDER after a turn-down; now its own lesson rules.
+  CHECK(learned("{\"trackDb\":-0.48,\"trackTaught\":true,\"artistDb\":1.68,\"artistTrackDbs\":[2.0,-0.48]}") == doctest::Approx(-0.48));
+  // An untaught song by that artist: the two taught songs disagree, so nothing is applied.
+  CHECK(learned("{\"artistDb\":1.68,\"artistTrackDbs\":[2.0,-0.48]}") == 0.0);
+  // Two taught songs that agree: the artist's offset applies to the others.
+  CHECK(learned("{\"artistDb\":-0.9,\"artistTrackDbs\":[-1.5,-0.4]}") == doctest::Approx(-0.9));
+  CHECK(learned("{\"artistDb\":-0.9,\"artistTrackDbs\":[-1.5]}") == 0.0);  // one song is not an artist
+}
+
 TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)") {
   const std::string a = sable::learnUpdateJson("{\"deltaDb\":-3,\"trackDb\":0,\"trackDays\":10,\"artistDb\":0,\"artistDays\":10,\"nowDays\":10}");
   CHECK(field(a, "trackDb") == doctest::Approx(-1.5));
   CHECK(field(a, "artistDb") == doctest::Approx(-0.75));
   CHECK(field(a, "omega") == 1.0);
   // Same sign and similar size as the previous event: weighted 0.25.
-  const std::string b = sable::learnUpdateJson("{\"deltaDb\":-3,\"prevDeltaDb\":-4,\"trackDb\":0,\"trackDays\":10,\"artistDb\":0,\"artistDays\":10,\"nowDays\":10}");
+  const std::string b = sable::learnUpdateJson("{\"deltaDb\":-3,\"prevDeltaDb\":-4,\"prevDays\":9.996,\"trackDb\":0,\"trackDays\":10,\"artistDb\":0,\"artistDays\":10,\"nowDays\":10}");
   CHECK(field(b, "omega") == 0.25);
   CHECK(field(b, "trackDb") == doctest::Approx(-0.375));
+  // MATH-1.23: only a recent previous event (within 10 min) suggests an environment change. Owner's session: STFU! turned
+  // down 30 min after the last event of an earlier session was weighted 0.25; now full weight. No time stored: full weight.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"prevDeltaDb\":-3.83,\"prevDays\":9.979,\"nowDays\":10}"), "omega") == 1.0);
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"prevDeltaDb\":-3.83,\"nowDays\":10}"), "omega") == 1.0);
   // Opposite sign: full weight. Clamp at +-2.
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3,\"prevDeltaDb\":-3,\"nowDays\":0}"), "omega") == 1.0);
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);

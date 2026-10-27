@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -285,13 +287,13 @@ fun worldLabel(g: app.sable.playback.NowPlayingGain): String {
 }
 
 @Composable
-fun QueueScreen(state: AppState, rows: List<LibraryRow>) {
+fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val plan by NowPlaying.plan.collectAsState()
     val list = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, state.queueIndex - 1))
     Column(Modifier.fillMaxSize()) {
         TopBar("QUEUE", { state.pop() })
-        LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(bottom = Space.xl)) {
+        LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(bottom = Space.xl + endPad(bottomPad))) {
             items(state.queueIds.size, key = { state.queueIds[it] }) { i ->
                 val id = state.queueIds[i]
                 val r = QueueId.trackId(id)?.let { byId[it] }
@@ -317,4 +319,11 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>) {
     }
 }
 
-fun bottomBarHeight(): Dp = 76.dp
+/** The mini player's height, including the gesture bar under it (it pads itself by the navigation-bar inset). */
+@Composable
+fun bottomBarHeight(): Dp = 76.dp + androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+/** Room at the end of a page: what the mini player covers, or the gesture bar when it is hidden. */
+@Composable
+fun endPad(bottomPad: Dp): Dp =
+    if (bottomPad > 0.dp) bottomPad else androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()

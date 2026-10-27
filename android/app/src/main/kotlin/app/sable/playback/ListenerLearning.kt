@@ -24,7 +24,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private val prefs = context.getSharedPreferences("sable_learning", Context.MODE_PRIVATE)
     private val audio = context.getSystemService(AudioManager::class.java)
 
-    data class Offsets(val trackDb: Double, val trackDays: Double, val artistDb: Double, val artistDays: Double, val artistTracks: Int)
+    data class Offsets(
+        val trackDb: Double, val trackDays: Double, val artistDb: Double, val artistDays: Double, val artistTracks: Int,
+        val trackTaught: Boolean = false, val artistTrackDbs: List<Double> = emptyList(),
+    )
 
     /** §19.3: where the media stream plays now. */
     data class Place(val id: String, val label: String)
@@ -56,8 +59,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val now = nowDays()
         val tr = readAt(p, "t:${trackKey(t)}") ?: readAt(p, "t:${idKey(t)}")
         val ar = readAt(p, "a:${artistKey(t)}")
-        val n = setAt(p, "ac:${artistKey(t)}")?.size ?: 0
-        return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, n)
+        val taught = setAt(p, "ac:${artistKey(t)}").orEmpty()
+        // §19.2 (MATH-1.23): the artist's taught songs' own offsets, so the engine can check they agree.
+        val songs = taught.mapNotNull { k -> readAt(p, "t:$k")?.first }
+        return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, taught.size, tr != null, songs)
     }
 
     /** The planner's "learn" input (it decays and combines them, §19.2), for the place playing now. */
@@ -65,6 +70,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val o = offsets(t)
         return JSONObject().put("trackDb", o.trackDb).put("trackDays", o.trackDays).put("artistDb", o.artistDb)
             .put("artistDays", o.artistDays).put("artistTracks", o.artistTracks)
+            .put("trackTaught", o.trackTaught).put("artistTrackDbs", org.json.JSONArray(o.artistTrackDbs))
     }
 
     /** §19.3: forgets the song (or artist) for the current place and the shared earlier state. */
@@ -174,6 +180,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .put("artistDb", o.artistDb).put("artistDays", o.artistDays).put("nowDays", now)
         val prev = "${p.id}|prevDelta"
         if (prefs.contains(prev)) input.put("prevDeltaDb", prefs.getFloat(prev, 0f).toDouble())
+        prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
         val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) }
@@ -183,6 +190,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .putString("${p.id}|a:${artistKey(t)}", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}")
             .putStringSet("${p.id}|ac:${artistKey(t)}", ac)
             .putFloat(prev, delta.toFloat())
+            .putString("${p.id}|prevDays", now.toString())
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("trackDb"), out.getDouble("artistDb")))

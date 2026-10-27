@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.22 (2026-10-26)
+**Version:** MATH-1.23 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -628,13 +628,16 @@ A volume-key event counts as feedback when **all** of these hold:
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
 **Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.
-**Environment filter:** if the user's last feedback event (on the previous track) had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`.
+**Environment filter:** if the user's last feedback event (at this place) happened within the last `T_env = 10 min` and had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`. **[MATH-1.23]** Before 1.23 the previous event counted however old it was: in the owner's session a turn-down 30 min after the last event of an earlier session was weighted 0.25 although nothing linked the two. An event stored without a time (before 1.23) does not count.
 
 ### 19.2 Update (exponential decay + clamp)
 State per track `o_t` and per artist `o_a` (dB), each with a timestamp `τ`.
 Decay to now: `o ← o·2^(−(now − τ)/H_life)`, `H_life = 30 days`.
 On an event: `o_t ← clamp(o_t + η_t·ω·Δv, −2, +2)` and `o_a ← clamp(o_a + η_a·ω·Δv, −2, +2)`, with `η_t = 0.5`, `η_a = 0.25`, then `τ ← now` **[TUNE: η, H_life]**.
-Applied offset: `o = clamp(o_t + (n_a ≥ 2 ? o_a : 0), −2, +2)`, where `n_a` = the number of distinct tracks by that artist that have contributed events.
+Applied offset **[MATH-1.23]**: a song's own lesson is the most specific evidence, so it wins; the artist's offset is a prior for the artist's songs not yet taught, used only when at least two of their songs have taught it **and those songs agree in direction**:
+- the song has been taught (it has its own state `o_t`): `o = clamp(o_t, −2, +2)`;
+- otherwise: `o = clamp(n_a ≥ 2 and all o_t of the artist's taught songs have one sign ? o_a : 0, −2, +2)`,
+where `n_a` = the number of distinct tracks by that artist that have contributed events. Before 1.23 the offsets were summed (`o_t + o_a` from `n_a ≥ 2`); in the owner's session that made a song the user had just turned **down** (`o_t = −0.48`) play 1.2 dB **louder**, because the artist stood at +1.68 from another song turned up strongly.
 Offsets are visible on the Why sheet and resettable (per track, per artist, all).
 
 ### 19.3 Places [DESIGN, owner decision 2026-10-26]

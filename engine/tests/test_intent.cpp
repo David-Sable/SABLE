@@ -235,6 +235,8 @@ TEST_CASE("Listener learning: clamp, decay, artist threshold, composition cap (M
   CHECK(sable::appliedOffset(-1.5, -1.0, 1) == doctest::Approx(-1.5));  // artist needs >= 2 tracks
   CHECK(sable::appliedOffset(-1.5, -1.0, 2) == doctest::Approx(-2.0));  // clamped sum
   CHECK(sable::appliedOffset(1.0, 0.5, 3) == doctest::Approx(1.5));
+  CHECK(sable::appliedOffset(-0.5, 1.7, 3, true) == doctest::Approx(-0.5));  // a taught song keeps its own lesson
+  CHECK(sable::appliedOffset(0.0, 1.7, 3, false, false) == 0.0);           // the artist's songs disagree
   CHECK(sable::finalGain(2.0, 1.5, 0.5, 3.0) == doctest::Approx(3.0));   // cap wins over learning + calibration
   CHECK(sable::finalGain(-2.0, -1.0, 0.0, 3.0) == doctest::Approx(-3.0));
 }

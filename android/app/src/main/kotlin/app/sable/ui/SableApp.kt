@@ -77,8 +77,8 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
                 is Route.Folder -> FolderScreen(state, rows, r.path, pad)
                 Route.NowPlaying -> NowPlayingScreen(state, current) { byId[it] }
-                Route.Queue -> QueueScreen(state, rows)
-                Route.Settings -> SettingsScreen(state, rows, onRescan, onAnalyseWhileCharging)
+                Route.Queue -> QueueScreen(state, rows, pad)
+                Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
                 Route.Search -> SearchScreen(state, rows, pad)
             }
             }
@@ -92,10 +92,10 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
 }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.22"
+const val MATH_DOC_VERSION = "MATH-1.23"
 
 @Composable
-fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
+fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
     val context = LocalContext.current
     val s by PlaybackPrefs.settings.collectAsState()
     val gain by NowPlaying.gain.collectAsState()
@@ -173,7 +173,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                         Pill("Reset ${route.label}", false) { PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal - route.key, routeCeiling = it.routeCeiling - route.key) } }
                     }
                     Group("Learning")
-                    Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song and, after two of their songs, for the artist. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
+                    Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song. When you have turned two songs by one artist the same way, their other songs follow; a song you taught yourself always keeps its own. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
                     Group("About")
                     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }
@@ -182,10 +182,10 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                         Spacer(Modifier.width(Space.m))
                         Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
                     }
-                    Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
+                    Hint("Every number Sable shows comes from the engine described in MATH.md. Sound effects the phone adds after Sable (Dolby Atmos, EQ, Adapt Sound) still apply.")
                 }
             }
-            Spacer(Modifier.height(Space.xxxl))
+            Spacer(Modifier.height(Space.xxxl + endPad(bottomPad)))  // the last lines stay clear of the mini player
         }
     }
 }

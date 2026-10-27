@@ -681,8 +681,9 @@ void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double now
   o.updatedDays = nowDays;
 }
 
-double appliedOffset(double trackDb, double artistDb, int artistTracks) {  // §19.2
-  return std::clamp(trackDb + (artistTracks >= 2 ? artistDb : 0.0), -2.0, 2.0);
+double appliedOffset(double trackDb, double artistDb, int artistTracks, bool trackTaught, bool artistAgrees) {  // §19.2
+  if (trackTaught) return std::clamp(trackDb, -2.0, 2.0);  // the song's own lesson is the most specific: it wins
+  return std::clamp(trackDb + (artistTracks >= 2 && artistAgrees ? artistDb : 0.0), -2.0, 2.0);
 }
 
 double finalGain(double seamedDb, double learnedDb, double outputCalDb, double capEffDb) {  // §21

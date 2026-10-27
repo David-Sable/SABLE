@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes. MATH-1.22.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player. MATH-1.23.
   Latest GitHub release: see Releases (0.14.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.15.1 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
+- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.15.2 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -31,6 +31,13 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Second JBL session: two learning blind spots fixed (0.15.2, MATH-1.23)
+- Session clean again (no UNDERRUN/errors). Two new lessons at `bt:JBL Charge 5`: Rina Sawayama "STFU!" and JPEGMAFIA "its dark and hell is hot", each one step down (−3.83 dB), both weighted 0.25.
+- **Blind spot 1 (§19.2):** JPEGMAFIA now had 2 taught songs, so the artist offset (+1.68, mostly from "$ (Money)" turned up 2 steps) was added: "its dark and hell is hot", just turned **down**, would have played +1.2 dB **louder**. Now a taught song keeps its own lesson; the artist's applies only to untaught songs, from ≥ 2 taught songs that agree in sign (JPEGMAFIA's disagree: nothing applied). Planner input `trackTaught`, `artistTrackDbs`. Why sheet says when the artist's offset is not used and why.
+- **Blind spot 2 (§19.1):** "STFU!" was compared with the previous event from the earlier session (30 min before) and weighted 0.25. The environment filter now looks back only `T_env` = 10 min (`prevDays` stored per place). The two existing 0.25-weighted lessons are left as they are (small, and they fade).
+- **Settings cut off (David):** with a song loaded, the mini player covered the end of Settings (no bottom room) and the Queue; `bottomBarHeight()` also left out the gesture bar. Fixed (`endPad`), About text reworded. Verified on the phone with the mini player showing (muted; volume restored to 5; Advanced put back to Off).
+- Engine 54 cases (new: own lesson vs artist, disagreeing songs, 10 min window), app tests green.
 
 ### 2026-10-27 (PC) First real listening session; learning checked (0.15.1)
 - David's session on the **JBL Charge 5** (Bluetooth): playback log clean (no UNDERRUN, no errors, skips/taps all from the app). Learned state (`--es cmd learned`, new): 4 songs, all under place `bt:JBL Charge 5`; every value matches §19 (e.g. Injury Reserve Δv −3.83 dB → track −1.92, artist −0.96; Ice Cube +3.83 with the environment filter ω 0.25 → +0.48; two steps (±7.7 dB) clamp at ±2). Artist offsets wait for a second song (n_a = 1 for all).
