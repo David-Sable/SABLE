@@ -116,6 +116,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             SableMark(28.dp)
             Spacer(Modifier.width(Space.m))
             Text("SABLE", style = SableType.wordmark, color = SableColors.textPrimary, modifier = Modifier.weight(1f))
+            IconButton(Glyph.SEARCH, { state.go(Route.Search) })
             IconButton(Glyph.SETTINGS, { state.go(Route.Settings) })
         }
         val analysed = rows.count { it.analysed }

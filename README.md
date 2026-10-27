@@ -43,7 +43,9 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Quiet-mode contour** (§24): at low volume your ears lose bass and treble. In Quiet mode Sable adds a gentle correction based on ISO 226 equal-loudness contours (a +2 dB lift below 200 Hz and +0.6 dB of air, at most +3 dB). It is on by default in Quiet, can be turned off in Advanced settings, and is the only non-flat processing in Sable. Peaks stay protected.
 - **Your outputs** (§20): each output (speaker, Bluetooth, USB-C, wired) keeps its own level offset and peak ceiling.
 - **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet. Each place learns on its own (§19.3): your car, your headphones and the phone speaker are told apart by the device, so turning a song up in the car never changes it on headphones.
-- **Sleep timer**: the moon on Now Playing. Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
+- **Search**: the magnifier at the top of the library. Type part of a title, album or artist (accents and capitals don't matter); tapping a song plays it and the songs listed after it.
+- **Sleep timer**: the moon on Now Playing (right of the controls). Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
+- **Repeat**: the loop left of the controls. Tap once to repeat the queue, again to repeat this song, again to turn it off. Sable plans the gain across the jump from the last song back to the first, so the wrap sounds as smooth as any other change.
 - **Swipe the cover** on Now Playing to change songs: left for the next, right for the previous.
 
 ## Repository layout

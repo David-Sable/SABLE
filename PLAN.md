@@ -45,6 +45,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-25 | App dependencies (pending M4–M6): Media3, Compose, Room, WorkManager, Coil, kotlinx-coroutines; detekt (dev). No Hilt, no FFmpeg in the app | Minimal surface; platform decoders cover all 7 formats |
 | 2026-10-26 | **Blind A/B removed** (MATH-1.19 §30) | ~90 rounds were too subtle to judge in short excerpts; real listening (whole songs, the car) clearly favoured Sable as designed, perceptual estimate included. Direction: refine the engine (more understanding, fewer changes) and the app | David |
 | 2026-10-26 | Song-world tracks that **flow** into the album's next track share the album gain (MATH-1.20 §17.3) | Continuous albums (segues, live, mixtapes) must not move level at a join with no pause; uses existing analysis (no rescan). Swipe the Now Playing cover to change songs (owner request) |
+| 2026-10-27 | **Library search** and **repeat** (queue / this song); CI keeps only the **newest three releases** | Owner request. With repeat all the planning window is circular so the wrap is seamed like any change. Old releases (incl. build-3 with the wrong key) deleted by CI; three remain to roll back to |
 | 2026-10-26 | Listener learning is kept **per place** = output device (type + device name), seeded from the earlier shared state (MATH-1.21 §19.3) | The car and headphones are both Bluetooth but need different corrections; earlier learning must not be lost |
 
 ## Known risks / blind spots

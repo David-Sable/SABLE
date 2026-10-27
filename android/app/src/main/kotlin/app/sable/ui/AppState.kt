@@ -22,6 +22,7 @@ sealed interface Route {
     data object NowPlaying : Route
     data object Queue : Route
     data object Settings : Route
+    data object Search : Route
 }
 
 /** UI state shared by every screen: navigation, the media controller, and the playing item. */
@@ -31,6 +32,7 @@ class AppState {
     val route: Route get() = back.last()
     var libraryTab by mutableIntStateOf(0)
     var whyTrack by mutableStateOf<Long?>(null)
+    var searchQuery by mutableStateOf("")  // kept while browsing from a result and back
 
     var controller by mutableStateOf<MediaController?>(null)
     private val pending = ArrayList<(MediaController) -> Unit>()
@@ -43,6 +45,7 @@ class AppState {
     private var positionAt = 0L
     var queueIds by mutableStateOf<List<String>>(emptyList())
     var queueIndex by mutableIntStateOf(0)
+    var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
 
     fun go(r: Route) { if (route != r) back.add(r) }
     fun pop(): Boolean = if (back.size > 1) { back.removeAt(back.lastIndex); true } else false
@@ -69,6 +72,17 @@ class AppState {
         positionAt = SystemClock.elapsedRealtime()
         queueIds = List(p.mediaItemCount) { p.getMediaItemAt(it).mediaId }
         queueIndex = p.currentMediaItemIndex
+        repeatMode = p.repeatMode
+    }
+
+    /** Off → whole queue → this song → off. */
+    fun cycleRepeat() = withController { c ->
+        c.repeatMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+        refresh(c)
     }
 
     /** Smooth position between player updates (read at draw time). */

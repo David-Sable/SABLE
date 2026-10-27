@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, and (0.14.1) a Baseline Profile. MATH-1.22.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat. MATH-1.22.
   Latest GitHub release: see Releases (0.14.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
 - **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.14.1 installed over USB 2026-10-27 and compiled with its profile (speed-profile). Per-place learning not yet seen live (needs real volume presses on two outputs: check a LEARN line names the place). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
@@ -23,7 +23,6 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   - AAC/M4A, ALAC, Opus, Vorbis and WAV are not on the phone: their MediaCodec analysis path and the 16-bit
     `decodeClipped` margin (MATH §1.1) are untested on the A17. FLAC and MP3 (decoded in the engine) are verified.
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
-  - Release `build-3` on GitHub has the wrong key; David can delete it (Releases → build-3 → Delete). Harmless.
   - David's listening check of character labels and the largest gain moves (from M3) is still open.
 - **Skips in the car (open):** David heard skips on a drive (car Bluetooth "CAR MULTIMEDIA", Android Auto present, Maps prompts) on 0.8.1, none on the way back. Phone logs had rolled off; nothing left pointed at Sable (no crash; Samsung's freezer tried but skipped freezing it). 0.9.1 keeps a playback log on the phone: next time read it with `--es cmd diag` (tag `SableDiag`): UNDERRUN lines mean audio starvation (then raise the AudioTrack buffer), COMMAND next from a car package means the car sent the skips, PLAY_WHEN_READY/SUPPRESSED show interruptions, ROUTE shows Bluetooth drops.
 - **Direction (David, 2026-10-26):** no more ear tests (A/B removed, MATH §30 retired). Real listening, whole songs in the car, "amazing" with the perceptual estimate. Work now: check the math and code, give the engine more understanding so it changes even less, refine the app, optimize.
@@ -32,6 +31,12 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Search and repeat (0.15.0)
+- **Search** (`ui/Search.kt` index + `ui/SearchScreen.kt`, route `Route.Search`, magnifier in the library header): artists, albums, songs. Accent/case-insensitive (`searchForm`: NFD, marks removed, punctuation as spaces); every typed word must match the start of a word, or from 3 letters anywhere; ranking: name starts with the query, then all words in the name, then words needing artist/album. Tapping a song = song world from there through the listed results (as in the Songs tab). Query kept while browsing from a result. Debug: `--es cmd open --es screen search --es q <text>`. Test: SearchTest.
+- **Repeat** (off → queue → this song), left of the Now Playing controls; the moon moved to the right of the controls. Remembered between sessions (`sable_player` prefs), REPEAT lines in the playback log. GainController: with repeat all the planning window is circular (the last song precedes the first), so the wrap gets its seam and the first song keeps its predecessor after the wrap (otherwise a replan would change its gain mid-song as an in-track ramp). Repeat one replays the same item: same static gain. No engine change.
+- Verified: app tests and release build on the PC. **Not yet on the phone** (it was not connected): check search typing/scrolling, the repeat icon states and a repeat-all wrap (ITEM line for the first song with SEAM, no gain ramp).
+- **Old releases:** CI now keeps only the newest three releases (step "Keep only the newest releases"); this push deletes build-3 (wrong key) and the other old ones.
 
 ### 2026-10-27 (PC) Baseline Profile (0.14.1)
 - `app/src/main/baseline-prof.txt`: all of Sable's code (`HSPLapp/sable/**->**(**)**`, `Lapp/sable/**;`) on top of the libraries' own profiles. androidx.profileinstaller was already in the APK (via Compose), so no new dependency was needed. Sideloaded installs are compiled at the next idle maintenance; for tests: `adb shell cmd package compile -f -m speed-profile app.sable`.

@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
                         "nowplaying" -> state.go(Route.NowPlaying)
                         "queue" -> state.go(Route.Queue)
                         "settings" -> state.go(Route.Settings)
+                        "search" -> { state.searchQuery = intent.getStringExtra("q") ?: ""; state.go(Route.Search) }
                         "why" -> state.whyTrack = state.currentTrackId
                         else -> { state.whyTrack = null; while (state.pop()) Unit }
                     }

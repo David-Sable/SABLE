@@ -114,3 +114,14 @@ jobs:
             On the phone: open this page, tap **${{ steps.apk.outputs.name }}**, then open the download to install it over the current SABLE (your library and settings are kept).
           files: ${{ steps.apk.outputs.name }}
           make_latest: true
+      - name: Keep only the newest releases
+        # The newest three stay (this one and two to go back to); older releases and their tags are deleted.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.SIGNED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/releases?per_page=100" --jq 'sort_by(.created_at) | reverse | .[3:][] | .tag_name' |
+          while read -r tag; do
+            echo "deleting $tag"
+            gh release delete "$tag" --repo "${{ github.repository }}" --cleanup-tag --yes || echo "::warning::could not delete $tag"
+          done

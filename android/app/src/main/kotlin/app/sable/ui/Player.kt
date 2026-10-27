@@ -1,5 +1,7 @@
 package app.sable.ui
 
+import androidx.media3.common.Player
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -204,7 +206,6 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
     }
     Column(Modifier.fillMaxSize().then(swipe).grain()) {
         TopBar("NOW PLAYING", { state.pop() }) {
-            IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textPrimary)
             IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
         }
         sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
@@ -234,13 +235,21 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
                 Text(mmss(state.durationMs), style = SableType.caption, color = SableColors.textTertiary)
             }
             Row(Modifier.fillMaxWidth().padding(top = Space.l), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                // Repeat on the left, sleep on the right: both lit in the accent while on.
+                IconButton(if (state.repeatMode == Player.REPEAT_MODE_ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, { state.cycleRepeat() }, size = 22.dp,
+                    color = if (state.repeatMode == Player.REPEAT_MODE_OFF) SableColors.textTertiary else SableColors.accent)
                 IconButton(Glyph.PREV, { state.withController { it.seekToPrevious() } }, size = 26.dp)
                 Box(
                     Modifier.size(72.dp).background(SableColors.accent, CircleShape).clickable { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } },
                     contentAlignment = Alignment.Center,
                 ) { Icon(if (state.playing) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) }
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
+                IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
             }
+            Text(
+                when (state.repeatMode) { Player.REPEAT_MODE_ALL -> "Repeating the queue"; Player.REPEAT_MODE_ONE -> "Repeating this song"; else -> "" },
+                style = SableType.caption, color = SableColors.accent, modifier = Modifier.fillMaxWidth().padding(top = Space.xs), textAlign = TextAlign.Center,
+            )
         }
         // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
         Row(

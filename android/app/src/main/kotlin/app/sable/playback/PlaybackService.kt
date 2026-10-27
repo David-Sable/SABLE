@@ -74,7 +74,15 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
+        // Repeat is remembered between sessions.
+        val playerPrefs = getSharedPreferences("sable_player", MODE_PRIVATE)
+        player.repeatMode = playerPrefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         player.addListener(object : Player.Listener {
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                PlaybackDiag.log("REPEAT ${listOf("off", "one", "all").getOrElse(repeatMode) { "$repeatMode" }}")
+                playerPrefs.edit().putInt("repeat", repeatMode).apply()
+            }
+
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM && SleepTimer.state.value != null) {
                     PlaybackDiag.log("SLEEP stopped at the end of the song")

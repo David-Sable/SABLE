@@ -56,7 +56,7 @@ David may need to start a new chat when the context fills up, so never leave sta
   (on the PC: `source ~/dev/sable-toolchain/env.sh` first; existing build dirs `engine/build-host`, `engine/build-asan`).
 - App: `cd android && ./gradlew :app:testDebugUnitTest :app:assembleRelease` (JDK 21, SDK 37, NDK 30.0.16248370, CMake 4.1.2).
 - **CI** (`.github/workflows/build.yml`), on every push to `main` that touches more than `*.md` or `docs/`: engine tests (Linux clang, ASan/UBSan) → app tests →
-  signed APK → certificate check → GitHub release `build-N` ("Latest"). David installs from the phone:
+  signed APK → certificate check → GitHub release `build-N` ("Latest"); then older releases are deleted (the newest three stay). David installs from the phone:
   `https://github.com/craigdavid209-design/SABLE/releases/latest` → tap the APK → Update.
 - **Checking CI without signing in** (no `gh` here; logs need sign-in, annotations are public):
   - latest run: `curl -s https://api.github.com/repos/craigdavid209-design/SABLE/actions/runs?per_page=1`

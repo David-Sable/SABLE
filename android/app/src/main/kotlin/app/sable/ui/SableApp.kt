@@ -79,6 +79,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 Route.NowPlaying -> NowPlayingScreen(state, current) { byId[it] }
                 Route.Queue -> QueueScreen(state, rows)
                 Route.Settings -> SettingsScreen(state, rows, onRescan, onAnalyseWhileCharging)
+                Route.Search -> SearchScreen(state, rows, pad)
             }
             }
         }

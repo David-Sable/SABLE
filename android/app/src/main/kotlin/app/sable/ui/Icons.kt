@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import app.sable.ui.theme.SableColors
 
 /** Hand-drawn line icons: consistent weight, no emoji or font fallbacks (Samsung renders some symbols as emoji). */
-enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS, MOON }
+enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS, MOON, SEARCH, CLOSE, REPEAT, REPEAT_ONE }
 
 @Composable
 fun Icon(glyph: Glyph, modifier: Modifier = Modifier, size: Dp = 22.dp, color: Color = SableColors.textPrimary) {
@@ -62,7 +62,22 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             val inner = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.68f, h * 0.36f), w * 0.27f)) }
             drawPath(Path().apply { op(outer, inner, androidx.compose.ui.graphics.PathOperation.Difference) }, c, style = stroke)
         }
-        Glyph.SETTINGS -> for ((y, x) in listOf(0.28f to 0.65f, 0.5f to 0.35f, 0.72f to 0.58f)) {
+        Glyph.SEARCH -> {
+            drawCircle(c, w * 0.24f, Offset(w * 0.44f, h * 0.44f), style = stroke)
+            drawLine(c, Offset(w * 0.62f, h * 0.62f), Offset(w * 0.82f, h * 0.82f), sw, StrokeCap.Round)
+        }
+        Glyph.CLOSE -> {
+            drawLine(c, Offset(w * 0.25f, h * 0.25f), Offset(w * 0.75f, h * 0.75f), sw, StrokeCap.Round)
+            drawLine(c, Offset(w * 0.75f, h * 0.25f), Offset(w * 0.25f, h * 0.75f), sw, StrokeCap.Round)
+        }
+        Glyph.REPEAT, Glyph.REPEAT_ONE -> {  // a loop with an arrow on each run; REPEAT_ONE adds a 1 in the middle
+            drawRoundRect(c, Offset(w * 0.16f, h * 0.30f), Size(w * 0.68f, h * 0.40f), CornerRadius(w * 0.14f), style = stroke)
+            val a = w * 0.09f
+            drawPath(Path().apply { moveTo(w * 0.56f - a, h * 0.30f - a); lineTo(w * 0.56f, h * 0.30f); lineTo(w * 0.56f - a, h * 0.30f + a) }, c, style = stroke)
+            drawPath(Path().apply { moveTo(w * 0.44f + a, h * 0.70f - a); lineTo(w * 0.44f, h * 0.70f); lineTo(w * 0.44f + a, h * 0.70f + a) }, c, style = stroke)
+            if (g == Glyph.REPEAT_ONE) drawLine(c, Offset(w * 0.5f, h * 0.43f), Offset(w * 0.5f, h * 0.57f), sw, StrokeCap.Round)
+        }
+        Glyph.SETTINGS ->for ((y, x) in listOf(0.28f to 0.65f, 0.5f to 0.35f, 0.72f to 0.58f)) {
             drawLine(c, Offset(w * 0.16f, h * y), Offset(w * 0.84f, h * y), sw * 0.8f, StrokeCap.Round)
             drawCircle(SableColors.base, w * 0.09f, Offset(w * x, h * y))
             drawCircle(c, w * 0.09f, Offset(w * x, h * y), style = Stroke(sw * 0.8f))

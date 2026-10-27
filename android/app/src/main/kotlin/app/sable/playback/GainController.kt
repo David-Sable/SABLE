@@ -104,6 +104,7 @@ class GainController(
     // ---------------- Player events ----------------
     override fun onTimelineChanged(timeline: Timeline, reason: Int) = replan(user = false)
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = replan(user = false)
+    override fun onRepeatModeChanged(repeatMode: Int) = replan(user = false)
 
     /** From the audio thread: the item that just started and the gain it started with. */
     fun onItemGain(key: Any?, db: Double, manual: Boolean) {
@@ -153,12 +154,18 @@ class GainController(
                 val n = player.mediaItemCount
                 if (n == 0) return@withLock
                 val cur = player.currentMediaItemIndex.coerceIn(0, n - 1)
-                val from = maxOf(0, cur - 1)
-                val to = minOf(n, cur + WINDOW_AHEAD)
-                val ids = (from until to).map { player.getMediaItemAt(it).mediaId }
+                // The song before the playing one, then up to WINDOW_AHEAD songs. With repeat all the queue is a circle:
+                // the last song comes before the first and the first after the last, so seams across the wrap are planned
+                // and the playing song keeps its predecessor (dropping it would change its gain mid-song).
+                val window = if (player.repeatMode == Player.REPEAT_MODE_ALL && n > 1) {
+                    (0 until minOf(n, WINDOW_AHEAD + 1)).map { (cur - 1 + n + it) % n }
+                } else (maxOf(0, cur - 1) until minOf(n, cur + WINDOW_AHEAD)).toList()
+                val at = window.indexOf(cur)
+                val ids = window.map { player.getMediaItemAt(it).mediaId }
                 // How each item began: as recorded by the sink for started items; the playing one is manual until known.
-                val manual = ids.mapIndexed { i, id -> manualByItem[id] ?: (i == cur - from) }
-                plan(ids, cur - from, manual, user)
+                // A song after the wrap will begin naturally, however it began last time round.
+                val manual = ids.mapIndexed { i, id -> if (i > at && window[i] < cur) false else manualByItem[id] ?: (i == at) }
+                plan(ids, at, manual, user)
             }
         }
     }
