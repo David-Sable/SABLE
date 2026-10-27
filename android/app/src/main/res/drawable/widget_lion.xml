@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The idle widget's mark: the lion with room around it (centerCrop would otherwise blow it up to the square's edges). -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/lion_mark"
+    android:inset="22%" />

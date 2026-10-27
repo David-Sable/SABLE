@@ -18,7 +18,7 @@
         android:clipToOutline="true"
         android:contentDescription="@null"
         android:scaleType="centerCrop"
-        android:src="@drawable/lion_mark" />
+        android:src="@drawable/widget_lion" />
 
     <LinearLayout
         android:id="@+id/widget_text"

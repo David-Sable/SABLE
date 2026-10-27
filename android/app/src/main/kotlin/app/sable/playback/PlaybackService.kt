@@ -48,6 +48,7 @@ class PlaybackService : MediaSessionService() {
         PlaybackPrefs.load(this)
         PlaybackDiag.init(this)
         PlaybackDiag.log("SERVICE start")
+        current = this
         val renderers = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioOutputPlaybackParams: Boolean): AudioSink =
                 SableAudioSink(
@@ -105,6 +106,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     private var widgetJob: kotlinx.coroutines.Job? = null
 
@@ -179,6 +182,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         PlaybackDiag.log("SERVICE stop")
+        current = null
         saveResume()
         SleepTimer.cancel()
         session.release()
@@ -248,6 +252,17 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        @Volatile private var current: PlaybackService? = null
+
+        /** The widget's previous / next: acts on the running player; does nothing when Sable is not playing anything. */
+        fun skip(next: Boolean) {
+            val s = current ?: return
+            s.main.post {
+                PlaybackDiag.log("COMMAND ${if (next) "next" else "previous"} from widget")
+                if (next) s.player.seekToNext() else s.player.seekToPrevious()
+            }
+        }
+
         /** The gain table key of the item a sink configuration belongs to: its queue entry's unique media id. */
         fun mediaIdOf(timeline: Timeline, periodUid: Any?): Any? {
             if (periodUid == null || timeline.isEmpty) return null

@@ -19,6 +19,15 @@ import app.sable.ui.MainActivity
  * queue when it is not running. PlaybackService pushes what is playing with [show].
  */
 class SableWidget : AppWidgetProvider() {
+    /** Previous / next: straight to the playing session (Media3's button receiver only accepts play when it may start the service). */
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.action) {
+            ACTION_NEXT -> PlaybackService.skip(next = true)
+            ACTION_PREV -> PlaybackService.skip(next = false)
+            else -> super.onReceive(context, intent)
+        }
+    }
+
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         // Placed (or the launcher asked): show the last state, or the idle card until something plays.
         manager.updateAppWidget(ids, views(context, last))
@@ -28,6 +37,8 @@ class SableWidget : AppWidgetProvider() {
 
     companion object {
         @Volatile private var last: State? = null
+        private const val ACTION_NEXT = "app.sable.widget.NEXT"
+        private const val ACTION_PREV = "app.sable.widget.PREV"
 
         /** Updates every placed widget. Cheap when none is placed. */
         fun show(context: Context, state: State?) {
@@ -40,16 +51,19 @@ class SableWidget : AppWidgetProvider() {
         private fun views(context: Context, s: State?) = RemoteViews(context.packageName, R.layout.widget_player).apply {
             setTextViewText(R.id.widget_title, s?.title ?: context.getString(R.string.widget_idle_title))
             setTextViewText(R.id.widget_artist, s?.artist ?: context.getString(R.string.widget_idle_artist))
-            if (s?.art != null) setImageViewBitmap(R.id.widget_art, s.art) else setImageViewResource(R.id.widget_art, R.drawable.lion_mark)
+            if (s?.art != null) setImageViewBitmap(R.id.widget_art, s.art) else setImageViewResource(R.id.widget_art, R.drawable.widget_lion)
             setImageViewResource(R.id.widget_play, if (s?.playing == true) R.drawable.ic_w_pause else R.drawable.ic_w_play)
             setOnClickPendingIntent(R.id.widget_play, button(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 1))
-            setOnClickPendingIntent(R.id.widget_next, button(context, KeyEvent.KEYCODE_MEDIA_NEXT, 2))
-            setOnClickPendingIntent(R.id.widget_prev, button(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS, 3))
+            setOnClickPendingIntent(R.id.widget_next, own(context, ACTION_NEXT, 2))
+            setOnClickPendingIntent(R.id.widget_prev, own(context, ACTION_PREV, 3))
             val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             val openPi = PendingIntent.getActivity(context, 0, open, PendingIntent.FLAG_IMMUTABLE)
             setOnClickPendingIntent(R.id.widget_art, openPi)
             setOnClickPendingIntent(R.id.widget_text, openPi)
         }
+
+        private fun own(context: Context, action: String, request: Int): PendingIntent =
+            PendingIntent.getBroadcast(context, request, Intent(action).setClass(context, SableWidget::class.java), PendingIntent.FLAG_IMMUTABLE)
 
         private fun button(context: Context, keyCode: Int, request: Int): PendingIntent {
             val i = Intent(Intent.ACTION_MEDIA_BUTTON).setComponent(ComponentName(context, MediaButtonReceiver::class.java))
