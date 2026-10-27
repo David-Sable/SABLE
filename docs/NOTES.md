@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, and (0.13.0) learning per place. MATH-1.21.
-  Latest GitHub release: see Releases (0.13.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). 0.13.0 not installed yet (phone unplugged): install over USB and check a LEARN line names the place. Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, and (0.14.0) smoother animations plus the fragment fix. MATH-1.22.
+  Latest GitHub release: see Releases (0.14.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; **0.14.0 not installed yet** (phone unplugged): install over USB, check a LEARN line names the place, run tools/perf/anim_frames.sh. Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -32,6 +32,11 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Blind-spot review, smoother animations (0.14.0, MATH-1.22)
+- **Library-wide check on the PC** (`~/dev/sable-corpus/reports/library_full.jsonl`, all 392 tracks through `sable_cli --decide`): characters 198 sustained/dense, 94 dynamic arc, 90 steady, 10 build-release, 0 quiet-intimate (INTIMACY never fires in this library); PERCEPTUAL_BOUND 9, PEAK_CAP 21, anchor fallback 2. PLE − L_anchor: median +0.4, 5–95 % −2.3…+2.0 LU.
+- **Blind spot fixed (§16.2.3, A_ple = 3 s):** Tinashe "You" (6.1 s, anchor 0.6 s of sound) had PLE − L_anchor = −42 LU; the bound held it to +3 but it still pushed the gain to the peak cap (+10.1 dB). A PLE from an anchor under 3 s is now treated as absent (BS1770_ONLY) in track gain, album pooling and seams: "You" plays +7.7 dB. Every other track has an anchor ≥ 23 s; nothing else changes. Note: the cached `standard` gain in the phone's analysis JSON (shown in lists) is from analysis time; playback decides fresh.
+- **Animations, measured on the phone** (`tools/perf/anim_frames.sh`, frames past their display deadline, music paused): library scroll 1–2 %, cover swipe 3 %, Now Playing open/close 4–6 %, Advanced settings 5 %. Changes: fades use ModulateAlpha (`ui/Reveal.kt`: `lightAlpha`, `Reveal`; route cross-fade; swipe layers) instead of offscreen buffers; gestures move in the draw phase (graphicsLayer translation), follow the finger undispatched and settle on a velocity spring; neighbours' covers decoded and GPU-uploaded ahead (`prepareToDraw`); Advanced section fades in place (no per-frame relayout); grain brush cached; progress drawings on their own layers. **Measurement lesson:** while music plays, the ~150 ms progress redraws are lone frames that nearly all count as late and swamped the first numbers (6–27 %); measure with music paused. A clean before/after against 0.12.0 was not completed (David unplugged); the old build can be made from tag/commit e28f9f0.
 
 ### 2026-10-26 (PC) Learning per place (0.13.0, MATH-1.21 §19.3)
 - ListenerLearning keys every state by place (`placeOf(type, productName)`: speaker, wired, `bt:<name>`, `ble:<name>`, `usb:<name>`); unprefixed keys = the pre-1.21 shared state, used as the seed when a place has none. The window remembers the place it opened in; the environment filter's previous event is per place. Why sheet: "Learned for Bluetooth · CAR MULTIMEDIA"; Forget removes the place's and the shared state. Test: LearningPlaceTest. Not yet on the phone.

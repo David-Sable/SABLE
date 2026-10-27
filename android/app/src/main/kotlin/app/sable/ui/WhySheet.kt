@@ -116,7 +116,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 Text(if (open) "Hide details" else "Details", style = SableType.label, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
                 Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(if (open) 180f else 0f))
             }
-            AnimatedVisibility(open, enter = fadeIn(Motion.slow()) + expandVertically(Motion.slow()), exit = fadeOut(Motion.medium()) + shrinkVertically(Motion.medium())) {
+            Reveal(open) {
                 Column {
                 Section("What Sable heard")
                 Measure("Loudness (BS.1770)", lufs(json, "integratedLufs"))

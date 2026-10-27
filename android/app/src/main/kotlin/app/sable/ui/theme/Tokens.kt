@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
@@ -108,6 +109,7 @@ private val grainTile: ImageBitmap by lazy {
     bmp.asImageBitmap()
 }
 
-fun Modifier.grain(alpha: Float = 0.035f): Modifier = drawBehind {
-    drawRect(ShaderBrush(ImageShader(grainTile, TileMode.Repeated, TileMode.Repeated)), alpha = alpha)
+fun Modifier.grain(alpha: Float = 0.035f): Modifier = drawWithCache {
+    val brush = ShaderBrush(ImageShader(grainTile, TileMode.Repeated, TileMode.Repeated))  // built once per size, not per frame
+    onDrawBehind { drawRect(brush, alpha = alpha) }
 }

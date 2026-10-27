@@ -4,7 +4,7 @@ A local Android music player built around one idea: **understand each song befor
 
 The player exists to serve the **Sable Intent Engine**. By default the engine makes exactly one change per track: one static gain. There is no compression, no dynamic processing and no EQ (the one exception is the gentle Quiet-mode contour described below, which you can turn off). Your files are never modified.
 
-> Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.21), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
+> Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.22), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
 
 ---
 

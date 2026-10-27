@@ -90,6 +90,7 @@ TEST_CASE("Track gain: anchor match, perceptual bound, BS1770-only, peak cap (MA
   sable::TrackUnderstanding u;
   u.anchorLufs = -10.0;
   u.anchorPle = -9.0;
+  u.anchorSec = 60.0;    // a real anchor: its PLE is trusted (§16.2.3)
   sable::GainContext c;  // T = -14, ceiling -1
   auto r = result(-11.0, -3.0);
   auto d = sable::decideTrackGain(r, u, c);

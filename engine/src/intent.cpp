@@ -577,6 +577,12 @@ double boundedPle(std::optional<double> ple, double lAnchor, std::vector<Rule>& 
 }
 }  // namespace
 
+std::optional<double> usablePle(const TrackUnderstanding& u) {  // §16.2.3
+  constexpr double kPleMinAnchorSec = 3.0;                       // A_ple
+  if (!u.anchorPle || u.anchorSec < kPleMinAnchorSec) return std::nullopt;
+  return u.anchorPle;
+}
+
 GainDecision decideTrackGain(const LoudnessResult& r, const TrackUnderstanding& u, const GainContext& c) {
   GainDecision d;
   if (!r.integratedLufs) {  // §16.6 silence
@@ -590,7 +596,7 @@ GainDecision decideTrackGain(const LoudnessResult& r, const TrackUnderstanding& 
   double lAnchor;
   if (u.anchorLufs) lAnchor = *u.anchorLufs;
   else { lAnchor = *r.integratedLufs; d.rules.push_back({"ANCHOR_FALLBACK", 0.0}); }
-  const double ple = r.shortFile ? lAnchor : boundedPle(u.anchorPle, lAnchor, d.rules);
+  const double ple = r.shortFile ? lAnchor : boundedPle(usablePle(u), lAnchor, d.rules);
   const double gAnchor = c.targetLufs - ple;  // §16.2
   d.rules.insert(d.rules.begin(), {"ANCHOR_MATCH", gAnchor});
   d.intentDb = gAnchor;
@@ -615,8 +621,9 @@ GainDecision decideAlbumGain(const std::vector<const LoudnessResult*>& tr, const
     if (r.truePeakDbtp) tpMax = std::max(tpMax.value_or(-1e300), tpEff(r, c));
     if (!r.integratedLufs || r.shortFile) continue;  // §17.2 members
     pool.insert(pool.end(), u.anchorBlockPower.begin(), u.anchorBlockPower.end());
-    double p = u.anchorPle ? *u.anchorPle : (u.anchorLufs ? *u.anchorLufs : *r.integratedLufs);
-    if (u.anchorPle && u.anchorLufs) p = std::clamp(p, *u.anchorLufs - kPerceptualBound, *u.anchorLufs + kPerceptualBound);
+    const auto uple = usablePle(u);
+    double p = uple ? *uple : (u.anchorLufs ? *u.anchorLufs : *r.integratedLufs);
+    if (uple && u.anchorLufs) p = std::clamp(p, *u.anchorLufs - kPerceptualBound, *u.anchorLufs + kPerceptualBound);
     const double w = u.anchorSec;
     wsum += w;
     esum += w * dm::pow(10.0, p / 10.0);

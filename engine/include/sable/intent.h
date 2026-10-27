@@ -70,6 +70,9 @@ struct GainDecision {
 };
 
 // §16: track mode. Needs the loudness result (for L_I, TP, shortFile) and the understanding.
+// MATH §16.2.3: the anchor's PLE, or nothing when it is absent or the anchor holds less than A_ple = 3 s of audio.
+std::optional<double> usablePle(const TrackUnderstanding& u);
+
 GainDecision decideTrackGain(const LoudnessResult& r, const TrackUnderstanding& u, const GainContext& ctx);
 
 // §17.2: album mode over the album's tracks.

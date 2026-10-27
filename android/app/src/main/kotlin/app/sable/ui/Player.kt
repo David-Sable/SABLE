@@ -54,6 +54,12 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import kotlinx.coroutines.CoroutineStart
 import kotlin.math.abs
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.mutableIntStateOf
@@ -99,7 +105,7 @@ fun analysisJson(trackId: Long?): JSONObject? {
 fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier) {
     val tick by frameTick(state.playing, state.durationMs, 1080)
     Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().clickable { state.go(Route.NowPlaying) }) {
-        Canvas(Modifier.fillMaxWidth().height(2.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(2.dp).graphicsLayer()) {  // own layer: the 150 ms progress redraw stays here
             tick
             drawRect(SableColors.line)
             drawRect(SableColors.accent, size = size.copy(width = size.width * state.progress()))
@@ -117,7 +123,7 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
 }
 
 @Composable
-fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
+fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> LibraryRow? = { null }) {
     val gain by NowPlaying.gain.collectAsState()
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
     var sleepOpen by remember { mutableStateOf(false) }
@@ -126,19 +132,26 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
     val tick by frameTick(state.playing, state.durationMs, 1000)
     LaunchedEffect(state.playing) { while (true) { state.syncPosition(); delay(1000) } }
     val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
-    // Swipe down to close: the screen follows the finger, then either slides away or settles back.
+    // Gestures move only in the draw phase (graphicsLayer translation: no relayout per frame), follow the finger the
+    // same frame (undispatched), and settle on a spring that carries the finger's speed, so nothing jumps or stalls.
     val scope = rememberCoroutineScope()
+    fun follow(a: Animatable<Float, *>, to: Float) { scope.launch(start = CoroutineStart.UNDISPATCHED) { a.snapTo(to) } }
+    val settle = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+    // Swipe down to close: the screen follows the finger, then either slides away or settles back.
     val dragY = remember { Animatable(0f) }
     val closeAt = with(LocalDensity.current) { 140.dp.toPx() }
     val swipe = Modifier
-        .offset { IntOffset(0, dragY.value.roundToInt()) }
-        .graphicsLayer { alpha = 1f - (dragY.value / (closeAt * 4)).coerceIn(0f, 0.5f) }
+        .graphicsLayer {
+            translationY = dragY.value
+            alpha = 1f - (dragY.value / (closeAt * 4)).coerceIn(0f, 0.5f)
+            compositingStrategy = CompositingStrategy.ModulateAlpha  // no offscreen copy of the whole screen per frame
+        }
         .draggable(
             orientation = Orientation.Vertical,
-            state = rememberDraggableState { d -> scope.launch { dragY.snapTo((dragY.value + d).coerceAtLeast(0f)) } },
+            state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
             onDragStopped = { velocity ->
                 if (dragY.value > closeAt || velocity > 2500f) state.pop()
-                else dragY.animateTo(0f, Motion.medium())
+                else dragY.animateTo(0f, settle, initialVelocity = velocity)
             },
         )
     // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
@@ -146,11 +159,14 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
     var artWidth by remember { mutableIntStateOf(1) }
     val artSwipe = Modifier
         .onSizeChanged { artWidth = maxOf(1, it.width) }
-        .offset { IntOffset(dragX.value.roundToInt(), 0) }
-        .graphicsLayer { alpha = 1f - (abs(dragX.value) / artWidth).coerceIn(0f, 0.6f) }
+        .graphicsLayer {
+            translationX = dragX.value
+            alpha = 1f - (abs(dragX.value) / artWidth).coerceIn(0f, 0.6f)
+            compositingStrategy = CompositingStrategy.ModulateAlpha
+        }
         .draggable(
             orientation = Orientation.Horizontal,
-            state = rememberDraggableState { d -> scope.launch { dragX.snapTo(dragX.value + d) } },
+            state = rememberDraggableState { d -> follow(dragX, dragX.value + d) },
             onDragStopped = { velocity ->
                 val w = artWidth.toFloat()
                 val dir = when {
@@ -158,15 +174,23 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
                     dragX.value > w * 0.25f || velocity > 1500f -> -1     // previous
                     else -> 0
                 }
-                if (dir == 0) dragX.animateTo(0f, Motion.medium())
+                if (dir == 0) dragX.animateTo(0f, settle, initialVelocity = velocity)
                 else {
-                    dragX.animateTo(-dir * w, Motion.medium())
+                    dragX.animateTo(-dir * w, tween(160, easing = LinearOutSlowInEasing), initialVelocity = velocity)
                     state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
-                    dragX.snapTo(dir * w)  // the new cover comes in from the other side
-                    dragX.animateTo(0f, Motion.medium())
+                    dragX.snapTo(dir * w * 0.6f)  // the new cover comes in from the other side
+                    dragX.animateTo(0f, settle)
                 }
             },
         )
+    // Decode the neighbours' covers ahead of time, so a swipe never shows a blank square while the new one loads.
+    val context = LocalContext.current
+    LaunchedEffect(state.queueIndex, state.queueIds) {
+        for (i in listOf(state.queueIndex + 1, state.queueIndex - 1)) {
+            val r = state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf) ?: continue
+            ArtCache.load(context, r.albumId, r.uri, 1024)
+        }
+    }
     if (row == null) {
         Column(Modifier.fillMaxSize().grain()) {
             TopBar("NOW PLAYING", { state.pop() })
@@ -195,9 +219,9 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             Spacer(Modifier.height(Space.xl))
             if (shape != null) {
-                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(56.dp)) { state.seekFraction(it) }
+                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(56.dp).graphicsLayer()) { state.seekFraction(it) }  // own layer
             } else {
-                Canvas(Modifier.fillMaxWidth().height(56.dp)) {
+                Canvas(Modifier.fillMaxWidth().height(56.dp).graphicsLayer()) {
                     tick
                     val y = size.height - 1f
                     drawLine(SableColors.line, Offset(0f, y), Offset(size.width, y), 2f)

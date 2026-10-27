@@ -186,8 +186,9 @@ struct Track {
   bool decodeClipped = false;
   std::optional<double> durationSec;  // decoded duration (frames / rate), for §17.3
   std::optional<double> pleOffset() const {  // §18: (PLE_anchor - L_anchor), clamped as in §16.2
-    if (!u.anchorPle || !u.anchorLufs) return std::nullopt;
-    return std::clamp(*u.anchorPle - *u.anchorLufs, -kPerceptualBound, kPerceptualBound);
+    const auto ple = usablePle(u);
+    if (!ple || !u.anchorLufs) return std::nullopt;
+    return std::clamp(*ple - *u.anchorLufs, -kPerceptualBound, kPerceptualBound);
   }
 };
 

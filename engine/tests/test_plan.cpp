@@ -153,6 +153,21 @@ TEST_CASE("plan: song-world neighbours that flow into each other share the album
   CHECK(separate(item(analysis(-8, -8, -8, -6, -9, -9), 3) + "," + item(analysis(-16, -16, -16, -6, -15, -15), 4), albums));  // no duration data
 }
 
+TEST_CASE("plan: a PLE from an anchor under 3 s of sound is not trusted (MATH §16.2.3)") {
+  // A fragment: anchor -21.7 LUFS, PLE -64 (noise), loud enough peaks not to cap. Its gain follows the meter alone.
+  std::string frag = analysis(-20.9, -21.7, -63.9, -20, -21, -21);
+  const auto at = frag.find("\"anchorSec\":120");
+  REQUIRE(at != std::string::npos);
+  frag.replace(at, 15, "\"anchorSec\":0.6");
+  const std::string out = sable::planQueueJson(ctx("{\"analysis\":" + frag + "}"));
+  CHECK(field(out, "gainDb") == doctest::Approx(-14.0 + 21.7).epsilon(1e-12));
+  CHECK(out.find("\"BS1770_ONLY\"") != std::string::npos);
+  CHECK(out.find("\"PERCEPTUAL_BOUND\"") == std::string::npos);
+  // The same figures with a 120 s anchor: the PLE is used (and bounded to anchor - 3).
+  const std::string body = sable::planQueueJson(ctx("{\"analysis\":" + analysis(-20.9, -21.7, -63.9, -20, -21, -21) + "}"));
+  CHECK(field(body, "gainDb") == doctest::Approx(-14.0 + 24.7).epsilon(1e-12));
+}
+
 TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay bounded (MATH §19, §24.4)") {
   const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
   std::string in = ctx("{\"analysis\":" + capped + "}");

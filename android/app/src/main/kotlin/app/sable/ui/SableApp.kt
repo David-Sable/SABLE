@@ -2,6 +2,10 @@ package app.sable.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -45,6 +49,7 @@ import app.sable.ui.theme.SableColors
 import app.sable.ui.theme.SableType
 import app.sable.ui.theme.Space
 
+@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
@@ -56,19 +61,25 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         AnimatedContent(
             state.route,
             transitionSpec = {
-                if (targetState is Route.NowPlaying) slideInVertically(Motion.slow()) { it / 6 } + fadeIn(Motion.slow()) togetherWith fadeOut(Motion.medium())
-                else fadeIn(Motion.slow()) togetherWith fadeOut(Motion.medium())
+                // Screens cross-fade with the light fade (below), not Compose's offscreen one.
+                (if (targetState is Route.NowPlaying) slideInVertically(Motion.slow()) { it / 6 } else EnterTransition.None) togetherWith
+                    ExitTransition.KeepUntilTransitionsFinished
             },
             label = "route",
         ) { r ->
+            val a by transition.animateFloat(
+                transitionSpec = { if (targetState == EnterExitState.Visible) Motion.slow() else Motion.medium() }, label = "screen",
+            ) { if (it == EnterExitState.Visible) 1f else 0f }
+            Box(Modifier.lightAlpha { a }) {
             when (r) {
                 Route.Library -> LibraryScreen(state, rows, pad)
                 is Route.Album -> AlbumScreen(state, rows, r.key, pad)
                 is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
                 is Route.Folder -> FolderScreen(state, rows, r.path, pad)
-                Route.NowPlaying -> NowPlayingScreen(state, current)
+                Route.NowPlaying -> NowPlayingScreen(state, current) { byId[it] }
                 Route.Queue -> QueueScreen(state, rows)
                 Route.Settings -> SettingsScreen(state, rows, onRescan, onAnalyseWhileCharging)
+            }
             }
         }
         AnimatedVisibility(
@@ -80,7 +91,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
 }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.21"
+const val MATH_DOC_VERSION = "MATH-1.22"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -114,7 +125,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
             }
             Hint(if (s.advanced) "Your own fine-tuning below is in use. Turn this off to go back to Sable's automatic choices; your settings are kept for next time."
                 else "Everything is automatic. Turn this on to fine-tune albums, quiet songs, each output, the Quiet contour and learning.")
-            AnimatedVisibility(s.advanced, enter = fadeIn(Motion.slow()) + expandVertically(Motion.slow()), exit = fadeOut(Motion.medium()) + shrinkVertically(Motion.medium())) {
+            Reveal(s.advanced, expand = false) {  // the last section: fade in place, no per-frame re-layout
                 Column {
                     Group("Quiet-mode contour")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {

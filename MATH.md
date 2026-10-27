@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.21 (2026-10-26)
+**Version:** MATH-1.22 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -540,7 +540,7 @@ All gains are in dB, computed in `double`.
 ### 16.2 Anchor match
 1. `g_anchor = T − PLE_anchor`
 2. **Perceptual deviation bound** (protects against model failure on unusual signals): `PLE_anchor` is clamped to `[L_anchor − B_p, L_anchor + B_p]` before step 1, with `B_p = 3.0 LU` **[TUNE]** (was 4.0 before MATH-1.7: "change less"). Rule `PERCEPTUAL_BOUND` fires if the clamp is active.
-3. If `PLE_anchor` is absent (the perceptual pass did not complete), `L_anchor` is used. Rule `BS1770_ONLY` fires. If `L_anchor` is also absent while `L_I` exists (e.g. the anchor blocks are all gated out), `L_I` is used and rule `ANCHOR_FALLBACK` fires.
+3. If `PLE_anchor` is absent (the perceptual pass did not complete), `L_anchor` is used. Rule `BS1770_ONLY` fires. **The same applies when the anchor holds less than `A_ple = 3.0 s` of audio** (MATH-1.22): the specific-loudness model needs a few seconds of sound to mean anything, and on a fragment its figure is noise (owner's library: a 6.1 s track whose anchor is 0.6 s of sound gave `PLE − L_anchor = −42 LU`, while every anchor of 20 s or more stayed within ±3.7 LU). Such a PLE is treated as absent everywhere it is used: here, in album pooling (§17.2) and in the seam's PLE offset (§18). If `L_anchor` is also absent while `L_I` exists (e.g. the anchor blocks are all gated out), `L_I` is used and rule `ANCHOR_FALLBACK` fires.
 
 ### 16.3 Intimacy allowance
 If the label is **quiet and intimate**: `g_intent = g_anchor − a_int`. Otherwise `g_intent = g_anchor`.

@@ -58,7 +58,7 @@ object ArtCache {
                     }
                 }.getOrNull()
             }
-        }?.asImageBitmap()
+        }?.asImageBitmap()?.also { it.prepareToDraw() }  // upload to the GPU now, not in the first frame that shows it
         if (bmp != null) cache.put(key, bmp) else synchronized(missing) { missing.add(key) }
         return bmp
     }
@@ -78,6 +78,6 @@ fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier
             Text(title.trim().take(1).uppercase(), style = SableType.title.copy(fontSize = SableType.title.fontSize * (size.value / 120f).coerceIn(0.6f, 3f)),
                 color = SableColors.textTertiary)
         }
-        img?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize().alpha(shown)) }
+        img?.let { Image(it, null, contentScale = ContentScale.Crop, alpha = shown, modifier = Modifier.matchParentSize()) }  // paint alpha: no offscreen copy
     }
 }
