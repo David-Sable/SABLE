@@ -1,6 +1,6 @@
 # SABLE — Plan, decisions, risks
 
-Owners: Dana (product) and Claude (co-owner, architecture and engineering). Last updated 2026-10-26.
+Owners: David (product) and Claude (co-owner, architecture and engineering). Last updated 2026-10-26.
 
 ## Milestones and exit criteria
 Each milestone ends with a test report. The next one does not start until it is green, or until an exception is explicitly accepted in writing here.
@@ -19,7 +19,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 ## Decisions log
 | Date | Decision | Why |
 |---|---|---|
-| 2026-10-25 | Repo: `craigdavid209-design/SABLE` (public), local `C:\Users\Dana\Projects\SABLE`; toolchain in `~/dev/sable-toolchain`, test corpus in `~/dev/sable-corpus` (outside git) | Dana's choice; copyrighted audio must never be committed |
+| 2026-10-25 | Repo: `craigdavid209-design/SABLE` (public), local `C:\Users\Dana\Projects\SABLE`; toolchain in `~/dev/sable-toolchain`, test corpus in `~/dev/sable-corpus` (outside git) | David's choice; copyrighted audio must never be committed |
 | 2026-10-25 | Host compiler: **llvm-mingw** (clang 23, ASan/UBSan, clang-tidy) | Portable, no system changes; same compiler family as the NDK |
 | 2026-10-25 | **Bit-identical x86/ARM** engine: no FMA, `-ffp-contract=off`, own deterministic math library (no libm in the engine), fixed reduction order | The spec asks for identical results on ARM; libm differs between bionic and UCRT |
 | 2026-10-25 | Our own FFT and resampler (no pffft) | pffft's SSE and NEON paths reduce in different orders, which breaks bit-identity; zero third-party code in the shipped engine |
@@ -37,7 +37,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-26 | Blind A/B = level-matched excerpt sequences, math in the engine (MATH §30); preview APKs are R8-optimized release builds signed with the debug key | Fair comparison by construction; R8 needed for smooth 90 Hz Compose |
 | 2026-10-26 | Learning measures volume presses with AOSP's default media curve where One UI's getStreamVolumeDb is flat (MATH-1.13 §19.1) | Measured: One UI returns ~0 dB at every index |
 | 2026-10-26 | Playhead redraws once per pixel of movement, not every 90 Hz frame | Measured: UI CPU 80% → 24–33% of a core; screen-off playback ~2% |
-| 2026-10-26 | **Logo: the white lion** (Dana's AI-generated artwork, traced to vector; `tools/branding/`). App icon, and sparingly in the app | Owner choice; calm, regal, reads at small sizes |
+| 2026-10-26 | **Logo: the white lion** (David's AI-generated artwork, traced to vector; `tools/branding/`). App icon, and sparingly in the app | Owner choice; calm, regal, reads at small sizes |
 | 2026-10-26 | **Quiet contour on by default in Quiet** (Easy always; Advanced has an off switch). MATH-1.14 | Owner decision: Easy-mode listeners at low volume lose the bass; the lift is subtle (+2 dB < 200 Hz) and peak-protected |
 | 2026-10-26 | **Easy mode by default**: Settings shows Normal/Quiet only; Advanced (one switch) reveals albums, intimacy, per-output, contour, learning. Easy uses Sable's defaults for those; stored advanced values are kept | Owner request: people confused by sliders; the engine already decides everything |
 | 2026-10-26 | Native engine always built optimized, even in debug APKs | -O0 was ~6x slower; results are identical (deterministic flags) |
@@ -52,4 +52,4 @@ Each milestone ends with a test report. The next one does not start until it is 
 5. Media3 float output vs custom AudioProcessors: verified in M5. Processors are skipped on the float path, so Sable applies gain in a sink wrapper (MATH §23.1).
 6. Volume-key learning is ambiguous. There is an environment filter, small rates, a clamp and decay (MATH §19).
 7. The TVL reference code's licence is "free for research; commercial use contact the author". Fine for this personal project; it would block commercial distribution without permission.
-8. Corpus (2026-10-26): 434 files, 24.1 h. 29 albums from Dana's collection (hip-hop, pop, K-pop, hyperpop, rock; FLAC 44.1/48/88.2/96 kHz, 16/24-bit), plus free-licensed recordings: solo piano (Open Goldberg, 96k), orchestral/chamber (Musopen), industrial (NIN The Slip), ambient at 48k ALAC and 96k FLAC (NIN Ghosts), acoustic (Josh Woodward MP3), jazz/electronic (Kevin MacLeod MP3), mono speech MP3 (LibriVox). Gaps: native Opus/Vorbis/AAC/WAV files (generated locally by transcoding in M2), the EBU official test set (needs a browser download), and multichannel material.
+8. Corpus (2026-10-26): 434 files, 24.1 h. 29 albums from David's collection (hip-hop, pop, K-pop, hyperpop, rock; FLAC 44.1/48/88.2/96 kHz, 16/24-bit), plus free-licensed recordings: solo piano (Open Goldberg, 96k), orchestral/chamber (Musopen), industrial (NIN The Slip), ambient at 48k ALAC and 96k FLAC (NIN Ghosts), acoustic (Josh Woodward MP3), jazz/electronic (Kevin MacLeod MP3), mono speech MP3 (LibriVox). Gaps: native Opus/Vorbis/AAC/WAV files (generated locally by transcoding in M2), the EBU official test set (needs a browser download), and multichannel material.

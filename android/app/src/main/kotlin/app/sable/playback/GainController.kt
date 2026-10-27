@@ -287,6 +287,7 @@ class GainController(
         val before = route
         updateRoute()
         if (before != route) {  // registering the callback reports the devices already present: not a change
+            PlaybackDiag.log("ROUTE $before -> $route")
             learning.onRouteChanged()
             replan(user = true)
         }

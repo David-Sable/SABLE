@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
@@ -41,6 +42,8 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         PlaybackPrefs.load(this)
+        PlaybackDiag.init(this)
+        PlaybackDiag.log("SERVICE start")
         val renderers = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioOutputPlaybackParams: Boolean): AudioSink =
                 SableAudioSink(
@@ -55,6 +58,7 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
+        player.addAnalyticsListener(PlaybackDiag.listener)
         controller = GainController(this, player, gains, scope).also { it.start() }
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaSession.Builder(this, player).setCallback(callback).setSessionActivity(open).build()
@@ -63,10 +67,12 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        PlaybackDiag.log("TASK removed (swiped away), playing=${player.playWhenReady}")
         if (!player.playWhenReady || player.mediaItemCount == 0) stopSelf()
     }
 
     override fun onDestroy() {
+        PlaybackDiag.log("SERVICE stop")
         session.release()
         player.release()
         scope.cancel()
@@ -75,6 +81,12 @@ class PlaybackService : MediaSessionService() {
 
     /** Controllers send request ids ("<trackId>:<A|S>"); the service resolves them to playable items with unique ids. */
     private val callback = object : MediaSession.Callback {
+        // Who asked for a skip, pause or seek: this app, the car, a headset button, the notification...
+        override fun onPlayerCommandRequest(session: MediaSession, controller: MediaSession.ControllerInfo, playerCommand: Int): Int {
+            if (playerCommand in loggedCommands) PlaybackDiag.log("COMMAND ${commandName(playerCommand)} from ${controller.packageName}")
+            return super.onPlayerCommandRequest(session, controller, playerCommand)
+        }
+
         override fun onAddMediaItems(
             mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> = future { resolve(mediaItems) }
@@ -133,4 +145,17 @@ class PlaybackService : MediaSessionService() {
             MediaCodecUtil.getDecoderInfos(mime, secure, tunneling).sortedBy { if (it.name.startsWith("c2.android.")) 0 else 1 }
         }
     }
+}
+
+private val loggedCommands = setOf(
+    Player.COMMAND_PLAY_PAUSE, Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_PREVIOUS,
+    Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM, Player.COMMAND_STOP, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+)
+
+private fun commandName(c: Int) = when (c) {
+    Player.COMMAND_PLAY_PAUSE -> "play/pause"
+    Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> "next"
+    Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> "previous"
+    Player.COMMAND_STOP -> "stop"
+    else -> "seek"
 }

@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 /**
  * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
  * adb automation (results logged under tags "SableBench" and "SablePlay"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
                 "sync" -> Log.i(TAG, "sync: ${LibraryScanner(applicationContext).syncMediaStore()} tracks")
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
                 "stats" -> stats()
+                "diag" -> app.sable.playback.PlaybackDiag.run { init(applicationContext); dump() }  // the playback log (tag SableDiag)
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()
                     val m = intent.getStringExtra("match") ?: ""
