@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -64,6 +65,8 @@ class GainController(
     private val mutex = Mutex()
     private val trackCache = ConcurrentHashMap<Long, TrackEntity>()
     private val analysisCache = ConcurrentHashMap<String, String>()  // contentHash -> analysis JSON (without UI series)
+    private val planCache = ConcurrentHashMap<String, String>()      // contentHash -> the same without anchor blocks (planning)
+    private val albumCache = ConcurrentHashMap<String, Pair<String, JSONObject>>()  // album key -> (members signature, complete album JSON)
     private val jitCache = ConcurrentHashMap<Long, String>()
     private val jitRunning = ConcurrentHashMap.newKeySet<Long>()
     private val fullQueued = ConcurrentHashMap.newKeySet<Long>()
@@ -127,12 +130,26 @@ class GainController(
             val job = scope.async(Dispatchers.Default) { runJit(t) }
             withTimeoutOrNull(JIT_WAIT_MS) { job.await() }
         }
-        mutex.withLock { plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false) }
+        // Only the window the player keeps planned (the rest is planned as playback moves): a "play all" of hundreds of
+        // songs must not delay the first note.
+        val from = maxOf(0, startIndex - 1)
+        val to = minOf(ids.size, startIndex + WINDOW_AHEAD)
+        val window = ids.subList(from, to)
+        mutex.withLock { plan(window, startIndex - from, window.indices.map { it == startIndex - from }, user = false) }
     }
 
+    private var replanQueued = false   // main thread: a replan is waiting to run; further requests join it
+    private var replanUser = false
+
+    /** Plans the window around the playing item. Requests that arrive before it runs are merged into one plan. */
     fun replan(user: Boolean) {
+        replanUser = replanUser || user
+        if (replanQueued) return
+        replanQueued = true
         scope.launch(Dispatchers.Main) {
             mutex.withLock {
+                replanQueued = false
+                val user = replanUser.also { replanUser = false }
                 val n = player.mediaItemCount
                 if (n == 0) return@withLock
                 val cur = player.currentMediaItemIndex.coerceIn(0, n - 1)
@@ -147,6 +164,7 @@ class GainController(
     }
 
     private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean) {
+        val t0 = SystemClock.elapsedRealtime()
         val settings = PlaybackPrefs.settings.value.effective()
         val r = route
         val ceiling = settings.ceiling(r)
@@ -174,7 +192,7 @@ class GainController(
                         o.put("album", key)
                         val wantsAlbum = settings.albumMode == PlaybackPrefs.AlbumMode.ALBUM ||
                             (settings.albumMode == PlaybackPrefs.AlbumMode.AUTO && QueueId.albumIntent(id))
-                        if (wantsAlbum && !albums.has(key)) albums.put(key, albumJson(t, albumMissing))
+                        if (wantsAlbum && !albums.has(key)) albums.put(key, albumJson(key, t, albumMissing))
                     }
                 }
                 o.put("albumIntent", QueueId.albumIntent(id))
@@ -202,18 +220,26 @@ class GainController(
         gains.retain(ids.toSet())
         lastPlan = plan
         NowPlaying.plan.value = plan.mapValues { (_, p) -> p.optDouble("gainDb") }
+        Log.d(TAG, "PLAN ${ids.size} items in ${SystemClock.elapsedRealtime() - t0} ms")
     }
 
-    /** §17.1: album gain needs every track of the album analysed; otherwise they are queued at high priority. */
-    private suspend fun albumJson(t: TrackEntity, missing: MutableList<TrackEntity>): JSONObject {
+    /**
+     * §17.1: album gain needs every track of the album analysed; otherwise they are queued at high priority.
+     * A complete album's JSON is reused while its members (ids and content) are unchanged.
+     */
+    private suspend fun albumJson(key: String, t: TrackEntity, missing: MutableList<TrackEntity>): JSONObject {
         val members = dao.albumTracks(t.albumId, t.albumArtist)
+        val sig = members.joinToString(",") { "${it.mediaId}:${it.contentHash}" }
+        albumCache[key]?.takeIf { it.first == sig }?.let { return it.second }
         val tracks = JSONArray()
         var complete = members.isNotEmpty()
         for (m in members) {
             val a = analysis(m, keepAlbumData = true)
             if (a == null) { complete = false; if (missing.none { it.mediaId == m.mediaId }) missing.add(m) } else tracks.put(JSONObject(a))
         }
-        return JSONObject().put("complete", complete).put("tracks", if (complete) tracks else JSONArray())
+        val json = JSONObject().put("complete", complete).put("tracks", if (complete) tracks else JSONArray())
+        if (complete) albumCache[key] = sig to json
+        return json
     }
 
     private fun albumKey(t: TrackEntity) = if (t.album.isBlank()) null else "${t.albumId}|${t.albumArtist}"
@@ -226,7 +252,8 @@ class GainController(
         val full = analysisCache[h] ?: dao.analysis(h, SableDatabase.MATH_VERSION)?.json?.let { js ->
             JSONObject(js).apply { remove("shape"); remove("sections") }.toString().also { analysisCache[h] = it }
         } ?: return null
-        return if (keepAlbumData) full else JSONObject(full).apply { remove("anchorBlockPower") }.toString()
+        if (keepAlbumData) return full
+        return planCache.getOrPut(h) { JSONObject(full).apply { remove("anchorBlockPower") }.toString() }
     }
 
     private fun scheduleAnalysis(t: TrackEntity, jit: Boolean) {
@@ -297,6 +324,7 @@ class GainController(
         val p = lastPlan[id]
         val rules = ArrayList<Pair<String, Double>>()
         p?.optJSONArray("rules")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { rules.add(it.optString("id") to it.optDouble("deltaDb")) } }
+        if (manual) rules.removeAll { it.first == "SEAM" }  // §18: the seam belongs to the natural variant; a user start plays unseamed
         val s = PlaybackPrefs.settings.value.effective()
         NowPlaying.gain.value = NowPlayingGain(
             id, db, p?.optString("source") ?: "provisional", manual, p?.optBoolean("albumRun") ?: false, rules, ceilingDbtp, route.label,

@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and and (0.10.0) the blind A/B removed by owner decision. MATH-1.19.
-  Latest GitHub release: see Releases (0.10.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.10.0 (installed from the PC over USB, 2026-10-26, verified). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, and (0.10.1) faster queue starts. MATH-1.19.
+  Latest GitHub release: see Releases (0.10.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.10.1 (installed from the PC over USB, 2026-10-26, verified). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -32,6 +32,11 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Review pass, controller optimizations (0.10.1)
+- Reviewed the playback path (SableAudioSink, GainKernel, GainController) after the A/B removal: no audio or math defects found.
+- Fixed: a skipped-to / tapped song listed the SEAM rule (natural variant) although user starts play unseamed; the Why sheet would have said "nudged to flow". `publish` now drops SEAM for manual starts.
+- Faster: `prepareStart` plans only the window (cur−1..cur+30), not the whole queue (Songs tab = up to 396 items before the first note); planning JSON without anchor blocks is cached per content hash; complete album JSON is cached per album while its members are unchanged; replan requests that arrive before the queued one runs are merged. Measured on the phone: tap → first plan 456 ms cold, later plans 12–50 ms (`PLAN n items in x ms`, logcat debug). The old whole-queue time was not measured.
 
 ### 2026-10-26 (PC) Blind A/B removed (0.10.0, MATH-1.19)
 - David: the ear tests are too subtle in short excerpts; in the car Sable "with the feel estimate" was amazing. Removed AbScreen, AbSession, the round log, excerpt fades (GainKernel/SableAudioSink), the A/B button, `abCondition`/`abSeams`/`sablelufs`/`excerptSec` from the planner, tests and tools/ab. Planner output is now `{"items":[...]}`. Planner code equals the pre-0.9.0 version minus A/B. Final A/B tallies for the record: Clips S 15 / P 12 / O 6; Song changes S 8 / P 12 / O 4; Albums S 7 / P 6; Feel a few rounds.
