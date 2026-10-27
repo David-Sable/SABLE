@@ -25,6 +25,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
   - Release `build-3` on GitHub has the wrong key; Dana can delete it (Releases → build-3 → Delete). Harmless.
   - Dana's listening check of character labels and the largest gain moves (from M3) is still open.
+- **Next (Claude's pick, Dana agreed 2026-10-26):** a transitions A/B: whole song changes (end of one song into the start of the next, seams on) and a stretch of one album, Sable vs plain −14, same blind rules as §30. Needs a MATH §30 extension first (what is level-matched, excerpt rules around seams). Buildable from the cloud; verify on the phone.
 - **Ideas pending (agreed with Dana, 2026-10-26):** test Bluetooth/USB-C outputs and the other formats on the phone (needs USB; formats need non-copyrighted test files, e.g. generated with ffmpeg); a sleep timer that stops at the end of a song (no fades, keeps one static gain per song).
 
 ---
