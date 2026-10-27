@@ -14,6 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
+- **FIX NEXT BUILD (David, 2026-10-27, found at night, reported from chat):** switching output mid-song is not noticed. Repro: play a song on the phone speaker, leave it playing, connect the JBL Charge 5. Sable does not seem to treat that as a route change (the song keeps the speaker's gain/place instead of the JBL's); David has to change songs and go back before it takes effect. David wants this fixed in the next build. Start with: `--es cmd diag` after reproducing (do ROUTE lines show the switch? is `GainController.updateRoute()` even called when Bluetooth connects mid-playback?), then check that a route change replans the current item and that its gain is applied in place (in-track ramp, no jump, no loud moment) and that learning's "place" updates for the playing song. Also test the reverse (JBL off back to the speaker) and car Bluetooth. Needs the PC and phone to verify; engine/planner changes need MATH.md and tests per CLAUDE.md. Remove this line when fixed and verified.
 - **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0/0.17.1) play-button resume, widget, queue clear, crash fixes, (0.17.2) screens keep their scroll position, (0.17.3) learning only from songs started from the top with full gain. MATH-1.25.
   Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
 - **On David's phone:** 0.17.3 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
@@ -32,6 +33,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (chat, night) Bug noted: output switch mid-song not registered
+- David reported it from his phone at ~04:30 before sleeping; no code changed. See "FIX NEXT BUILD" at the top of "Now" for the repro and where to start.
 
 ### 2026-10-27 (PC) Blind-spot pass: resumed songs no longer teach (0.17.3, MATH-1.25)
 - Found in David's own log: at 03:58 Sable restored "LAST DANCE!" at 86 s (paused); a volume step up on the phone speaker inside the 20 s window (opened at restore, while paused) taught track +1.92 dB, artist +0.96. Resume (0.16.0) and the play-button resumption (0.17.0) had made "a song that did not start at its beginning" common; in the car (get in, press play, set the volume) it would teach every time.
