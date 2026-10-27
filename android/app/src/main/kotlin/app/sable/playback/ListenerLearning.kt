@@ -211,7 +211,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         // MATH-1.27: a mute is not a verdict, and the section the press was made in is measured against the song's anchor.
         if (startIndex == 0 || sawMute || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) input.put("muted", true)
         var heard: Double? = null
-        shapeOf(t)?.let { sh ->
+        shapeOf(t)?.takeIf { it.lufs.isNotEmpty() }?.let { sh ->  // under 3 s there is no short-term series at all
             val k = ((firstPressPosMs / 1000.0 - 3.0) / 0.5).roundToInt().coerceIn(0, sh.lufs.size - 1)  // the 3 s before the press
             heard = sh.lufs.getOrNull(k)?.takeIf { it.isFinite() && firstPressPosMs >= 0 }
             heard?.let { input.put("heardLufs", it).put("anchorLufs", sh.anchorLufs) }
