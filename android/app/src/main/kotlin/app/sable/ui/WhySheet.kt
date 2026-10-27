@@ -46,7 +46,6 @@ import app.sable.library.GainTags
 import app.sable.playback.ListenerLearning
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import app.sable.playback.AbSession
 import app.sable.playback.NowPlaying
 import app.sable.playback.PlaybackPrefs
 import app.sable.ui.theme.SableColors
@@ -64,9 +63,8 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val json = analysisJson(row.mediaId)
     val live by NowPlaying.gain.collectAsState()
-    val ab by AbSession.condition.collectAsState()
     val settings by PlaybackPrefs.settings.collectAsState()
-    val isPlaying = state.currentTrackId == row.mediaId && live.mediaId == state.currentQueueId && ab == null
+    val isPlaying = state.currentTrackId == row.mediaId && live.mediaId == state.currentQueueId
     ModalBottomSheet(
         onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
         dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },

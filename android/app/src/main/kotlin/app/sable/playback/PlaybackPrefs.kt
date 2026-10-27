@@ -97,21 +97,3 @@ object NowPlaying {
     val plan = MutableStateFlow<Map<String, Double>>(emptyMap())
 }
 
-/** A running blind A/B round (MATH §30): the condition currently heard, or null when A/B is off. */
-object AbSession {
-    enum class Condition(val key: String, val label: String) {
-        SABLE("sable", "Sable"), PLAIN("plain", "Plain -14 LUFS"), OFF("off", "No normalization"),
-        SABLE_LUFS("sablelufs", "Sable without the feel estimate"),  // §30.7
-    }
-    val condition = MutableStateFlow<String?>(null)
-    /** §30.6: the round is song changes (pairs: a song's ending, then the next song's opening) rather than clips. */
-    @Volatile var transitions = false
-
-    /**
-     * What each condition plays in the running round, per queue id: the gains of every condition, Sable's rules and the
-     * song's key loudness figures. Filled from the first plan that covers an item (the round start), saved with the pick.
-     */
-    @Volatile var plans = org.json.JSONObject()
-    /** The queue ids of the running round: plans of an older queue (a replan still in flight) are not recorded. */
-    @Volatile var roundIds: Set<String> = emptySet()
-}

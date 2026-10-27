@@ -57,6 +57,6 @@ What it costs: with the screen off, playback used about 2% of one CPU core on th
 SABLE measures and balances what it plays. Samsung's sound effects work *after* SABLE and change what you hear:
 - **Settings → Sounds and vibration → Sound quality and effects**: turn off **Dolby Atmos**, **Equalizer** (or set it to Normal) and **UHQ upscaler**.
 - **Adapt Sound**: set to **Off**.
-- With Bluetooth headphones, turn off any EQ in their own app for A/B tests.
+- With Bluetooth headphones, any EQ in their own app also changes the sound.
 
-You don't have to. SABLE works either way. But the Blind A/B is fairest with the effects off.
+You don't have to. SABLE works either way.

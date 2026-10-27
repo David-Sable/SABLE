@@ -88,9 +88,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     fun onRouteChanged() { routeChangedAt = SystemClock.elapsedRealtime() }
 
     /** A song began (tap, skip or natural transition). Closes any open window; A/B rounds never teach (§19.1). */
-    fun onItemStart(t: TrackEntity?, abActive: Boolean) {
+    fun onItemStart(t: TrackEntity?) {
         closeWindow()
-        if (t == null || abActive) return
+        if (t == null) return
         track = t
         startAt = SystemClock.elapsedRealtime()
         startDb = volumeDb()

@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.sable.data.LibraryRow
-import app.sable.playback.AbSession
 import app.sable.playback.NowPlaying
 import app.sable.playback.OutputState
 import app.sable.playback.PlaybackPrefs
@@ -52,7 +51,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     val current = state.currentTrackId?.let { byId[it] }
     BackHandler(enabled = state.back.size > 1) { state.pop() }
     Box(Modifier.fillMaxSize().background(SableColors.base)) {
-        val showMini = current != null && state.route !is Route.NowPlaying && state.route !is Route.Ab
+        val showMini = current != null && state.route !is Route.NowPlaying
         val pad = if (showMini) bottomBarHeight() else 0.dp
         AnimatedContent(
             state.route,
@@ -69,10 +68,6 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 is Route.Folder -> FolderScreen(state, rows, r.path, pad)
                 Route.NowPlaying -> NowPlayingScreen(state, current)
                 Route.Queue -> QueueScreen(state, rows)
-                Route.Ab -> {
-                    DisposableEffect(Unit) { onDispose { AbSession.condition.value = null } }  // leaving A/B ends the round
-                    AbScreen(state, rows)
-                }
                 Route.Settings -> SettingsScreen(state, rows, onRescan, onAnalyseWhileCharging)
             }
         }
@@ -85,7 +80,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
 }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.18"
+const val MATH_DOC_VERSION = "MATH-1.19"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -176,7 +171,6 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit
                         Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
                     }
                     Hint("Every number Sable shows comes from the engine described in MATH.md. Nothing after Sable (Dolby Atmos, EQ, Adapt Sound) is undone.")
-                    Row(Modifier.padding(top = Space.m)) { Pill("Reset A/B results", false) { AbTally.reset(context) } }
                 }
             }
             Spacer(Modifier.height(Space.xxxl))

@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import app.sable.ui.theme.SableColors
 
 /** Hand-drawn line icons: consistent weight, no emoji or font fallbacks (Samsung renders some symbols as emoji). */
-enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS, AB }
+enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS }
 
 @Composable
 fun Icon(glyph: Glyph, modifier: Modifier = Modifier, size: Dp = 22.dp, color: Color = SableColors.textPrimary) {
@@ -61,10 +61,6 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             drawLine(c, Offset(w * 0.16f, h * y), Offset(w * 0.84f, h * y), sw * 0.8f, StrokeCap.Round)
             drawCircle(SableColors.base, w * 0.09f, Offset(w * x, h * y))
             drawCircle(c, w * 0.09f, Offset(w * x, h * y), style = Stroke(sw * 0.8f))
-        }
-        Glyph.AB -> {
-            drawCircle(c, w * 0.24f, Offset(w * 0.36f, h * 0.5f), style = stroke)
-            drawCircle(c, w * 0.24f, Offset(w * 0.64f, h * 0.5f), style = stroke)
         }
     }
 }

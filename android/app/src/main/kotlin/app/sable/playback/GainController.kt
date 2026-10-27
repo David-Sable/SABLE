@@ -89,7 +89,6 @@ class GainController(
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
         }, main)
         scope.launch { PlaybackPrefs.settings.drop(1).collect { replan(user = true) } }
-        scope.launch { AbSession.condition.drop(1).collect { replan(user = true) } }
         scope.launch(Dispatchers.Default) {
             for (t in fullAnalysis) {  // one at a time, boosted (M4: ~6 s per 4 min)
                 runCatching { TrackAnalyzer(context).ensureAnalyzed(t) }.onFailure { Log.w(TAG, "analysis failed: ${t.displayName}", it) }
@@ -112,7 +111,7 @@ class GainController(
             if (firstStart) {
                 lastPlan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
                 val t = QueueId.trackId(id)?.let { trackCache[it] }
-                learning.onItemStart(t, AbSession.condition.value != null)
+                learning.onItemStart(t)
             }
             publish(id, db, manual)
             if (changed) replan(user = false)  // the next item's seam depends on how this one began
@@ -121,20 +120,14 @@ class GainController(
 
     // ---------------- Planning ----------------
     /** Before a new queue reaches the player: wait up to 1.5 s for JIT of the first song (§22.2), then plan it. */
-    suspend fun prepareStart(ids: List<String>, startIndex: Int, excerpts: Map<String, Excerpt> = emptyMap()) {
+    suspend fun prepareStart(ids: List<String>, startIndex: Int) {
         val id = ids.getOrNull(startIndex)?.let(QueueId::trackId)
         val t = id?.let { track(it) }
         if (t != null && analysis(t) == null && !jitCache.containsKey(t.mediaId)) {
             val job = scope.async(Dispatchers.Default) { runJit(t) }
             withTimeoutOrNull(JIT_WAIT_MS) { job.await() }
         }
-        mutex.withLock {
-            if (AbSession.condition.value != null) {  // a new A/B round: its own log entries only
-                AbSession.plans = JSONObject()
-                AbSession.roundIds = ids.toSet()
-            }
-            plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false, excerpts)
-        }
+        mutex.withLock { plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false) }
     }
 
     fun replan(user: Boolean) {
@@ -146,30 +139,20 @@ class GainController(
                 val from = maxOf(0, cur - 1)
                 val to = minOf(n, cur + WINDOW_AHEAD)
                 val ids = (from until to).map { player.getMediaItemAt(it).mediaId }
-                val excerpts = (from until to).mapNotNull { i ->
-                    val item = player.getMediaItemAt(i)
-                    excerptOf(item)?.let { item.mediaId to it }
-                }.toMap()
                 // How each item began: as recorded by the sink for started items; the playing one is manual until known.
                 val manual = ids.mapIndexed { i, id -> manualByItem[id] ?: (i == cur - from) }
-                plan(ids, cur - from, manual, user, excerpts)
+                plan(ids, cur - from, manual, user)
             }
         }
     }
 
-    private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean, excerpts: Map<String, Excerpt>) {
+    private suspend fun plan(ids: List<String>, cur: Int, manual: List<Boolean>, user: Boolean) {
         val settings = PlaybackPrefs.settings.value.effective()
-        val ab = AbSession.condition.value  // §30: a blind A/B round is running
-        // §30.6 song changes: an excerpt from a song's start follows the previous song's ending (natural, seamed);
-        // an excerpt that runs to a song's end leads into the next one. Clip rounds (§30.2) start every item manually.
-        val flow = ab != null && AbSession.transitions
-        fun follows(id: String) = flow && excerpts[id]?.startMs == 0L
-        fun leads(id: String) = flow && (excerpts[id]?.startMs ?: 0L) > 0L
         val r = route
         val ceiling = settings.ceiling(r)
         ceilingDbtp = ceiling
         val cal = settings.cal(r)
-        updateContour(settings.contour && settings.mode == PlaybackPrefs.Mode.QUIET && ab == null, cal)
+        updateContour(settings.contour && settings.mode == PlaybackPrefs.Mode.QUIET, cal)
         val headroom = if (gains.contour != null) contourHeadroom else 0.0
         val frozen = HashMap(frozenLearned)
         val result = withContext(Dispatchers.IO) {
@@ -195,9 +178,8 @@ class GainController(
                     }
                 }
                 o.put("albumIntent", QueueId.albumIntent(id))
-                o.put("manual", if (ab != null) !follows(id) else manual[i])
+                o.put("manual", manual[i])
                 if (t != null) frozen[id]?.let { o.put("learnedDb", it) } ?: o.put("learn", learning.learnJson(t))
-                excerpts[id]?.let { o.put("excerptSec", it.ms / 1000.0) }
                 items.put(o)
             }
             val input = JSONObject()
@@ -205,9 +187,7 @@ class GainController(
                 .put("ceilingDbtp", ceiling).put("limiter", false).put("outputCalDb", cal)
                 .put("contourHeadroomDb", headroom).put("nowDays", ListenerLearning.nowDays())
                 .put("albumMode", settings.albumMode.key).put("albums", albums).put("items", items)
-            if (ab != null) input.put("abCondition", ab).put("abSeams", flow)
             val out = JSONObject(SableEngine.planQueue(input.toString()))
-            if (ab != null) recordAbPlans(ids, items, input, ab, out, flow, excerpts)
             missing.forEach { scheduleAnalysis(it, jit = true) }
             albumMissing.forEach { scheduleAnalysis(it, jit = false) }
             out.optJSONArray("items")
@@ -216,8 +196,7 @@ class GainController(
         for (i in ids.indices) {
             val p = result.optJSONObject(i) ?: continue
             plan[ids[i]] = p
-            gains.put(ids[i], p.optDouble("gainDb", settings.mode.targetLufs + 8), p.optDouble("manualGainDb", settings.mode.targetLufs + 8), user,
-                excerpts[ids[i]]?.ms ?: 0L, edgeIn = !follows(ids[i]), edgeOut = !leads(ids[i]))
+            gains.put(ids[i], p.optDouble("gainDb", settings.mode.targetLufs + 8), p.optDouble("manualGainDb", settings.mode.targetLufs + 8), user)
         }
         gains.fallbackDb = settings.mode.targetLufs + 8.0  // §22.1
         gains.retain(ids.toSet())
@@ -289,33 +268,6 @@ class GainController(
             .format(design.optDouble("lowGainDb"), design.optDouble("highGainDb"), contourHeadroom))
     }
 
-    /** For the A/B round log: plans every condition of the same queue (cheap) and keeps the first figures per item. */
-    private fun recordAbPlans(ids: List<String>, items: JSONArray, input: JSONObject, ab: String, out: JSONObject, flow: Boolean, excerpts: Map<String, Excerpt>) {
-        val plans = AbSession.plans
-        synchronized(plans) {
-            for (c in AbSession.Condition.entries) {
-                val res = if (c.key == ab) out else JSONObject(SableEngine.planQueue(input.put("abCondition", c.key).toString()))
-                val arr = res.optJSONArray("items") ?: continue
-                for (i in ids.indices) {
-                    if (ids[i] !in AbSession.roundIds) continue
-                    val p = arr.optJSONObject(i) ?: continue
-                    val rec = plans.optJSONObject(ids[i]) ?: JSONObject().also { r ->
-                        r.put("track", QueueId.trackId(ids[i]))
-                        r.put("part", if (!flow) "clip" else if (excerpts[ids[i]]?.startMs == 0L) "opening" else "ending")
-                        items.optJSONObject(i)?.optJSONObject("analysis")?.let { a ->
-                            for (k in listOf("integratedLufs", "anchorLufs", "anchorPle", "openLufs", "endLufs", "truePeakDbtp", "character"))
-                                if (a.has(k)) r.put(k, a.get(k))
-                        }
-                        plans.put(ids[i], r)
-                    }
-                    if (!rec.has(c.key)) rec.put(c.key, p.optDouble("gainDb"))
-                    if (c == AbSession.Condition.SABLE && !rec.has("sableRules")) rec.put("sableRules", p.optJSONArray("rules"))
-                }
-            }
-            input.put("abCondition", ab)
-        }
-    }
-
     // ---------------- Output (MATH §20) ----------------
     private fun onRouteMaybeChanged() {
         val before = route
@@ -354,16 +306,6 @@ class GainController(
     }
 
     companion object {
-        /** An A/B excerpt (§30.2): its length and where it starts in the song, from its clipping. */
-        data class Excerpt(val ms: Long, val startMs: Long)
-
-        /** The item's A/B excerpt; null for a whole song. */
-        fun excerptOf(item: MediaItem): Excerpt? {
-            val c = item.clippingConfiguration
-            if (c.endPositionMs == androidx.media3.common.C.TIME_END_OF_SOURCE) return null
-            return (c.endPositionMs - c.startPositionMs).takeIf { it > 0 }?.let { Excerpt(it, c.startPositionMs) }
-        }
-
         const val TAG = "SablePlay"
         const val JIT_WAIT_MS = 1500L   // §22.2 W_jit
         const val WINDOW_AHEAD = 30

@@ -21,7 +21,6 @@ sealed interface Route {
     data class Folder(val path: String) : Route
     data object NowPlaying : Route
     data object Queue : Route
-    data object Ab : Route
     data object Settings : Route
 }
 

@@ -43,6 +43,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-26 | Native engine always built optimized, even in debug APKs | -O0 was ~6x slower; results are identical (deterministic flags) |
 | 2026-10-25 | Test-only dependencies: doctest, libebur128 (built from source), FFmpeg CLI, pyloudnorm/numpy/scipy/soundfile, GNU Octave (to run the TVL18 reference) | Validation only, never shipped |
 | 2026-10-25 | App dependencies (pending M4–M6): Media3, Compose, Room, WorkManager, Coil, kotlinx-coroutines; detekt (dev). No Hilt, no FFmpeg in the app | Minimal surface; platform decoders cover all 7 formats |
+| 2026-10-26 | **Blind A/B removed** (MATH-1.19 §30) | ~90 rounds were too subtle to judge in short excerpts; real listening (whole songs, the car) clearly favoured Sable as designed, perceptual estimate included. Direction: refine the engine (more understanding, fewer changes) and the app | David |
 
 ## Known risks / blind spots
 1. Perceived loudness depends on real playback SPL, which the phone doesn't know. Mitigated by the D_cal convention and per-output calibration (MATH §12, §20).

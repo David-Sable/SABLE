@@ -215,19 +215,12 @@ Track trackOf(const J& a) {
   return t;
 }
 
-// §30.7 condition L: Sable without the perceptual estimate (PLE_anchor := L_anchor, so the PLE offset is 0 everywhere).
-Track trackOf(const J& a, bool noPle) {
-  Track t = trackOf(a);
-  if (noPle) t.u.anchorPle = t.u.anchorLufs;
-  return t;
-}
-
 struct Item {
   enum class Source { Full, Jit, Provisional } source = Source::Provisional;
   std::optional<Track> track;
   bool albumRun = false, manual = false;
   double baseDb = 0.0, capDb = std::numeric_limits<double>::infinity();
-  double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0, excerptSec = 0.0;
+  double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0;
   std::vector<Rule> rules;
 };
 
@@ -255,151 +248,111 @@ std::string planQueueJson(const std::string& input) {
   const double outputCal = std::clamp(in.num("outputCalDb", 0.0), -3.0, 3.0);  // §20.2
   const std::string albumMode = in.str("albumMode");                            // "auto" | "track" | "album"
 
-  // Albums, items and seams (§17, §18, §21, §22). Built twice in a §30.7 round: with and without the PLE offset.
-  auto build = [&](bool noPle) {
-    // §17.2 album gains, decided once per album key (only when every track of the album is analysed).
-    std::map<std::string, std::optional<GainDecision>> albumGain;
-    if (const J* albums = in.get("albums"); albums && albums->t == J::T::Obj)
-      for (std::size_t ai = 0; ai < albums->keys.size(); ++ai) {
-        const std::string& key = albums->keys[ai];
-        const J& alb = albums->vals[ai];
-        std::optional<GainDecision> d;
-        const J* tracks = alb.get("tracks");
-        if (alb.flag("complete") && tracks && tracks->t == J::T::Arr && !tracks->a.empty()) {
-          std::vector<Track> ts;
-          for (const J& a : tracks->a) ts.push_back(trackOf(a, noPle));
-          std::vector<const LoudnessResult*> rs;
-          std::vector<const TrackUnderstanding*> us;
-          bool clipped = false;
-          for (const Track& t : ts) {
-            rs.push_back(&t.r);
-            us.push_back(&t.u);
-            clipped = clipped || t.decodeClipped;
-          }
-          GainContext c = ctx;
-          c.decodeClipped = clipped;  // conservative: the album cap uses M_clipTP if any member was clipped
-          d = decideAlbumGain(rs, us, c);
-          if (std::any_of(d->rules.begin(), d->rules.end(), [](const Rule& r) { return r.id == "ALBUM_NO_MEMBERS"; })) d.reset();
+  // §17.2 album gains, decided once per album key (only when every track of the album is analysed).
+  std::map<std::string, std::optional<GainDecision>> albumGain;
+  if (const J* albums = in.get("albums"); albums && albums->t == J::T::Obj)
+    for (std::size_t ai = 0; ai < albums->keys.size(); ++ai) {
+      const std::string& key = albums->keys[ai];
+      const J& alb = albums->vals[ai];
+      std::optional<GainDecision> d;
+      const J* tracks = alb.get("tracks");
+      if (alb.flag("complete") && tracks && tracks->t == J::T::Arr && !tracks->a.empty()) {
+        std::vector<Track> ts;
+        for (const J& a : tracks->a) ts.push_back(trackOf(a));
+        std::vector<const LoudnessResult*> rs;
+        std::vector<const TrackUnderstanding*> us;
+        bool clipped = false;
+        for (const Track& t : ts) {
+          rs.push_back(&t.r);
+          us.push_back(&t.u);
+          clipped = clipped || t.decodeClipped;
         }
-        albumGain[key] = d;
+        GainContext c = ctx;
+        c.decodeClipped = clipped;  // conservative: the album cap uses M_clipTP if any member was clipped
+        d = decideAlbumGain(rs, us, c);
+        if (std::any_of(d->rules.begin(), d->rules.end(), [](const Rule& r) { return r.id == "ALBUM_NO_MEMBERS"; })) d.reset();
       }
+      albumGain[key] = d;
+    }
 
-    std::vector<Item> items;
-    const J* list = in.get("items");
-    if (list && list->t == J::T::Arr)
-      for (const J& x : list->a) {
-        Item it;
-        it.manual = x.flag("manual");
-        if (const J* l = x.get("learn"); l && l->t == J::T::Obj) {  // §19.2: decay to now, then combine
-          const double t = decayedOffset({l->num("trackDb", 0.0), l->num("trackDays", nowDays)}, nowDays);
-          const double a = decayedOffset({l->num("artistDb", 0.0), l->num("artistDays", nowDays)}, nowDays);
-          it.learnedDb = appliedOffset(t, a, static_cast<int>(l->num("artistTracks", 0.0)));
+  std::vector<Item> items;
+  const J* list = in.get("items");
+  if (list && list->t == J::T::Arr)
+    for (const J& x : list->a) {
+      Item it;
+      it.manual = x.flag("manual");
+      if (const J* l = x.get("learn"); l && l->t == J::T::Obj) {  // §19.2: decay to now, then combine
+        const double t = decayedOffset({l->num("trackDb", 0.0), l->num("trackDays", nowDays)}, nowDays);
+        const double a = decayedOffset({l->num("artistDb", 0.0), l->num("artistDays", nowDays)}, nowDays);
+        it.learnedDb = appliedOffset(t, a, static_cast<int>(l->num("artistTracks", 0.0)));
+      } else {
+        it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
+      }
+      const std::string key = x.str("album");
+      const bool inAlbum = !key.empty() && albumMode != "track" && (albumMode == "album" || x.flag("albumIntent"));  // §17.1
+      if (const J* a = x.get("analysis"); a && a->t == J::T::Obj) {
+        it.source = Item::Source::Full;
+        it.track = trackOf(*a);
+        GainContext c = ctx;
+        c.decodeClipped = it.track->decodeClipped;
+        const auto ag = inAlbum ? albumGain.find(key) : albumGain.end();
+        if (inAlbum && ag != albumGain.end() && ag->second) {
+          it.albumRun = true;
+          it.baseDb = ag->second->gainDb;
+          it.capDb = ag->second->capDb;
+          it.rules = ag->second->rules;
         } else {
-          it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
+          const GainDecision d = decideTrackGain(it.track->r, it.track->u, c);
+          it.baseDb = d.gainDb;
+          it.capDb = d.capDb;
+          it.rules = d.rules;
+          if (inAlbum) it.rules.push_back({"ALBUM_PENDING", 0.0});
         }
-        it.excerptSec = x.num("excerptSec", 0.0);
-        const std::string key = x.str("album");
-        const bool inAlbum = !key.empty() && albumMode != "track" && (albumMode == "album" || x.flag("albumIntent"));  // §17.1
-        if (const J* a = x.get("analysis"); a && a->t == J::T::Obj) {
-          it.source = Item::Source::Full;
-          it.track = trackOf(*a, noPle);
-          GainContext c = ctx;
-          c.decodeClipped = it.track->decodeClipped;
-          const auto ag = inAlbum ? albumGain.find(key) : albumGain.end();
-          if (inAlbum && ag != albumGain.end() && ag->second) {
-            it.albumRun = true;
-            it.baseDb = ag->second->gainDb;
-            it.capDb = ag->second->capDb;
-            it.rules = ag->second->rules;
-          } else {
-            const GainDecision d = decideTrackGain(it.track->r, it.track->u, c);
-            it.baseDb = d.gainDb;
-            it.capDb = d.capDb;
-            it.rules = d.rules;
-            if (inAlbum) it.rules.push_back({"ALBUM_PENDING", 0.0});
-          }
-        } else if (const J* j = x.get("jit"); j && j->t == J::T::Obj && j->num("jitLufs")) {  // §22.2
-          it.source = Item::Source::Jit;
-          const double g = ctx.targetLufs - *j->num("jitLufs");
-          if (const auto tp = j->num("jitTpDbtp")) it.capDb = ctx.ceilingDbtp - (*tp + kJitTpMargin);
-          it.baseDb = std::min(g, it.capDb);
-          it.rules.push_back({"JIT", it.baseDb});
-          if (it.capDb < g) it.rules.push_back({"PEAK_CAP", it.capDb - g});
-        } else {  // §22.1
-          it.baseDb = ctx.targetLufs + kProvisionalOffset;
-          it.rules.push_back({"PROVISIONAL", it.baseDb});
-        }
-        items.push_back(std::move(it));
+      } else if (const J* j = x.get("jit"); j && j->t == J::T::Obj && j->num("jitLufs")) {  // §22.2
+        it.source = Item::Source::Jit;
+        const double g = ctx.targetLufs - *j->num("jitLufs");
+        if (const auto tp = j->num("jitTpDbtp")) it.capDb = ctx.ceilingDbtp - (*tp + kJitTpMargin);
+        it.baseDb = std::min(g, it.capDb);
+        it.rules.push_back({"JIT", it.baseDb});
+        if (it.capDb < g) it.rules.push_back({"PEAK_CAP", it.capDb - g});
+      } else {  // §22.1
+        it.baseDb = ctx.targetLufs + kProvisionalOffset;
+        it.rules.push_back({"PROVISIONAL", it.baseDb});
       }
-
-    // §18 seams along the queue, in the engine domain (before learning and calibration). The chain follows what each
-    // item actually plays with: its manual variant if it was started by the user, else its natural (seamed) variant.
-    for (std::size_t i = 0; i < items.size(); ++i) {
-      Item& cur = items[i];
-      cur.naturalSeamedDb = cur.manualSeamedDb = cur.baseDb;
-      if (cur.albumRun || cur.source != Item::Source::Full || i == 0) continue;
-      const Item& prev = items[i - 1];
-      SeamInput s;
-      s.havePrev = true;
-      s.prevSeamedDb = prev.manual ? prev.manualSeamedDb : prev.naturalSeamedDb;
-      s.curTrackDb = cur.baseDb;
-      s.curCapDb = cur.capDb;
-      s.curOpenLufs = cur.track->u.openLufs;
-      s.curPleOffset = cur.track->pleOffset();
-      s.curFadeIn = cur.track->u.fadeIn.has_value();
-      if (prev.track) {
-        s.prevEndLufs = prev.track->u.endLufs;
-        s.prevPleOffset = prev.track->pleOffset();
-        s.prevFadeOut = prev.track->u.fadeOut.has_value();
-      }
-      cur.naturalSeamedDb = seamGain(s, &cur.rules);
+      items.push_back(std::move(it));
     }
-    return items;
-  };
 
-  // §30 blind A/B: every item gets the chosen condition's level-matched gain (no learning). Sable is the manual start
-  // without seams (§30.1), or, in a transitions round (§30.6), each item as it starts: manual or natural (seamed).
-  const std::string ab = in.str("abCondition");  // "" | "sable" | "plain" | "off" | "sablelufs"
-  const bool abNoPle = ab == "sablelufs";         // §30.7: items without the PLE offset, matched to real Sable
-  const std::vector<Item> items = build(abNoPle);
-  const std::vector<Item> ref = abNoPle ? build(false) : std::vector<Item>{};
-  const std::vector<Item>& sable = abNoPle ? ref : items;
-  const bool abSeams = in.flag("abSeams");        // §30.6 transitions round: Sable plays as in normal playback
-  std::vector<double> abGain(items.size(), 0.0);
-  double abOffset = 0.0;
-  if (!ab.empty()) {
-    std::vector<double> gS(items.size()), gC(items.size()), cap(items.size(), std::numeric_limits<double>::infinity());
-    double eS = 0.0, eC = 0.0, w = 0.0;
-    for (std::size_t i = 0; i < items.size(); ++i) {
-      const Item& it = items[i];
-      auto asStarted = [&](const Item& x) { return finalGain(abSeams && !x.manual ? x.naturalSeamedDb : x.manualSeamedDb, 0.0, outputCal, x.capDb); };
-      gS[i] = asStarted(sable[i]);
-      gC[i] = abNoPle ? asStarted(it) : gS[i];
-      if (!it.track || !it.track->r.integratedLufs) continue;
-      const Track& t = *it.track;
-      if (t.r.truePeakDbtp) cap[i] = ctx.ceilingDbtp - (*t.r.truePeakDbtp + (t.decodeClipped ? 1.0 : 0.0));  // §16.4 TP_eff
-      if (ab == "plain") gC[i] = std::min(ctx.targetLufs - *t.r.integratedLufs, cap[i]);
-      else if (ab == "off") gC[i] = 0.0;
-      const double lx = t.u.anchorLufs.value_or(*t.r.integratedLufs);  // §30.3 excerpt loudness
-      const double wi = it.excerptSec > 0.0 ? it.excerptSec : 1.0;
-      eS += wi * dm::pow(10.0, (lx + gS[i]) / 10.0);
-      eC += wi * dm::pow(10.0, (lx + gC[i]) / 10.0);
-      w += wi;
+  // §18 seams along the queue, in the engine domain (before learning and calibration). The chain follows what each
+  // item actually plays with: its manual variant if it was started by the user, else its natural (seamed) variant.
+  for (std::size_t i = 0; i < items.size(); ++i) {
+    Item& cur = items[i];
+    cur.naturalSeamedDb = cur.manualSeamedDb = cur.baseDb;
+    if (cur.albumRun || cur.source != Item::Source::Full || i == 0) continue;
+    const Item& prev = items[i - 1];
+    SeamInput s;
+    s.havePrev = true;
+    s.prevSeamedDb = prev.manual ? prev.manualSeamedDb : prev.naturalSeamedDb;
+    s.curTrackDb = cur.baseDb;
+    s.curCapDb = cur.capDb;
+    s.curOpenLufs = cur.track->u.openLufs;
+    s.curPleOffset = cur.track->pleOffset();
+    s.curFadeIn = cur.track->u.fadeIn.has_value();
+    if (prev.track) {
+      s.prevEndLufs = prev.track->u.endLufs;
+      s.prevPleOffset = prev.track->pleOffset();
+      s.prevFadeOut = prev.track->u.fadeOut.has_value();
     }
-    if (ab != "sable" && w > 0.0) abOffset = 10.0 * dm::log10(eS / w) - 10.0 * dm::log10(eC / w);
-    for (std::size_t i = 0; i < items.size(); ++i)
-      abGain[i] = ab == "sable" || !items[i].track ? gS[i] : std::min(gC[i] + abOffset, cap[i]);
+    cur.naturalSeamedDb = seamGain(s, &cur.rules);
   }
 
-  std::string o = "{\"abOffsetDb\":" + num(abOffset) + ",\"items\":[";
+  std::string o = "{\"items\":[";
   for (std::size_t i = 0; i < items.size(); ++i) {
     const Item& it = items[i];
-    double gNat = finalGain(it.naturalSeamedDb, it.learnedDb, outputCal, it.capDb);  // §21
-    double gMan = finalGain(it.manualSeamedDb, it.learnedDb, outputCal, it.capDb);
-    if (!ab.empty()) gNat = gMan = abGain[i];
+    const double gNat = finalGain(it.naturalSeamedDb, it.learnedDb, outputCal, it.capDb);  // §21
+    const double gMan = finalGain(it.manualSeamedDb, it.learnedDb, outputCal, it.capDb);
     if (i) o += ',';
     o += "{\"gainDb\":" + num(gNat) + ",\"manualGainDb\":" + num(gMan) + ",\"baseDb\":" + num(it.baseDb) +
-         ",\"learnedDb\":" + num(ab.empty() ? it.learnedDb : 0.0) +
+         ",\"learnedDb\":" + num(it.learnedDb) +
          ",\"capDb\":" + num(it.capDb) + ",\"source\":\"" +
          (it.source == Item::Source::Full ? "full" : it.source == Item::Source::Jit ? "jit" : "provisional") +
          "\",\"albumRun\":" + (it.albumRun ? "true" : "false") + ",\"rules\":" + rulesJson(it.rules) + "}";

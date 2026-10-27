@@ -29,11 +29,6 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
     private var fromLin = 1.0
     private var toLin = 1.0
     private var instLin = 1.0         // the gain at the last processed frame
-    private var edgeTotal = -1L       // §30.2 excerpt length in frames (-1: not an excerpt)
-    private var edgeN = 0             // fade length in frames
-    private var edgePos = 0L          // frames of the current item processed so far
-    private var edgeIn = true         // fade in at the start / out at the end (§30.6: not across a real transition)
-    private var edgeOut = true
     // §24 Quiet contour: low shelf then high shelf ({b0, b1, b2, a1, a2}), TDF-II in double, per channel,
     // mixed in with a 20 ms raised-cosine crossfade when switched on or off.
     private var lo: DoubleArray? = null
@@ -54,25 +49,11 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         lin = linOf(db)
         instLin = lin.toDouble()
         rampN = 0
-        edgeTotal = -1L
-        edgePos = 0L
-    }
-
-    /**
-     * §30.2: the item just started is an excerpt of [totalFrames]; fade its first and last [fadeFrames] in and out.
-     * §30.6: a song change keeps its real transition, so the edge on that side is not faded ([fadeIn], [fadeOut]).
-     */
-    fun setEdges(totalFrames: Long, fadeFrames: Int, fadeIn: Boolean = true, fadeOut: Boolean = true) {
-        edgeTotal = totalFrames
-        edgeN = max(1, fadeFrames)
-        edgePos = 0L
-        edgeIn = fadeIn
-        edgeOut = fadeOut
     }
 
     /**
      * §23.3: an in-track change. Analysis updates are rate-limited (raised cosine in dB over max(0.5 s, (π/2)|Δ| s));
-     * user changes (mode, A/B) are a 20 ms raised-cosine crossfade in linear amplitude. Starts from the instantaneous gain.
+     * user changes (mode, settings) are a 20 ms raised-cosine crossfade in linear amplitude. Starts from the instantaneous gain.
      */
     fun rampTo(db: Double, user: Boolean, sampleRate: Int) {
         if (db == targetDb && rampN == 0) return
@@ -124,7 +105,6 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         out.order(ByteOrder.LITTLE_ENDIAN)
         for (f in 0 until frames) {
             var g: Float = if (rampN == 0) lin else rampStep()
-            if (edgeTotal >= 0) g *= edgeGain()
             val l = lo
             val h = hi
             if (l != null && wetN > 0) {
@@ -176,15 +156,6 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         instLin = if (rampInDb) 10.0.pow((fromDb + (targetDb - fromDb) * w) / 20.0) else fromLin + (toLin - fromLin) * w
         if (rampI >= rampN) { rampN = 0; instLin = lin.toDouble(); return lin }
         return instLin.toFloat()
-    }
-
-    private fun edgeGain(): Float {
-        val k = edgePos++
-        val fromEnd = if (edgeOut) edgeTotal - 1 - k else Long.MAX_VALUE
-        val d = minOf(if (edgeIn) k else Long.MAX_VALUE, fromEnd)
-        if (d >= edgeN) return 1f
-        if (d < 0) return 0f  // past the expected end: silent until the next item starts
-        return ((1.0 - cos(PI * (d + 0.5) / edgeN)) / 2.0).toFloat()
     }
 
     /** §23.4: d = (r1 + r2 - 1) LSB from xorshift128+, then round half-even with the only clamp in the chain. */

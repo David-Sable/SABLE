@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.sable.data.LibraryRow
 import app.sable.data.SableDatabase
-import app.sable.playback.AbSession
 import app.sable.playback.NowPlaying
 import app.sable.playback.QueueId
 import app.sable.ui.theme.Motion
@@ -115,7 +114,6 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
 @Composable
 fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
     val gain by NowPlaying.gain.collectAsState()
-    val ab by AbSession.condition.collectAsState()
     val json = analysisJson(state.currentTrackId)
     val shape = remember(json) { SongShape.of(json) }
     val tick by frameTick(state.playing, state.durationMs, 1000)
@@ -187,15 +185,11 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (ab != null) {
-                Text("Blind A/B round in progress", style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.weight(1f))
-            } else {
-                Column(Modifier.weight(1f)) {
-                    Text("%+.1f dB".format(gain.gainDb), style = SableType.headline, color = SableColors.accent)
-                    Text(worldLabel(gain), style = SableType.caption, color = SableColors.textTertiary)
-                }
-                Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
+            Column(Modifier.weight(1f)) {
+                Text("%+.1f dB".format(gain.gainDb), style = SableType.headline, color = SableColors.accent)
+                Text(worldLabel(gain), style = SableType.caption, color = SableColors.textTertiary)
             }
+            Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
         }
     }
 }
@@ -222,7 +216,6 @@ fun worldLabel(g: app.sable.playback.NowPlayingGain): String {
 fun QueueScreen(state: AppState, rows: List<LibraryRow>) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val plan by NowPlaying.plan.collectAsState()
-    val ab by AbSession.condition.collectAsState()
     val list = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, state.queueIndex - 1))
     Column(Modifier.fillMaxSize()) {
         TopBar("QUEUE", { state.pop() })
@@ -244,7 +237,7 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>) {
                         Text(r?.artist ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     val g = plan[id]
-                    if (g != null && ab == null) Text("%+.1f".format(g), style = SableType.mono, color = SableColors.textTertiary, modifier = Modifier.width(44.dp))
+                    if (g != null) Text("%+.1f".format(g), style = SableType.mono, color = SableColors.textTertiary, modifier = Modifier.width(44.dp))
                     Text(if (QueueId.albumIntent(id)) "album" else "song", style = SableType.caption, color = SableColors.textTertiary)
                 }
             }

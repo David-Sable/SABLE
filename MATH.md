@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.18 (2026-10-26)
+**Version:** MATH-1.19 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -612,8 +612,7 @@ Because every `g_cur` stays within ±0.5 dB of its own `g_track`, errors cannot 
 A volume-key event counts as feedback when **all** of these hold:
 - it happens within the first `t_w = 20 s` of a track that started by a natural transition or a user tap
 - it is not reversed within 3 s (a press immediately undone cancels)
-- the output route did not change in the previous 10 s
-- A/B mode is off.
+- the output route did not change in the previous 10 s.
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
 **Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.
@@ -691,7 +690,7 @@ Each media item's first output frame is identified by its presentation timestamp
 ### 23.3 In-track changes
 For gain changes that happen while a track is playing (JIT → full analysis, provisional → JIT, setting changes; learning offsets never change mid-track, §28):
 - Rate-limited changes (analysis updates): the gain moves in dB along a raised-cosine curve over `T = max(0.5 s, (π/2)·|Δ| s)`. The curve's peak slope is `(π/2)·|Δ|/T`, which is ≤ 1 dB/s whenever `T ≥ (π/2)|Δ|`.
-- User-initiated changes (mode switch, A/B switch): a 20 ms raised-cosine crossfade in linear amplitude: `g(n) = g₀ + (g₁ − g₀)·(1 − cos(π·n/N))/2`, `N = round(0.020·fs)`.
+- User-initiated changes (mode switch, settings): a 20 ms raised-cosine crossfade in linear amplitude: `g(n) = g₀ + (g₁ − g₀)·(1 − cos(π·n/N))/2`, `N = round(0.020·fs)`.
 
 The ramp is per sample, so there is no zipper noise.
 
@@ -707,7 +706,7 @@ Off by default. When on: 5 ms look-ahead, peak detection on an oversampled sidec
 
 ## 24. Quiet-mode loudness contour [STD + DESIGN]
 
-The only non-flat processing, and only in Quiet mode. **On by default in Quiet** (owner decision 2026-10-26, MATH-1.14; it was opt-in until 1.13): Easy mode always uses it in Quiet, and Advanced settings has a switch to turn it off. It never acts in Normal (Standard) mode or during blind A/B.
+The only non-flat processing, and only in Quiet mode. **On by default in Quiet** (owner decision 2026-10-26, MATH-1.14; it was opt-in until 1.13): Easy mode always uses it in Quiet, and Advanced settings has a switch to turn it off. It never acts in Normal (Standard) mode.
 
 ### 24.1 Equal-loudness contours [ISO226] [PROVISIONAL]
 `L_p(f, L_N)` (dB SPL of a pure tone at frequency `f` with loudness level `L_N` phon), using the **ISO 226:2003** formula and tables:
@@ -728,7 +727,7 @@ One low-shelf + one high-shelf biquad (RBJ cookbook form, `S = 1`):
 - High-shelf: corner `f_H` from {4k, 5k, 6.3k, 8k} Hz and gain `G_H ∈ [−1, +2] dB` in steps of 0.1 dB
 - Chosen by exhaustive grid search minimizing `Σ_f (R(f) − H(f))²` over the 1/3-octave frequencies 25 Hz … 12.5 kHz, where `R` is the cascade's magnitude response in dB. Ties go to the smaller |gain|.
 Deterministic, with a hard maximum boost of +3 dB, so it is "subtle" by construction. `R` is evaluated at the reference rate 48 kHz, so the design (corners and gains) does not depend on the file's rate; the same design is then realised at the playback rate. **Result (calibration 0):** low shelf 200 Hz +2.0 dB, high shelf 8 kHz +0.6 dB, rms fit error 0.24 dB.
-Playback (MATH-1.13): the cascade runs after the gain, in double precision per channel (TDF-II). Switching it on or off crossfades wet/dry over 20 ms (raised cosine), its state is cleared after a flush, and it is off during blind A/B (§30). Off, the path is bit-identical to no contour.
+Playback (MATH-1.13): the cascade runs after the gain, in double precision per channel (TDF-II). Switching it on or off crossfades wet/dry over 20 ms (raised cosine), and its state is cleared after a flush. Off, the path is bit-identical to no contour.
 
 ### 24.4 Headroom
 `H_contour = max(0, G_L) + max(0, G_H)` dB is added to `TP_eff` (§16.4) while the contour is on. This bounds the cascade's maximum gain at all frequencies up to Nyquist, which is where the high shelf peaks. It is conservative: the boost is assumed to add to peaks.
@@ -905,46 +904,9 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 - **Existing ReplayGain / R128 tags** are read and shown for comparison on the Why sheet. They are never used for Sable's gain and never written.
 - **Learning stacking across replays:** if the user leaves the system volume lowered after a feedback press, the next play also applies the learned offset. The partial credit `η_t = 0.5` bounds this: the replay is at most half a step quieter than the user's own correction implied. Repeated presses converge rather than compound, because each new event is measured relative to the level at that time.
 
-## 30. Blind A/B (proof mode) [DESIGN]
+## 30. Blind A/B [REMOVED in MATH-1.19]
 
-The A/B mode lets the listener judge the engine without knowing which version they hear. A single song cannot reveal a gain engine: louder always sounds better. So A/B compares **level-matched sequences across transitions**, where only the balance from song to song differs.
-
-### 30.1 Conditions
-For each song `i` of the sequence, with `T`, `C_out` and `TP_eff,i` as in §16:
-- **S (Sable):** the manual-start final gain of §21, without seams (excerpts are not the songs' real openings and endings, so §18 data does not apply). Learning is off (§19.1).
-- **P (plain −14 normalization):** `g_P,i = min(T − L_I,i, C_out − TP_eff,i)`. This is integrated loudness only, with the same peak protection, so that P never loses through clipping.
-- **O (off):** `g_O,i = 0`.
-
-### 30.2 Excerpts
-Each song contributes one excerpt of `D_ab = 25 s` centred on its anchor centre (§14), shifted to lie inside the file, or the whole file if it is shorter. The same excerpts are used in every condition. Every excerpt starts and ends with a 20 ms raised-cosine fade, identical in all conditions, so cut points never click.
-
-### 30.3 Level match
-The loudness of song `i`'s excerpt is estimated by `L_x,i = L_anchor,i`, the anchor being where the excerpt is taken from; `L_I,i` is used if there is no anchor. Sequence loudness under condition `c`, with excerpt durations `w_i`:
-`L_seq(c) = 10·log10( Σ w_i·10^((L_x,i + g_c,i)/10) / Σ w_i )`.
-Conditions P and O are shifted to Sable's sequence loudness: `Δ_c = L_seq(S) − L_seq(c)`, then `g'_c,i = min(g_c,i + Δ_c, C_out − TP_eff,i)`. The cap applies to every condition, so peak integrity holds in A/B too. A capped song makes its condition slightly quieter than matched, and the reveal says so.
-
-### 30.4 Blinding
-Each round draws a uniformly random permutation of {S, P, O} onto the labels 1, 2, 3 and a random starting label. The listener can switch labels at any time (a §23.3 20 ms crossfade on every song). The mapping is revealed only after the listener picks the label whose song-to-song balance sounded most even. Results are kept as a tally of rounds per winning condition.
-
-### 30.5 Verdict
-A listener who cannot hear a difference picks Sable with probability `1/m`, `m` = the number of conditions in the round (3, or 2 in an album round, §30.6). After `n ≥ 10` rounds with `k` Sable wins, the screen shows the chance of doing at least as well by luck, `p = P(X ≥ k)`, `X ~ Bin(n, 1/m)`, as "about 1 time in round(1/p)". `p < 0.05` reads as "you can hear the engine", `p < 0.5` as "could still be luck", otherwise as no difference so far. This is a display rule only; it never affects gain.
-
-### 30.6 Song changes (transitions round)
-§30.1–30.2 leave out seams (§18) and album world (§17), which is where Sable differs most from plain normalization. Two **transitions rounds** test them directly, with the same blinding, level match, cap and verdict as §30.1–30.5, each with its own tally:
-- **Song changes:** 4 changes between two songs from different albums (song world, seams), conditions S, P, O. No album is used twice in a round.
-- **Album changes:** 4 changes between two consecutive tracks of one complete album (album world), conditions **S and P only**, labels 1 and 2. Within an album change O keeps the album's own balance exactly as S does (one shared gain, then one level-match shift), so O would be a near-copy of S and split its votes (owner's first 22 mixed rounds, 1.16: S 8, P 5, O 9). No album is used twice in a round.
-- Every song is longer than 60 s.
-- **Excerpts:** each change is the last `D_flow = 20 s` of the first song followed, gaplessly, by the first `D_flow` of the second, so the listener hears the real ending go into the real opening. Edge fades as in §30.2.
-- **Condition S (Sable):** what normal playback does: the first song of each change is a manual start (§21), the second follows by a natural transition, so song changes get seam smoothing (§18) and album changes share the album gain (§17.2). Learning stays off.
-- **Conditions P and O:** as §30.1, per song (plain normalization knows no albums or seams).
-- **Level match:** §30.3 unchanged (each excerpt's loudness is estimated by `L_anchor`, else `L_I`), so the round's overall loudness is the same in every condition and only the changes differ.
-
-### 30.7 Feel test (Sable without the perceptual estimate)
-The owner's saved song-change rounds (MATH-1.17 round log) suggest that where Sable's levels depart from LUFS because of the PLE offset (`PLE_anchor − L_anchor`, bounded by `B_p`, §16.2), plain normalization is preferred. A **feel round** tests this directly: the song-change sequence of §30.6 (between albums) with three conditions:
-- **S (Sable)** as §30.6.
-- **L (Sable without the estimate):** S computed with `PLE_anchor := L_anchor` for every song, so the anchor match (§16.2), album gains (§17.2) and seams (§18) all see a PLE offset of 0. Everything else (intimacy, caps, seams, manual/natural starts) is S's. L is level-matched to **S's** sequence loudness (§30.3).
-- **P (plain −14)** as §30.1.
-It has its own tally and the §30.5 verdict with `m = 3`. If L is preferred over S, the PLE offset (or `B_p`) is what to revisit; nothing in normal playback changes until then.
+Owner decision (2026-10-26): blind A/B listening tests are removed from SABLE. Over ~90 rounds (clips, song changes, album changes and a test of the perceptual estimate) the differences were too subtle to judge reliably in short excerpts, while the owner's real listening (whole songs, in the car) strongly favoured Sable as designed, including the perceptual estimate (§12, §16.2). Engine quality is judged by MATH, tests, corpus checks and real listening. The planner no longer takes `abCondition`; the playback path has no excerpt fades. MATH-1.12 to 1.18 hold the former text.
 
 ---
 

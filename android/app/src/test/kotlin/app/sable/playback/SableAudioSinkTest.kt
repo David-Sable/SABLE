@@ -217,22 +217,6 @@ class SableAudioSinkTest {
         assertTrue(q.toSet().size >= 3)       // and actually dithers
     }
 
-    @Test fun abExcerpt_fadesBothEdges_20ms() {
-        val t = GainTable().apply { put("A", 0.0, 0.0, false, excerptMs = 1000) }
-        val inner = Inner()
-        val s = sink(inner, t)
-        s.configure(config(C.ENCODING_PCM_FLOAT, "A"))
-        s.handleBuffer(pcmFloat(FloatArray(44100 * 2) { 1f }), 0, 1)
-        val y = inner.floats()
-        val n = 44100 / 50
-        assertTrue(y[0] < 1e-4f)                       // starts from silence
-        assertTrue(y[2 * (n / 2)] in 0.45f..0.55f)      // half way through the fade-in
-        assertEquals(1f, y[2 * n], 0f)                  // unity after 20 ms
-        assertEquals(1f, y[2 * (44100 - n - 1)], 0f)
-        assertTrue(y[2 * 44099] < 1e-4f)                // ends in silence
-        for (k in 1 until n) assertTrue(y[2 * k] >= y[2 * (k - 1)])  // monotone fade-in
-    }
-
     @Test fun contour_crossfadesIn_thenFiltersExactly_andOffIsBitExact() {
         // A "filter" that is a pure x2 gain (b0 = 2) makes the wet path easy to check exactly.
         val x2 = doubleArrayOf(2.0, 0.0, 0.0, 0.0, 0.0)

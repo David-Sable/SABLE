@@ -97,8 +97,7 @@ class PlaybackService : MediaSessionService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
             val items = resolve(mediaItems)
             val start = if (startIndex == C.INDEX_UNSET) 0 else startIndex.coerceIn(0, maxOf(0, items.size - 1))
-            val excerpts = items.mapNotNull { i -> GainController.excerptOf(i)?.let { i.mediaId to it } }.toMap()
-            this@PlaybackService.controller.prepareStart(items.map { it.mediaId }, start, excerpts)  // JIT wait + plan before playing
+            this@PlaybackService.controller.prepareStart(items.map { it.mediaId }, start)  // JIT wait + plan before playing
             MediaSession.MediaItemsWithStartPosition(items, start, if (startIndex == C.INDEX_UNSET) 0 else startPositionMs)
         }
     }
@@ -111,7 +110,6 @@ class PlaybackService : MediaSessionService() {
             val t = dao.track(QueueId.trackId(id)!!) ?: continue
             out += MediaItem.Builder()
                 .setMediaId(id)
-                .setClippingConfiguration(r.clippingConfiguration)  // A/B excerpts (§30.2)
                 .setUri(t.uri)
                 .setMediaMetadata(
                     MediaMetadata.Builder().setTitle(t.title.ifBlank { t.displayName }).setArtist(t.artist).setAlbumTitle(t.album)

@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and the A/B round log (0.9.3, fixed in 0.9.4) and the Feel test (0.9.5). MATH-1.18.
-  Latest GitHub release: see Releases (0.9.5 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.9.5 (installed from the PC over USB, 2026-10-26, verified). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and and (0.10.0) the blind A/B removed by owner decision. MATH-1.19.
+  Latest GitHub release: see Releases (0.10.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.10.0 (installed from the PC over USB, 2026-10-26, verified). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -26,12 +26,16 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   - Release `build-3` on GitHub has the wrong key; David can delete it (Releases → build-3 → Delete). Harmless.
   - David's listening check of character labels and the largest gain moves (from M3) is still open.
 - **Skips in the car (open):** David heard skips on a drive (car Bluetooth "CAR MULTIMEDIA", Android Auto present, Maps prompts) on 0.8.1, none on the way back. Phone logs had rolled off; nothing left pointed at Sable (no crash; Samsung's freezer tried but skipped freezing it). 0.9.1 keeps a playback log on the phone: next time read it with `--es cmd diag` (tag `SableDiag`): UNDERRUN lines mean audio starvation (then raise the AudioTrack buffer), COMMAND next from a car package means the car sent the skips, PLAY_WHEN_READY/SUPPRESSED show interruptions, ROUTE shows Bluetooth drops.
-- **A/B rounds (2026-10-26 21:17):** Clips S 15 / P 12 / O 6 of 33. Song changes between albums (`abseam_`): **S 2 / P 7 / O 1 of 10** (Plain this often by luck ≈ 1 in 50, chosen after the fact). Albums (`abalbum_`): S 7 / P 6 of 13 (a coin flip). **Open question: why does David prefer plain −14 at between-album changes?** Suspects: the intimacy hold (quiet songs held ~1 dB under), anchor vs integrated loudness, seam ±0.5 dB. **0.9.3 saves every finished round** (files/ab-rounds.jsonl: kind, pick, per excerpt the song, every condition's gain, Sable's rules and key loudness figures). Read with `--es cmd abrounds` (tag SableAB, 3000-char chunks); `--es cmd abplans` peeks at a running round without a pick. Analysed 2026-10-26 (see log): the lead is the PLE offset. First look (one unpicked round): Sable vs Plain differ most where the anchor PLE differs from integrated loudness (e.g. one song Sable −8.1 vs Plain −6.1 dB), a lead to check. (Per-round logcat detail for these rounds was lost: Claude cleared logcat before reading it.) The 0.9.0 mixed round (S 8, P 5, O 9 of 22, kept in `abflow_` prefs, no longer shown) was flawed: in album changes Off is a near-copy of Sable. A 38 min Bluetooth drive on 0.9.1 logged no underruns, errors or stray skips, and David heard none.
+- **Direction (David, 2026-10-26):** no more ear tests (A/B removed, MATH §30 retired). Real listening, whole songs in the car, "amazing" with the perceptual estimate. Work now: check the math and code, give the engine more understanding so it changes even less, refine the app, optimize.
 - **Ideas pending (agreed with David, 2026-10-26):** test Bluetooth/USB-C outputs and the other formats on the phone (needs USB; formats need non-copyrighted test files, e.g. generated with ffmpeg); a sleep timer that stops at the end of a song (no fades, keeps one static gain per song).
 
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Blind A/B removed (0.10.0, MATH-1.19)
+- David: the ear tests are too subtle in short excerpts; in the car Sable "with the feel estimate" was amazing. Removed AbScreen, AbSession, the round log, excerpt fades (GainKernel/SableAudioSink), the A/B button, `abCondition`/`abSeams`/`sablelufs`/`excerptSec` from the planner, tests and tools/ab. Planner output is now `{"items":[...]}`. Planner code equals the pre-0.9.0 version minus A/B. Final A/B tallies for the record: Clips S 15 / P 12 / O 6; Song changes S 8 / P 12 / O 4; Albums S 7 / P 6; Feel a few rounds.
+- Engine 51 cases green, app tests green; on the phone: library without the A/B button, album playback logs ITEM with ALBUM gain.
 
 ### 2026-10-26 (PC) Feel test (0.9.5, MATH-1.18 §30.7)
 - New A/B round "Feel": song changes between albums with S, **L = Sable with PLE_anchor := L_anchor** (planner `abCondition: "sablelufs"`, items built twice, L level-matched to real S) and P. Own tally `abfeel_`. Engine refactor: albums/items/seams built in a `build(noPle)` lambda; test "condition L is Sable without the PLE offset". Round buttons wrap (FlowRow).
