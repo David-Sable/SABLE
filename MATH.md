@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.16 (2026-10-26)
+**Version:** MATH-1.17 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -927,11 +927,13 @@ Conditions P and O are shifted to Sable's sequence loudness: `Δ_c = L_seq(S) �
 Each round draws a uniformly random permutation of {S, P, O} onto the labels 1, 2, 3 and a random starting label. The listener can switch labels at any time (a §23.3 20 ms crossfade on every song). The mapping is revealed only after the listener picks the label whose song-to-song balance sounded most even. Results are kept as a tally of rounds per winning condition.
 
 ### 30.5 Verdict
-A listener who cannot hear a difference picks Sable with probability 1/3. After `n ≥ 10` rounds with `k` Sable wins, the screen shows the chance of doing at least as well by luck, `p = P(X ≥ k)`, `X ~ Bin(n, 1/3)`, as "about 1 time in round(1/p)". `p < 0.05` reads as "you can hear the engine", `p < 0.5` as "could still be luck", otherwise as no difference so far. This is a display rule only; it never affects gain.
+A listener who cannot hear a difference picks Sable with probability `1/m`, `m` = the number of conditions in the round (3, or 2 in an album round, §30.6). After `n ≥ 10` rounds with `k` Sable wins, the screen shows the chance of doing at least as well by luck, `p = P(X ≥ k)`, `X ~ Bin(n, 1/m)`, as "about 1 time in round(1/p)". `p < 0.05` reads as "you can hear the engine", `p < 0.5` as "could still be luck", otherwise as no difference so far. This is a display rule only; it never affects gain.
 
 ### 30.6 Song changes (transitions round)
-§30.1–30.2 leave out seams (§18) and album world (§17), which is where Sable differs most from plain normalization. A **transitions round** tests them directly, with the same conditions, blinding, level match, cap and verdict as §30.1–30.5 and its own tally:
-- **Sequence:** 4 song changes in random order: 2 **album changes** (two consecutive tracks of one complete album, album world) and 2 **song changes** (two songs from different albums, song world). No album is used twice in a round. Every song is longer than 60 s.
+§30.1–30.2 leave out seams (§18) and album world (§17), which is where Sable differs most from plain normalization. Two **transitions rounds** test them directly, with the same blinding, level match, cap and verdict as §30.1–30.5, each with its own tally:
+- **Song changes:** 4 changes between two songs from different albums (song world, seams), conditions S, P, O. No album is used twice in a round.
+- **Album changes:** 4 changes between two consecutive tracks of one complete album (album world), conditions **S and P only**, labels 1 and 2. Within an album change O keeps the album's own balance exactly as S does (one shared gain, then one level-match shift), so O would be a near-copy of S and split its votes (owner's first 22 mixed rounds, 1.16: S 8, P 5, O 9). No album is used twice in a round.
+- Every song is longer than 60 s.
 - **Excerpts:** each change is the last `D_flow = 20 s` of the first song followed, gaplessly, by the first `D_flow` of the second, so the listener hears the real ending go into the real opening. Edge fades as in §30.2.
 - **Condition S (Sable):** what normal playback does: the first song of each change is a manual start (§21), the second follows by a natural transition, so song changes get seam smoothing (§18) and album changes share the album gain (§17.2). Learning stays off.
 - **Conditions P and O:** as §30.1, per song (plain normalization knows no albums or seams).

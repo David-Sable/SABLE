@@ -18,4 +18,10 @@ class AbVerdictTest {
         assertTrue(AbVerdict.sentence(14, 27).endsWith("You can hear the engine."))
         assertEquals("So far that is what random picks would give. Keep going.", AbVerdict.sentence(8, 26))
     }
+
+    @Test fun twoVersions_useChanceOneHalf() {
+        assertEquals(0.5, AbVerdict.chanceByLuck(1, 1, m = 2), 1e-12)
+        assertEquals(11.0 / 16.0, AbVerdict.chanceByLuck(2, 4, m = 2), 1e-12)  // (6 + 4 + 1) / 2^4
+        assertEquals(AbVerdict.chanceByLuck(4, 6), AbVerdict.chanceByLuck(4, 6, m = 3), 0.0)
+    }
 }

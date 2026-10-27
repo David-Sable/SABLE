@@ -20,26 +20,30 @@ class FlowSequenceTest {
         add(row(22, 1, durationMs = 30_000)); add(row(22, 2))   // too short
     }
 
-    @Test fun twoAlbumChangesAndTwoSongChanges_noAlbumTwice() {
+    @Test fun albumRound_isFourAlbumChanges_songRound_isFourBetweenAlbums_noAlbumTwice() {
+        val lib = library + (30L..33L).flatMap { a -> (1..3).map { row(a, it) } }  // enough complete albums for 4
         repeat(50) { seed ->
-            val c = pickFlowChanges(library, Random(seed))
-            assertEquals(AB_CHANGES, c.size)
-            assertEquals(2, c.count { it.third })
-            for ((x, y, album) in c) {
-                assertTrue(x.durationMs > AB_FLOW_MIN_SONG_MS && y.durationMs > AB_FLOW_MIN_SONG_MS && x.analysed && y.analysed)
-                if (album) {
-                    assertEquals(x.albumId, y.albumId)
-                    assertEquals(x.track + 1, y.track)
-                    assertTrue(x.albumId in 1L..3L)
-                } else assertTrue(x.albumId != y.albumId)
+            for (album in listOf(true, false)) {
+                val c = pickFlowChanges(lib, album, Random(seed))
+                assertEquals(AB_CHANGES, c.size)
+                for ((x, y, inAlbum) in c) {
+                    assertEquals(album, inAlbum)
+                    assertTrue(x.durationMs > AB_FLOW_MIN_SONG_MS && y.durationMs > AB_FLOW_MIN_SONG_MS && x.analysed && y.analysed)
+                    if (album) {
+                        assertEquals(x.albumId, y.albumId)
+                        assertEquals(x.track + 1, y.track)
+                        assertTrue(x.albumId in 1L..3L || x.albumId in 30L..33L)
+                    } else assertTrue(x.albumId != y.albumId)
+                }
+                val albums = c.flatMap { (x, y, inAlbum) -> if (inAlbum) listOf(x.albumId) else listOf(x.albumId, y.albumId) }
+                assertEquals(albums.size, albums.toSet().size)
             }
-            val albums = c.flatMap { (x, y, album) -> if (album) listOf(x.albumId) else listOf(x.albumId, y.albumId) }
-            assertEquals(albums.size, albums.toSet().size)
         }
     }
 
     @Test fun smallLibrary_givesFewerChanges() {
-        assertEquals(0, pickFlowChanges(listOf(row(1, 1)), Random(1)).size)
-        assertEquals(1, pickFlowChanges(listOf(row(1, 1), row(1, 2)), Random(1)).size)
+        assertEquals(0, pickFlowChanges(listOf(row(1, 1)), true, Random(1)).size)
+        assertEquals(1, pickFlowChanges(listOf(row(1, 1), row(1, 2)), true, Random(1)).size)
+        assertEquals(1, pickFlowChanges(listOf(row(1, 1), row(2, 1)), false, Random(1)).size)
     }
 }

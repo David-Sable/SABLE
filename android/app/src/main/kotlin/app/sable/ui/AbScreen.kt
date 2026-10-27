@@ -48,8 +48,12 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import kotlin.random.Random
 
-/** Which kind of round (MATH §30.2 clips, §30.6 song changes); each keeps its own tally. */
-enum class AbKind(val prefix: String) { CLIPS("ab_"), CHANGES("abflow_") }
+/** Which kind of round (MATH §30.2 clips, §30.6 song and album changes), its conditions, and its own tally. */
+enum class AbKind(val prefix: String, val conditions: List<AbSession.Condition>) {
+    CLIPS("ab_", AbSession.Condition.entries),
+    CHANGES("abseam_", AbSession.Condition.entries),
+    ALBUMS("abalbum_", listOf(AbSession.Condition.SABLE, AbSession.Condition.PLAIN)),  // §30.6: off would copy Sable here
+}
 
 /** One blind round (MATH §30.4): label i plays condition mapping[i]. [count] is songs (clips) or song changes. */
 class AbRound(val kind: AbKind, val count: Int, val mapping: List<AbSession.Condition>) {
@@ -66,33 +70,33 @@ object AbTally {
     }
     fun reset(context: Context) {
         val e = prefs(context).edit()
-        for (k in AbKind.entries) AbSession.Condition.entries.forEach { e.remove("${k.prefix}${it.key}") }
+        for (p in AbKind.entries.map { it.prefix } + "abflow_") AbSession.Condition.entries.forEach { e.remove("$p${it.key}") }  // abflow_: 0.9.0 mixed rounds
         e.apply()
     }
 }
 
 /**
- * §30.5: is the tally more than luck? A listener picking at random chooses Sable in 1 of 3 rounds, so the chance of
- * Sable winning [k] or more of [n] rounds by luck is the binomial tail P(X ≥ k), X ~ Bin(n, 1/3).
+ * §30.5: is the tally more than luck? A listener picking at random among [m] versions chooses Sable in 1 of m rounds, so
+ * the chance of Sable winning [k] or more of [n] rounds by luck is the binomial tail P(X ≥ k), X ~ Bin(n, 1/m).
  */
 object AbVerdict {
     const val MIN_ROUNDS = 10
     const val ALPHA = 0.05
 
-    fun chanceByLuck(k: Int, n: Int): Double {
-        var term = Math.pow(2.0 / 3.0, n.toDouble())  // P(X = 0)
+    fun chanceByLuck(k: Int, n: Int, m: Int = 3): Double {
+        var term = Math.pow((m - 1.0) / m, n.toDouble())  // P(X = 0)
         var tail = 0.0
         for (i in 0..n) {
             if (i >= k) tail += term
-            term *= (n - i).toDouble() / (i + 1) * 0.5  // P(X = i+1) from P(X = i), odds (1/3)/(2/3)
+            term *= (n - i).toDouble() / (i + 1) / (m - 1)  // P(X = i+1) from P(X = i), odds (1/m)/((m-1)/m)
         }
         return tail.coerceIn(0.0, 1.0)
     }
 
     /** One plain sentence about Sable's [k] wins in [n] rounds. */
-    fun sentence(k: Int, n: Int): String {
+    fun sentence(k: Int, n: Int, m: Int = 3): String {
         if (n < MIN_ROUNDS) return "After $MIN_ROUNDS rounds this will tell you whether your picks are real or luck."
-        val p = chanceByLuck(k, n)
+        val p = chanceByLuck(k, n, m)
         val odds = "about 1 time in ${Math.round(1 / p)}"
         return when {
             p < ALPHA -> "Picking at random, Sable would win this often only $odds. You can hear the engine."
@@ -126,13 +130,13 @@ suspend fun buildAbSequence(context: Context, rows: List<LibraryRow>, rnd: Rando
     }
 
 /**
- * §30.6: four song changes in random order, two inside complete albums (consecutive tracks, album world) and two between
- * songs of different albums (song world); no album twice. Each change is the last 20 s of one song, then the first 20 s
- * of the next. Returns the number of changes and the queue (two items per change).
+ * §30.6: four changes, either inside complete albums ([album]: consecutive tracks, album world) or between songs of
+ * different albums (song world); no album twice. Each change is the last 20 s of one song, then the first 20 s of the
+ * next. Returns the number of changes and the queue (two items per change).
  */
-suspend fun buildFlowSequence(rows: List<LibraryRow>, rnd: Random = Random.Default): Pair<Int, List<MediaItem>> =
+suspend fun buildFlowSequence(rows: List<LibraryRow>, album: Boolean, rnd: Random = Random.Default): Pair<Int, List<MediaItem>> =
     withContext(Dispatchers.Default) {
-        val changes = pickFlowChanges(rows, rnd)
+        val changes = pickFlowChanges(rows, album, rnd)
         fun clip(r: LibraryRow, start: Long, album: Boolean) = MediaItem.Builder().setMediaId(QueueId.request(r.mediaId, albumIntent = album))
             .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(start + AB_FLOW_MS).build())
             .build()
@@ -140,13 +144,13 @@ suspend fun buildFlowSequence(rows: List<LibraryRow>, rnd: Random = Random.Defau
     }
 
 /** §30.6 selection: (first song, second song, album world) for each change, in play order. */
-fun pickFlowChanges(rows: List<LibraryRow>, rnd: Random): List<Triple<LibraryRow, LibraryRow, Boolean>> {
+fun pickFlowChanges(rows: List<LibraryRow>, album: Boolean, rnd: Random): List<Triple<LibraryRow, LibraryRow, Boolean>> {
     val albums = rows.groupBy(::albumKey).values.map { a -> a.sortedWith(compareBy({ it.disc }, { it.track })) }.shuffled(rnd)
     val used = HashSet<String>()
     val changes = ArrayList<Triple<LibraryRow, LibraryRow, Boolean>>()  // first, second, album world
     fun long(r: LibraryRow) = r.analysed && r.durationMs > AB_FLOW_MIN_SONG_MS
     for (a in albums) {
-        if (changes.size == AB_CHANGES / 2) break
+        if (!album || changes.size == AB_CHANGES) break
         if (a.size < 2 || !a.all { it.analysed }) continue  // album world needs the whole album analysed (§17.2)
         val pairs = a.zipWithNext().filter { (x, y) -> x.disc == y.disc && y.track == x.track + 1 && long(x) && long(y) }  // really in a row
         if (pairs.isEmpty()) continue
@@ -154,8 +158,10 @@ fun pickFlowChanges(rows: List<LibraryRow>, rnd: Random): List<Triple<LibraryRow
         changes += Triple(x, y, true)
         used += albumKey(x)
     }
-    val singles = albums.filter { albumKey(it.first()) !in used }.mapNotNull { a -> a.filter(::long).randomOrNull(rnd) }
-    for (k in 0 until minOf(AB_CHANGES - changes.size, singles.size / 2)) changes += Triple(singles[2 * k], singles[2 * k + 1], false)
+    if (!album) {
+        val singles = albums.mapNotNull { a -> a.filter(::long).randomOrNull(rnd) }
+        for (k in 0 until minOf(AB_CHANGES, singles.size / 2)) changes += Triple(singles[2 * k], singles[2 * k + 1], false)
+    }
     changes.shuffle(rnd)
     return changes
 }
@@ -177,15 +183,15 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
     fun start(k: AbKind) {
         scope.launch {
             end()
-            val (n, items) = if (k == AbKind.CLIPS) buildAbSequence(context, rows) else buildFlowSequence(rows)
+            val (n, items) = if (k == AbKind.CLIPS) buildAbSequence(context, rows) else buildFlowSequence(rows, album = k == AbKind.ALBUMS)
             if (n < (if (k == AbKind.CLIPS) 3 else 2)) {
                 note = "Not enough analysed songs for this round yet."
                 return@launch
             }
             note = null
-            AbSession.transitions = k == AbKind.CHANGES
-            val nr = AbRound(k, n, AbSession.Condition.entries.shuffled())
-            nr.current = Random.nextInt(3)
+            AbSession.transitions = k != AbKind.CLIPS
+            val nr = AbRound(k, n, k.conditions.shuffled())
+            nr.current = Random.nextInt(nr.mapping.size)
             AbSession.condition.value = nr.mapping[nr.current].key  // set before the queue is planned
             round = nr
             state.play(items, 0)
@@ -200,18 +206,26 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                 Row(Modifier.padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                     Pill("Clips", selected = kind == AbKind.CLIPS) { kind = AbKind.CLIPS }
                     Pill("Song changes", selected = kind == AbKind.CHANGES) { kind = AbKind.CHANGES }
+                    Pill("Albums", selected = kind == AbKind.ALBUMS) { kind = AbKind.ALBUMS }
                 }
                 Text(
-                    if (kind == AbKind.CLIPS)
+                    when (kind) {
+                        AbKind.CLIPS ->
                         "Sable plays $AB_SONGS songs from different albums, 25 seconds each, back to back. Three versions, labelled 1, 2 and 3, " +
                             "are Sable, plain −14 LUFS normalization and no normalization. You won't know which is which. All three are matched to the same " +
                             "overall loudness, so only the balance from song to song differs. Switch between them as often as you like, then pick the one " +
                             "that felt most even."
-                    else
-                        "Sable plays $AB_CHANGES song changes: the last 20 seconds of one song running straight into the first 20 seconds of the next. " +
-                            "Some are two tracks in a row from one album, some are two songs from different albums. Three versions, labelled 1, 2 and 3, " +
-                            "are Sable, plain −14 LUFS normalization and no normalization, all matched to the same overall loudness. Listen to how each " +
-                            "song hands over to the next, then pick the version where the changes felt most natural.",
+                        AbKind.CHANGES ->
+                            "Sable plays $AB_CHANGES song changes: the last 20 seconds of one song running straight into the first 20 seconds of a song " +
+                                "from a different album. Three versions, labelled 1, 2 and 3, are Sable, plain −14 LUFS normalization and no normalization, " +
+                                "all matched to the same overall loudness. Listen to how each song hands over to the next, then pick the version where the " +
+                                "changes felt most natural."
+                        AbKind.ALBUMS ->
+                            "Sable plays $AB_CHANGES album moments: the last 20 seconds of a track running straight into the first 20 seconds of the next " +
+                                "track on the same album. Two versions, labelled 1 and 2, are Sable, which keeps the album's own balance, and plain −14 LUFS " +
+                                "normalization, which levels every track on its own. Both are matched to the same overall loudness. Pick the version where " +
+                                "the albums sounded most like themselves."
+                    },
                     style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.l),
                 )
                 Spacer(Modifier.height(Space.xl))
@@ -224,12 +238,13 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                     when {
                         r.picked != null -> "Revealed"
                         r.kind == AbKind.CLIPS -> "Song ${i + 1} of ${r.count}"
-                        else -> "Song change ${i / 2 + 1} of ${r.count} · ${if (i % 2 == 0) "the ending" else "the next song"}"
+                        else -> "${if (r.kind == AbKind.ALBUMS) "Album" else "Song"} change ${i / 2 + 1} of ${r.count} · " +
+                            if (i % 2 == 0) "the ending" else "the next ${if (r.kind == AbKind.ALBUMS) "track" else "song"}"
                     },
                     style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.l),
                 )
                 Row(Modifier.fillMaxWidth().padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                    for (l in 0..2) {
+                    for (l in r.mapping.indices) {
                         LabelButton("${l + 1}", selected = r.current == l, Modifier.weight(1f)) {
                             r.current = l
                             AbSession.condition.value = r.mapping[l].key  // 20 ms crossfade (§23.3)
@@ -241,11 +256,15 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                 Spacer(Modifier.height(Space.xl))
                 if (r.picked == null) {
                     Text(
-                        if (r.kind == AbKind.CLIPS) "Which one sounded most even from song to song?" else "Which one made the song changes feel most natural?",
+                        when (r.kind) {
+                            AbKind.CLIPS -> "Which one sounded most even from song to song?"
+                            AbKind.CHANGES -> "Which one made the song changes feel most natural?"
+                            AbKind.ALBUMS -> "Which one let the albums sound most like themselves?"
+                        },
                         style = SableType.headline, color = SableColors.textPrimary,
                     )
                     Row(Modifier.padding(top = Space.m), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                        for (l in 0..2) Pill("${l + 1}", selected = false) {
+                        for (l in r.mapping.indices) Pill("${l + 1}", selected = false) {
                             r.picked = l
                             AbTally.add(context, r.kind, r.mapping[l])
                             tallyVersion++
@@ -254,7 +273,7 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                 }
                 AnimatedVisibility(r.picked != null, enter = fadeIn(Motion.slow())) {
                     Column {
-                        for (l in 0..2) {
+                        for (l in r.mapping.indices) {
                             val c = r.mapping[l]
                             Row(Modifier.fillMaxWidth().padding(vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
                                 Text("${l + 1}", style = SableType.title, color = if (l == r.picked) SableColors.accent else SableColors.textSecondary,
@@ -294,17 +313,17 @@ private fun LabelButton(text: String, selected: Boolean, modifier: Modifier, onC
 
 @Composable
 private fun Tally(context: Context, version: Int, kind: AbKind) {
-    val counts = remember(version, kind) { AbSession.Condition.entries.associateWith { AbTally.get(context, kind, it) } }
+    val counts = remember(version, kind) { kind.conditions.associateWith { AbTally.get(context, kind, it) } }
     val total = counts.values.sum()
     if (total == 0) return
     Spacer(Modifier.height(Space.xl))
-    Text(if (kind == AbKind.CLIPS) "YOUR ROUNDS · CLIPS" else "YOUR ROUNDS · SONG CHANGES", style = SableType.overline, color = SableColors.textTertiary)
+    Text("YOUR ROUNDS · ${when (kind) { AbKind.CLIPS -> "CLIPS"; AbKind.CHANGES -> "SONG CHANGES"; AbKind.ALBUMS -> "ALBUMS" }}", style = SableType.overline, color = SableColors.textTertiary)
     for ((c, n) in counts) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text(c.label, style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
             Text("$n of $total", style = SableType.body, color = if (c == AbSession.Condition.SABLE) SableColors.accent else SableColors.textPrimary)
         }
     }
-    Text(AbVerdict.sentence(counts.getValue(AbSession.Condition.SABLE), total), style = SableType.caption, color = SableColors.textSecondary,
+    Text(AbVerdict.sentence(counts.getValue(AbSession.Condition.SABLE), total, kind.conditions.size), style = SableType.caption, color = SableColors.textSecondary,
         modifier = Modifier.padding(top = Space.s))
 }
