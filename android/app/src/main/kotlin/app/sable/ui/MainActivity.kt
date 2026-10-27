@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
 /**
  * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
  * adb automation (results logged under tags "SableBench" and "SablePlay"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | abrounds | abplans
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
@@ -109,6 +109,8 @@ class MainActivity : ComponentActivity() {
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
                 "stats" -> stats()
                 "diag" -> app.sable.playback.PlaybackDiag.run { init(applicationContext); dump() }  // the playback log (tag SableDiag)
+                "abplans" -> app.sable.playback.AbSession.plans.toString().chunked(3000).forEach { android.util.Log.i("SableAB", it) }  // running round, without saving a pick
+                "abrounds" -> AbRoundLog.file(applicationContext).takeIf { it.exists() }?.forEachLine { l -> l.chunked(3000).forEach { android.util.Log.i("SableAB", it) } }  // A/B round log
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()
                     val m = intent.getStringExtra("match") ?: ""

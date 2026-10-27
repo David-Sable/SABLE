@@ -61,6 +61,29 @@ class AbRound(val kind: AbKind, val count: Int, val mapping: List<AbSession.Cond
     var picked by mutableStateOf<Int?>(null)
 }
 
+/**
+ * Every finished round, one JSON line in files/ab-rounds.jsonl: the kind, the pick, and per excerpt the song, the gain
+ * each condition played and Sable's rules, so preferences can be traced to causes. Read it with `--es cmd abrounds`.
+ */
+object AbRoundLog {
+    fun file(context: Context) = java.io.File(context.filesDir, "ab-rounds.jsonl")
+
+    fun save(context: Context, r: AbRound, rows: List<LibraryRow>) {
+        val byId = rows.associateBy { it.mediaId }
+        val items = org.json.JSONArray()
+        synchronized(AbSession.plans) {
+            for (id in AbSession.plans.keys()) {
+                val rec = JSONObject(AbSession.plans.getJSONObject(id).toString())
+                byId[rec.optLong("track")]?.let { t -> rec.put("title", t.title).put("artist", t.artist).put("album", t.album) }
+                items.put(rec)
+            }
+        }
+        val line = JSONObject().put("time", System.currentTimeMillis()).put("kind", r.kind.name.lowercase())
+            .put("pick", r.picked?.let { r.mapping[it].key }).put("items", items)
+        runCatching { file(context).appendText(line.toString() + "\n") }
+    }
+}
+
 object AbTally {
     private fun prefs(context: Context) = context.getSharedPreferences("sable", Context.MODE_PRIVATE)
     fun get(context: Context, kind: AbKind, c: AbSession.Condition) = prefs(context).getInt("${kind.prefix}${c.key}", 0)
@@ -190,6 +213,7 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
             }
             note = null
             AbSession.transitions = k != AbKind.CLIPS
+            AbSession.plans = JSONObject()  // filled while the round is planned (round log)
             val nr = AbRound(k, n, k.conditions.shuffled())
             nr.current = Random.nextInt(nr.mapping.size)
             AbSession.condition.value = nr.mapping[nr.current].key  // set before the queue is planned
@@ -267,6 +291,7 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                         for (l in r.mapping.indices) Pill("${l + 1}", selected = false) {
                             r.picked = l
                             AbTally.add(context, r.kind, r.mapping[l])
+                            AbRoundLog.save(context, r, rows)
                             tallyVersion++
                         }
                     }

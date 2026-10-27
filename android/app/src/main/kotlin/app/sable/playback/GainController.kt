@@ -201,6 +201,7 @@ class GainController(
                 .put("albumMode", settings.albumMode.key).put("albums", albums).put("items", items)
             if (ab != null) input.put("abCondition", ab).put("abSeams", flow)
             val out = JSONObject(SableEngine.planQueue(input.toString()))
+            if (ab != null) recordAbPlans(ids, items, input, ab, out, flow, excerpts)
             missing.forEach { scheduleAnalysis(it, jit = true) }
             albumMissing.forEach { scheduleAnalysis(it, jit = false) }
             out.optJSONArray("items")
@@ -280,6 +281,32 @@ class GainController(
         }
         Log.i(TAG, "CONTOUR on: low ${design.optDouble("lowHz")} Hz %+.1f dB, high ${design.optDouble("highHz")} Hz %+.1f dB, headroom %.1f dB"
             .format(design.optDouble("lowGainDb"), design.optDouble("highGainDb"), contourHeadroom))
+    }
+
+    /** For the A/B round log: plans every condition of the same queue (cheap) and keeps the first figures per item. */
+    private fun recordAbPlans(ids: List<String>, items: JSONArray, input: JSONObject, ab: String, out: JSONObject, flow: Boolean, excerpts: Map<String, Excerpt>) {
+        val plans = AbSession.plans
+        synchronized(plans) {
+            for (c in AbSession.Condition.entries) {
+                val res = if (c.key == ab) out else JSONObject(SableEngine.planQueue(input.put("abCondition", c.key).toString()))
+                val arr = res.optJSONArray("items") ?: continue
+                for (i in ids.indices) {
+                    val p = arr.optJSONObject(i) ?: continue
+                    val rec = plans.optJSONObject(ids[i]) ?: JSONObject().also { r ->
+                        r.put("track", QueueId.trackId(ids[i]))
+                        r.put("part", if (!flow) "clip" else if (excerpts[ids[i]]?.startMs == 0L) "opening" else "ending")
+                        items.optJSONObject(i)?.optJSONObject("analysis")?.let { a ->
+                            for (k in listOf("integratedLufs", "anchorLufs", "anchorPle", "openLufs", "endLufs", "truePeakDbtp", "character"))
+                                if (a.has(k)) r.put(k, a.get(k))
+                        }
+                        plans.put(ids[i], r)
+                    }
+                    if (!rec.has(c.key)) rec.put(c.key, p.optDouble("gainDb"))
+                    if (c == AbSession.Condition.SABLE && !rec.has("sableRules")) rec.put("sableRules", p.optJSONArray("rules"))
+                }
+            }
+            input.put("abCondition", ab)
+        }
     }
 
     // ---------------- Output (MATH §20) ----------------
