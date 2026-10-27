@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat. MATH-1.22.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes. MATH-1.22.
   Latest GitHub release: see Releases (0.14.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.14.1 installed over USB 2026-10-27 and compiled with its profile (speed-profile). Per-place learning not yet seen live (needs real volume presses on two outputs: check a LEARN line names the place). Library 396 songs, all analysed.
+- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.15.1 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -31,6 +31,13 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) First real listening session; learning checked (0.15.1)
+- David's session on the **JBL Charge 5** (Bluetooth): playback log clean (no UNDERRUN, no errors, skips/taps all from the app). Learned state (`--es cmd learned`, new): 4 songs, all under place `bt:JBL Charge 5`; every value matches §19 (e.g. Injury Reserve Δv −3.83 dB → track −1.92, artist −0.96; Ice Cube +3.83 with the environment filter ω 0.25 → +0.48; two steps (±7.7 dB) clamp at ±2). Artist offsets wait for a second song (n_a = 1 for all).
+- **Bug fixed:** "05. Lost" (Danny Brown) was taught before its content hash existed (new file, played before analysis), so it was stored as `t:id8477` while planning looks up `t:<hash>`: its −2 dB would never apply. Track offsets now fall back to the id key and move to the hash key at the next event.
+- Learning events (window, ignored, LEARN) now also go to the persistent playback log (`--es cmd diag`): logcat lost this session's lines (Claude cleared logcat before reading them; don't).
+- **Skip on the JBL at an unlock** (David): no UNDERRUN or error in Sable's log at any point, so Sable's buffer stayed fed; the dropout was after the app, in the Bluetooth link (unlock is a known moment for Samsung radio scans). Open; if it repeats, note the time so the log can be lined up.
+- Verified on the phone (muted, volume restored to 5 after the 20 s window, nothing learned, repeat put back to off): search ("atro" → album + 15 songs), repeat icons (off/all/one), repeat-all wrap Hell For It → Get Hi as a natural start at its planned −8.00 dB, no ramp.
 
 ### 2026-10-27 (PC) Search and repeat (0.15.0)
 - **Search** (`ui/Search.kt` index + `ui/SearchScreen.kt`, route `Route.Search`, magnifier in the library header): artists, albums, songs. Accent/case-insensitive (`searchForm`: NFD, marks removed, punctuation as spaces); every typed word must match the start of a word, or from 3 letters anywhere; ranking: name starts with the query, then all words in the name, then words needing artist/album. Tapping a song = song world from there through the listed results (as in the Songs tab). Query kept while browsing from a result. Debug: `--es cmd open --es screen search --es q <text>`. Test: SearchTest.

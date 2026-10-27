@@ -132,6 +132,10 @@ class MainActivity : ComponentActivity() {
                         android.util.Log.i("SablePlay", "FLOWS ${tracks.first().album} (${tracks.size}): flowing $flowing silence $gaps")
                     }
                 }
+                "learned" -> {  // §19: everything learned, per place (tag SablePlay)
+                    val names = SableDatabase.get(applicationContext).library().allTracks().flatMap { t -> listOfNotNull(t.contentHash, "id${t.mediaId}").map { it to t.displayName } }.toMap()
+                    app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).describe(names).forEach { Log.i("SablePlay", "LEARNED $it") }
+                }
                 "diag" -> app.sable.playback.PlaybackDiag.run { init(applicationContext); dump() }  // the playback log (tag SableDiag)
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()

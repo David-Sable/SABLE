@@ -44,14 +44,17 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     }
 
     private fun artistKey(t: TrackEntity) = t.artist.trim().lowercase().ifBlank { "<unknown>" }
-    private fun trackKey(t: TrackEntity) = t.contentHash ?: "id${t.mediaId}"
+    private fun trackKey(t: TrackEntity) = t.contentHash ?: idKey(t)
+    // A song taught before its content was hashed (a new file, played before analysis) was stored under its MediaStore
+    // id: it is still found under that key, and moved to the hash key at its next event.
+    private fun idKey(t: TrackEntity) = "id${t.mediaId}"
 
     private fun readAt(p: Place, key: String) = read("${p.id}|$key") ?: read(key)
     private fun setAt(p: Place, key: String): Set<String>? = prefs.getStringSet("${p.id}|$key", null) ?: prefs.getStringSet(key, null)
 
     fun offsets(t: TrackEntity, p: Place = currentPlace()): Offsets {
         val now = nowDays()
-        val tr = readAt(p, "t:${trackKey(t)}")
+        val tr = readAt(p, "t:${trackKey(t)}") ?: readAt(p, "t:${idKey(t)}")
         val ar = readAt(p, "a:${artistKey(t)}")
         val n = setAt(p, "ac:${artistKey(t)}")?.size ?: 0
         return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, n)
@@ -66,10 +69,31 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
 
     /** §19.3: forgets the song (or artist) for the current place and the shared earlier state. */
     fun resetTrack(t: TrackEntity, p: Place = currentPlace()) =
-        prefs.edit().remove("${p.id}|t:${trackKey(t)}").remove("t:${trackKey(t)}").apply()
+        prefs.edit().remove("${p.id}|t:${trackKey(t)}").remove("t:${trackKey(t)}").remove("${p.id}|t:${idKey(t)}").remove("t:${idKey(t)}").apply()
     fun resetArtist(t: TrackEntity, p: Place = currentPlace()) = prefs.edit()
         .remove("${p.id}|a:${artistKey(t)}").remove("${p.id}|ac:${artistKey(t)}").remove("a:${artistKey(t)}").remove("ac:${artistKey(t)}").apply()
     fun resetAll() = prefs.edit().clear().apply()
+
+    /** Everything learned, one line per entry, for the "learned" debug command. [names]: track key -> file name. */
+    fun describe(names: Map<String, String>): List<String> {
+        val now = nowDays()
+        return prefs.all.toSortedMap().map { (k, v) ->
+            val place = if ('|' in k) k.substringBefore('|') else "(shared, before places)"
+            val key = k.substringAfter('|')
+            val what = when {
+                key.startsWith("t:") -> "song ${names[key.removePrefix("t:")] ?: key}"
+                key.startsWith("ac:") -> "artist ${key.removePrefix("ac:")} songs taught"
+                key.startsWith("a:") -> "artist ${key.removePrefix("a:")}"
+                else -> key
+            }
+            val value = when (v) {
+                is String -> read(k)?.let { (db, days) -> "%+.2f dB, %.1f days ago".format(db, now - days) } ?: v
+                is Set<*> -> "${v.size}"
+                else -> "$v"
+            }
+            "$place · $what: $value"
+        }
+    }
 
     // ---------------- Feedback window (§19.1) ----------------
     private var track: TrackEntity? = null
@@ -137,9 +161,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         track = null
         if (lastChangeAt == 0L) return
         val delta = volumeDb() - startDb  // presses in one window accumulate; an undone press nets to ~0
-        Log.i(TAG, "LEARN window ${t.displayName}: %.2f -> %.2f dB".format(startDb, startDb + delta))
+        note("LEARN window ${t.displayName} at ${place.label}: volume %.2f -> %.2f dB".format(startDb, startDb + delta))
         if (abs(delta) < MIN_EVENT_DB) return
-        if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { Log.i(TAG, "LEARN ignored (output changed) ${t.displayName}"); return }
+        if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { note("LEARN ignored (output changed) ${t.displayName}"); return }
         commit(t, delta, place)
     }
 
@@ -152,14 +176,15 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         if (prefs.contains(prev)) input.put("prevDeltaDb", prefs.getFloat(prev, 0f).toDouble())
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
-        val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { add(trackKey(t)) }
+        val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) }
         prefs.edit()
+            .apply { if (t.contentHash != null) remove("${p.id}|t:${idKey(t)}") }
             .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")}")
             .putString("${p.id}|a:${artistKey(t)}", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}")
             .putStringSet("${p.id}|ac:${artistKey(t)}", ac)
             .putFloat(prev, delta.toFloat())
             .apply()
-        Log.i(TAG, "LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
+        note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("trackDb"), out.getDouble("artistDb")))
         onLearned(t)
     }
@@ -173,6 +198,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val usable = platform(max).let { top -> platform(max / 2).let { mid -> top.isFinite() && mid.isFinite() && top - mid > 1.0 } }
         return if (usable) platform(idx).let { if (it.isFinite()) it else -96.0 } else defaultCurveDb(idx, max)
     }
+
+    /** Learning events go to the playback log too: logcat rolls over within hours. */
+    private fun note(msg: String) { Log.i(TAG, msg); PlaybackDiag.log(msg) }
 
     private val mediaAttrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build()
 

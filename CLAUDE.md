@@ -70,7 +70,7 @@ David may need to start a new chat when the context fills up, so never leave sta
   volume-key learning tests. The debug commands are listed at the top of `ui/MainActivity.kt`
   (`adb shell am start -n app.sable/.ui.MainActivity --es cmd …`). Use `MSYS_NO_PATHCONV=1` with adb in Git Bash.
   Animation smoothness: `tools/perf/anim_frames.sh` (pauses music first; see the note in it). Library-wide engine checks: the PC holds the same 392 FLACs (`~/dev/sable-corpus/drive`); `sable_cli --decide` on each (decode with the toolchain's ffmpeg) gives every figure the phone has.
-  Playback problems heard away from the PC: read the app's own playback log (`--es cmd diag`, tag `SableDiag`); logcat rolls over within hours.
+  Playback problems heard away from the PC: read the app's own playback log (`--es cmd diag`, tag `SableDiag`); logcat rolls over within hours. What learning holds: `--es cmd learned` (tag SablePlay). **Never `adb logcat -c` before reading what David's session left.**
   Don't change David's phone settings or volume without putting them back; erase test learning (`--es cmd forget`).
 - Corpus cross-validation and corpus reports (copyrighted audio stays on the PC); work needing the standards or TVL code.
 From the cloud: code, math, UI, tests, docs → push → check CI → tell David the release number to install.
