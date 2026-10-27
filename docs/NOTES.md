@@ -15,18 +15,18 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Now (keep this current)
 - **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player. MATH-1.23.
-  Latest GitHub release: see Releases (0.14.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Latest dev builds (0.13.x animation work) were installed over USB during the session; 0.15.2 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
+  Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.15.2 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
-  - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
+  - USB-C output untested on the device. Bluetooth verified in real use (JBL Charge 5, car); per-place learning live on the JBL.
   - AAC/M4A, ALAC, Opus, Vorbis and WAV are not on the phone: their MediaCodec analysis path and the 16-bit
     `decodeClipped` margin (MATH §1.1) are untested on the A17. FLAC and MP3 (decoded in the engine) are verified.
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
   - David's listening check of character labels and the largest gain moves (from M3) is still open.
 - **Skips in the car (open):** David heard skips on a drive (car Bluetooth "CAR MULTIMEDIA", Android Auto present, Maps prompts) on 0.8.1, none on the way back. Phone logs had rolled off; nothing left pointed at Sable (no crash; Samsung's freezer tried but skipped freezing it). 0.9.1 keeps a playback log on the phone: next time read it with `--es cmd diag` (tag `SableDiag`): UNDERRUN lines mean audio starvation (then raise the AudioTrack buffer), COMMAND next from a car package means the car sent the skips, PLAY_WHEN_READY/SUPPRESSED show interruptions, ROUTE shows Bluetooth drops.
 - **Direction (David, 2026-10-26):** no more ear tests (A/B removed, MATH §30 retired). Real listening, whole songs in the car, "amazing" with the perceptual estimate. Work now: check the math and code, give the engine more understanding so it changes even less, refine the app, optimize.
-- **Ideas pending (agreed with David, 2026-10-26):** test Bluetooth/USB-C outputs and the other formats on the phone (needs USB; formats need non-copyrighted test files, e.g. generated with ffmpeg); a sleep timer that stops at the end of a song (no fades, keeps one static gain per song).
+- **Ideas pending:** test USB-C output and the other formats on the phone (formats need non-copyrighted test files, e.g. generated with ffmpeg). David's pronouns: he/him.
 
 ---
 
