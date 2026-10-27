@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Sable</string>
+    <string name="widget_description">What is playing, with play, next and previous</string>
+    <string name="widget_idle_title">Sable</string>
+    <string name="widget_idle_artist">Tap play to pick up where you left off</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_next">Next song</string>
+    <string name="widget_prev">Previous song</string>
 </resources>

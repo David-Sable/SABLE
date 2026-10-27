@@ -143,6 +143,9 @@ class JitAnalyzer(private val context: Context) {
                 )
                 SableEngine.jitEnd(handle)
             }
+            // No audio decoded (an unknown duration or a format the platform cannot read): no estimate. Never ask the
+            // engine for a result without a pipeline (that was a native crash).
+            check(handle != 0L) { "no audio decoded for the quick estimate" }
             return Result(SableEngine.jitResult(handle, ceilingDbtp), (System.nanoTime() - t0) / 1_000_000)
         } finally {
             if (handle != 0L) SableEngine.jitDestroy(handle)

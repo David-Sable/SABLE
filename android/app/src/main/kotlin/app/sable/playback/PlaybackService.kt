@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import app.sable.data.SableDatabase
+import androidx.compose.ui.graphics.asAndroidBitmap
 import app.sable.ui.MainActivity
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
@@ -79,9 +80,9 @@ class PlaybackService : MediaSessionService() {
         player.repeatMode = playerPrefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         player.addListener(object : Player.Listener {
             // Pick up where you left off: the queue, the song and the spot in it are kept as playback moves.
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = saveResume()
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { saveResume(); updateWidget() }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) = saveResume()
-            override fun onIsPlayingChanged(isPlaying: Boolean) = saveResume()
+            override fun onIsPlayingChanged(isPlaying: Boolean) { saveResume(); updateWidget() }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) = saveResume()
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -105,6 +106,27 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
 
+    private var widgetJob: kotlinx.coroutines.Job? = null
+
+    /** Pushes what is playing to the home-screen widget (the cover is loaded off the main thread). */
+    private fun updateWidget() {
+        val item = player.currentMediaItem
+        val playing = player.isPlaying
+        widgetJob?.cancel()
+        widgetJob = scope.launch {
+            if (item == null) { SableWidget.show(this@PlaybackService, null); return@launch }
+            val m = item.mediaMetadata
+            val t = QueueId.trackId(item.mediaId)?.let { SableDatabase.get(this@PlaybackService).library().track(it) }
+            val art = t?.let { runCatching { app.sable.ui.ArtCache.load(this@PlaybackService, it.albumId, it.uri, 192) }.getOrNull() }
+            SableWidget.show(this@PlaybackService, SableWidget.State(
+                m.title?.toString().orEmpty(), m.artist?.toString().orEmpty(), playing,
+                art?.asAndroidBitmap(),
+            ))
+        }
+    }
+
+    @Volatile private var resumptionAsked = false
+    @Volatile private var queueRequested = false  // a controller asked for a queue: the automatic restore must not replace it
     private val resumePrefs by lazy { getSharedPreferences("sable_resume", MODE_PRIVATE) }
 
     /** Saves the queue as request ids ("<trackId>:<A|S>": the album or song world each entry was started in). */
@@ -125,21 +147,29 @@ class PlaybackService : MediaSessionService() {
      * starts playback by itself; songs no longer in the library are skipped.
      */
     private fun restoreResume() {
-        val ids = resumePrefs.getString("ids", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
-        if (ids.isEmpty()) return
-        val index = resumePrefs.getInt("index", 0)
-        val pos = resumePrefs.getLong("positionMs", 0L)
         scope.launch {
-            val requests = ids.map { MediaItem.Builder().setMediaId(it).build() }
-            val items = resolve(requests)
-            if (items.isEmpty() || player.mediaItemCount > 0) return@launch  // the app already started something new
-            val start = index.coerceIn(0, items.size - 1)
-            controller.prepareStart(items.map { it.mediaId }, start)
-            if (player.mediaItemCount > 0) return@launch
-            player.setMediaItems(items, start, if (items.size == ids.size) pos else 0L)
+            // Plans only if nobody asked for anything meanwhile (a plan of the old queue would drop the new one's gains).
+            val r = resumeItems { !resumptionAsked && !queueRequested && player.mediaItemCount == 0 } ?: return@launch
+            // The app or a play button (which resumes the same queue itself) already started something.
+            if (resumptionAsked || queueRequested || player.mediaItemCount > 0) return@launch
+            player.setMediaItems(r.mediaItems, r.startIndex, r.startPositionMs)
             player.prepare()
-            PlaybackDiag.log("RESUME ${items.size} songs at ${start + 1}, ${pos / 1000} s (paused)")
+            PlaybackDiag.log("RESUME ${r.mediaItems.size} songs at ${r.startIndex + 1}, ${r.startPositionMs / 1000} s (paused)")
         }
+    }
+
+    /** The saved queue, resolved and planned, or null if there is none (or none of its songs is still in the library). */
+    private suspend fun resumeItems(stillWanted: () -> Boolean = { true }): MediaSession.MediaItemsWithStartPosition? {
+        val ids = resumePrefs.getString("ids", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+        if (ids.isEmpty()) return null
+        val items = resolve(ids.map { MediaItem.Builder().setMediaId(it).build() })
+        if (items.isEmpty()) return null
+        val start = resumePrefs.getInt("index", 0).coerceIn(0, items.size - 1)
+        // Songs removed from the library shift the index: then start the song from its beginning.
+        val pos = if (items.size == ids.size) resumePrefs.getLong("positionMs", 0L) else 0L
+        if (!stillWanted()) return null
+        controller.prepareStart(items.map { it.mediaId }, start)  // JIT wait + plan before the first note
+        return MediaSession.MediaItemsWithStartPosition(items, start, pos)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -169,11 +199,22 @@ class PlaybackService : MediaSessionService() {
             mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
         ): ListenableFuture<MutableList<MediaItem>> = future { resolve(mediaItems) }
 
+        // A play button pressed while Sable was not running (car, headphones, the system media card): the last queue.
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession, controller: MediaSession.ControllerInfo, isForPlayback: Boolean,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
+            resumptionAsked = true
+            PlaybackDiag.log("RESUMPTION asked by ${controller.packageName} (for playback: $isForPlayback)")
+            resumeItems() ?: throw UnsupportedOperationException("nothing to resume")
+        }
+
         override fun onSetMediaItems(
             mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>,
             startIndex: Int, startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
+            queueRequested = true
             val items = resolve(mediaItems)
+            PlaybackDiag.log("QUEUE ${items.size} songs from ${controller.packageName}, start ${startIndex + 1}")
             val start = if (startIndex == C.INDEX_UNSET) 0 else startIndex.coerceIn(0, maxOf(0, items.size - 1))
             this@PlaybackService.controller.prepareStart(items.map { it.mediaId }, start)  // JIT wait + plan before playing
             MediaSession.MediaItemsWithStartPosition(items, start, if (startIndex == C.INDEX_UNSET) 0 else startPositionMs)

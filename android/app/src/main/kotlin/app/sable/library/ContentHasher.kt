@@ -22,7 +22,9 @@ object ContentHasher {
             ex.selectTrack(t)
             val f = ex.getTrackFormat(t)
             val md = MessageDigest.getInstance("SHA-256")
-            md.update("${f.getString(MediaFormat.KEY_MIME)}|${f.getInteger(MediaFormat.KEY_SAMPLE_RATE)}|${f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)}".toByteArray())
+            // A format the platform cannot fully read (e.g. ALAC reported as "audio/unknown" on the A17) lacks these keys:
+            // hash with 0 rather than crash.
+            md.update("${f.getString(MediaFormat.KEY_MIME)}|${f.getInteger(MediaFormat.KEY_SAMPLE_RATE, 0)}|${f.getInteger(MediaFormat.KEY_CHANNEL_COUNT, 0)}".toByteArray())
             val buf = ByteBuffer.allocate(1 shl 20)
             val ts = ByteArray(8)
             while (true) {

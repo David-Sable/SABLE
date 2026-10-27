@@ -309,14 +309,16 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val plan by NowPlaying.plan.collectAsState()
     val list = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, state.queueIndex - 1))
     Column(Modifier.fillMaxSize()) {
-        TopBar("QUEUE", { state.pop() })
+        TopBar("QUEUE", { state.pop() }) {
+            if (state.queueIndex + 1 < state.queueIds.size) Pill("Clear", selected = false, Modifier.padding(end = Space.s)) { state.clearUpNext() }
+        }
         LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(bottom = Space.xl + endPad(bottomPad))) {
             items(state.queueIds.size, key = { state.queueIds[it] }) { i ->
                 val id = state.queueIds[i]
                 val r = QueueId.trackId(id)?.let { byId[it] }
                 val current = i == state.queueIndex
                 Row(
-                    Modifier.fillMaxWidth().clickable { state.withController { it.seekTo(i, 0L) } }
+                    Modifier.fillMaxWidth().animateItem().clickable { state.withController { it.seekTo(i, 0L) } }
                         .background(if (current) SableColors.surface2 else SableColors.base)
                         .padding(horizontal = Space.gutter, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -330,6 +332,8 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     val g = plan[id]
                     if (g != null) Text("%+.1f".format(g), style = SableType.mono, color = SableColors.textTertiary, modifier = Modifier.width(44.dp))
                     Text(if (QueueId.albumIntent(id)) "album" else "song", style = SableType.caption, color = SableColors.textTertiary)
+                    if (i > state.queueIndex) IconButton(Glyph.CLOSE, { state.removeAt(i) }, size = 14.dp, color = SableColors.textTertiary)
+                    else Spacer(Modifier.width(48.dp))
                 }
             }
         }

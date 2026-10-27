@@ -114,6 +114,16 @@ class AppState {
         if (c.mediaItemCount == 0) play(listOf(item), 0) else c.addMediaItem(item)
     }
 
+    /** Empties the queue after the playing song; the song itself keeps playing. */
+    fun clearUpNext() = withController { c ->
+        val from = c.currentMediaItemIndex + 1
+        if (from < c.mediaItemCount) c.removeMediaItems(from, c.mediaItemCount)
+        refresh(c)
+    }
+
+    /** Removes one song from the queue (never the playing one). */
+    fun removeAt(i: Int) = withController { c -> if (i != c.currentMediaItemIndex && i in 0 until c.mediaItemCount) c.removeMediaItem(i); refresh(c) }
+
     fun play(items: List<MediaItem>, start: Int) = withController { c ->
         c.setMediaItems(items, start, 0L)
         c.prepare()

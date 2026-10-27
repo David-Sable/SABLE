@@ -14,14 +14,13 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24. MATH-1.24.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0) play-button resume, widget, queue clear, crash fixes. MATH-1.24.
   Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.16.0 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
+- **On David's phone:** 0.17.0 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - USB-C output untested on the device. Bluetooth verified in real use (JBL Charge 5, car); per-place learning live on the JBL.
-  - AAC/M4A, ALAC, Opus, Vorbis and WAV are not on the phone: their MediaCodec analysis path and the 16-bit
-    `decodeClipped` margin (MATH §1.1) are untested on the A17. FLAC and MP3 (decoded in the engine) are verified.
+  - Formats verified on the A17 (2026-10-27, generated signals): AAC, Opus, Vorbis, WAV 16/24 match the PC within 0.05 LU. **ALAC** (ffmpeg-made) is "audio/unknown" to the platform extractor: it plays (Media3's own extractor) but cannot be analysed, so it stays at the provisional gain. Untested: ALAC from iTunes/XLD (may differ).
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
   - David's listening check of character labels and the largest gain moves (from M3) is still open.
 - **Skips in the car (open):** David heard skips on a drive (car Bluetooth "CAR MULTIMEDIA", Android Auto present, Maps prompts) on 0.8.1, none on the way back. Phone logs had rolled off; nothing left pointed at Sable (no crash; Samsung's freezer tried but skipped freezing it). 0.9.1 keeps a playback log on the phone: next time read it with `--es cmd diag` (tag `SableDiag`): UNDERRUN lines mean audio starvation (then raise the AudioTrack buffer), COMMAND next from a car package means the car sent the skips, PLAY_WHEN_READY/SUPPRESSED show interruptions, ROUTE shows Bluetooth drops.
@@ -32,6 +31,16 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Big pass: play button, widget, queue clear, formats, crash fixes (0.17.0)
+- **Play button wakes Sable:** Media3 `MediaButtonReceiver` in the manifest + `onPlaybackResumption` (the saved queue, resolved and planned). Verified: Sable killed (`am kill`, as the system does), `KEYCODE_MEDIA_PLAY` → RESUMPTION asked → playing from the saved spot. (A force-stopped app cannot be woken; that is Android, not Sable.)
+- **Restore race fixed:** on a cold start the automatic restore could replace a queue David had just asked for, and it planned the old queue (dropping the new queue's gains until the next replan). Now any controller request (`queueRequested`) or resumption wins, and the restore plans only if still wanted. QUEUE log line per request.
+- **Queue:** Clear (everything after the playing song) and ✕ per upcoming song; the next song is replanned (its predecessor changed).
+- **Formats on the phone** (`~/dev/sable-corpus/formats`, generated pink noise + chord, "master" −23 LUFS and "hot" −7.9 LUFS with peaks at full scale; report `reports/formats_pc.txt`): AAC, Opus, Vorbis, WAV16, WAV24 analysed on the A17 match `sable_cli` within 0.05 LU (integrated, anchor, PLE). Lossy decoders give 16-bit for analysis (`decodeClipped` = true, as M4 found); the +1.0 dB `M_clipTP` margin covers the measured overs (Opus true peak +1.17 on the PC vs +0.40 measured on the phone → 1.40 used). Test files removed from the phone afterwards (library back to 396).
+- **Crashes found and fixed:** (1) ALAC: the platform reports "audio/unknown" without sample rate → `ContentHasher` NPE (now defaults to 0); analysis then fails cleanly. (2) **Native crash**: with no readable duration the quick estimate decoded nothing and called `jitResult` on a null handle (SIGSEGV in `JitPipeline::resultJson`); playing such a song killed Sable. Now `JitAnalyzer` refuses without audio and every JNI handle function returns early on 0. ALAC now plays at the provisional gain.
+- **Widget** (`playback/SableWidget.kt`, `res/layout/widget_player.xml`): cover, title, artist, previous / play-pause / next as media-button presses (so play also resumes when Sable is not running); updated by PlaybackService on transitions and play/pause. Registered (dumpsys appwidget); **not yet placed on the home screen** (needs David's long-press).
+- Bluetooth codec-aware ceiling (§20.1): left at "codec unknown" −2.0 (needs a Bluetooth permission prompt).
+- Volume muted for the tests and restored to 5; no learning written.
 
 ### 2026-10-27 (PC) Third JBL session, convenience round (0.16.0, MATH-1.24)
 - Session: no UNDERRUN/errors; gains sensible (Atrocity-style album runs at one gain, a FLOW pair, nothing provisional or capped). 4 new lessons at `bt:JBL Charge 5`: Steppa Pig −1.92 and Hustle Bones −2.00 at full weight (the 10 min window of 1.23 worked: previous events were 18+ min old); JRJRJR 0.25 weight; Star people pressed and undone (ignored, correct).

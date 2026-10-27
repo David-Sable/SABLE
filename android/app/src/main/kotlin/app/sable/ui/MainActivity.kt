@@ -143,8 +143,14 @@ class MainActivity : ComponentActivity() {
                     val mime = intent.getStringExtra("mime")
                     for (t in SableDatabase.get(applicationContext).library().allTracks().filter { it.displayName.contains(m, true) && (mime == null || it.mime == mime) }) {
                         val t0 = System.nanoTime()
-                        val r = TrackAnalyzer(applicationContext).ensureAnalyzed(t, force = intent.getBooleanExtra("force", false))
+                        val r = runCatching { TrackAnalyzer(applicationContext).ensureAnalyzed(t, force = intent.getBooleanExtra("force", false)) }
+                            .onFailure { Log.w(TAG, "ENSURE ${t.displayName} ${t.mime} FAILED: $it") }.getOrNull() ?: continue
                         Log.i(TAG, "ENSURE ${t.displayName} id ${t.mediaId} reused=${r.reused} ${(System.nanoTime() - t0) / 1_000_000} ms hash ${r.analysis.contentHash.take(12)}")
+                        runCatching { JSONObject(r.analysis.json) }.getOrNull()?.let { j ->  // the figures, to compare with sable_cli on the PC
+                            Log.i(TAG, "ENSURE ${t.displayName} ${t.mime} I %.2f TP %.2f SP %.2f anchor %.2f PLE %.2f clipped ${j.optBoolean("decodeClipped")} %d Hz %d ch".format(
+                                j.optDouble("integratedLufs"), j.optDouble("truePeakDbtp"), j.optDouble("samplePeakDbfs"), j.optDouble("anchorLufs"),
+                                j.optDouble("anchorPle"), j.optInt("sampleRateHz"), j.optInt("channels")))
+                        }
                     }
                     Log.i(TAG, "ENSURE done")
                 }

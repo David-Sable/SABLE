@@ -24,33 +24,39 @@ JNIEXPORT jlong JNICALL Java_app_sable_engine_SableEngine_trackCreate(JNIEnv*, j
   return reinterpret_cast<jlong>(new sable::TrackPipeline(fs, ch, static_cast<std::uint32_t>(mask), clipped == JNI_TRUE));
 }
 JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackPushPass1(JNIEnv* env, jclass, jlong h, jobject buf, jint frames) {
+  if (h == 0) return;
   track(h)->pushPass1(floats(env, buf), static_cast<std::size_t>(frames));
 }
 JNIEXPORT jboolean JNICALL Java_app_sable_engine_SableEngine_trackEndPass1(JNIEnv*, jclass, jlong h) {
+  if (h == 0) return JNI_FALSE;
   return track(h)->endPass1() ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackBeginPass2(JNIEnv*, jclass, jlong h) { track(h)->beginPass2(); }
+JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackBeginPass2(JNIEnv*, jclass, jlong h) { if (h == 0) return; track(h)->beginPass2(); }
 JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackPushPass2(JNIEnv* env, jclass, jlong h, jobject buf, jint frames) {
+  if (h == 0) return;
   track(h)->pushPass2(floats(env, buf), static_cast<std::size_t>(frames));
 }
 JNIEXPORT jboolean JNICALL Java_app_sable_engine_SableEngine_trackEndPass2(JNIEnv*, jclass, jlong h) {
+  if (h == 0) return JNI_FALSE;
   return track(h)->endPass2() ? JNI_TRUE : JNI_FALSE;
 }
-JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_trackResult(JNIEnv* env, jclass, jlong h) { return str(env, track(h)->resultJson()); }
-JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackDestroy(JNIEnv*, jclass, jlong h) { delete track(h); }
+JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_trackResult(JNIEnv* env, jclass, jlong h) { if (h == 0) return str(env, ""); return str(env, track(h)->resultJson()); }
+JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_trackDestroy(JNIEnv*, jclass, jlong h) { if (h == 0) return; delete track(h); }
 
 JNIEXPORT jlong JNICALL Java_app_sable_engine_SableEngine_jitCreate(JNIEnv*, jclass, jint fs, jint ch, jint mask) {
   return reinterpret_cast<jlong>(new sable::JitPipeline(fs, ch, static_cast<std::uint32_t>(mask)));
 }
-JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitBegin(JNIEnv*, jclass, jlong h, jboolean middle) { jit(h)->beginExcerpt(middle == JNI_TRUE); }
+JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitBegin(JNIEnv*, jclass, jlong h, jboolean middle) { if (h == 0) return; jit(h)->beginExcerpt(middle == JNI_TRUE); }
 JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitPush(JNIEnv* env, jclass, jlong h, jobject buf, jint frames) {
+  if (h == 0) return;
   jit(h)->push(floats(env, buf), static_cast<std::size_t>(frames));
 }
-JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitEnd(JNIEnv*, jclass, jlong h) { jit(h)->endExcerpt(); }
+JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitEnd(JNIEnv*, jclass, jlong h) { if (h == 0) return; jit(h)->endExcerpt(); }
 JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_jitResult(JNIEnv* env, jclass, jlong h, jdouble ceiling) {
+  if (h == 0) return str(env, "");
   return str(env, jit(h)->resultJson(ceiling));
 }
-JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitDestroy(JNIEnv*, jclass, jlong h) { delete jit(h); }
+JNIEXPORT void JNICALL Java_app_sable_engine_SableEngine_jitDestroy(JNIEnv*, jclass, jlong h) { if (h == 0) return; delete jit(h); }
 
 // FLAC (dr_flac) and MP3 (minimp3) are decoded inside the engine from a file descriptor.
 // kind: 0 = FLAC, 1 = MP3. Returns "" if the file cannot be opened.
