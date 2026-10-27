@@ -118,6 +118,7 @@ fun songSwipe(state: AppState): Modifier {
     val settle = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
     val dragX = remember { Animatable(0f) }
     var width by remember { mutableIntStateOf(1) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     return Modifier
         .onSizeChanged { width = maxOf(1, it.width) }
         .graphicsLayer {
@@ -137,6 +138,7 @@ fun songSwipe(state: AppState): Modifier {
                 }
                 if (dir == 0) dragX.animateTo(0f, settle, initialVelocity = velocity)
                 else {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)  // the song changes: a soft tick
                     dragX.animateTo(-dir * w, tween(160, easing = LinearOutSlowInEasing), initialVelocity = velocity)
                     state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
                     dragX.snapTo(dir * w * 0.6f)  // the new song comes in from the other side
@@ -262,9 +264,10 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
                     color = if (state.repeatMode == Player.REPEAT_MODE_OFF) SableColors.textTertiary else SableColors.accent)
                 IconButton(Glyph.PREV, { state.withController { it.seekToPrevious() } }, size = 26.dp)
                 Box(
-                    Modifier.size(if (compact) 48.dp else 72.dp).background(SableColors.accent, CircleShape).clickable { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } },
+                    Modifier.size(if (compact) 48.dp else 72.dp).softClick(pressedScale = 0.93f) { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } }
+                        .background(SableColors.accent, CircleShape),
                     contentAlignment = Alignment.Center,
-                ) { Icon(if (state.playing) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) }
+                ) { androidx.compose.animation.Crossfade(state.playing, animationSpec = androidx.compose.animation.core.tween(140), label = "playPause") { p -> Icon(if (p) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) } }
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
                 IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
             }

@@ -30,10 +30,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -70,7 +72,10 @@ fun TopBar(title: String?, onBack: (() -> Unit)?, actions: @Composable () -> Uni
 
 @Composable
 fun IconButton(glyph: Glyph, onClick: () -> Unit, size: Dp = 22.dp, color: Color = SableColors.textPrimary) {
-    Box(Modifier.size(48.dp).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Icon(glyph, size = size, color = color) }
+    // A glyph that changes (play to pause, repeat to repeat-one) fades into the new one.
+    Box(Modifier.size(48.dp).softClick(onClick = onClick), contentAlignment = Alignment.Center) {
+        androidx.compose.animation.Crossfade(glyph, animationSpec = androidx.compose.animation.core.tween(140), label = "glyph") { g -> Icon(g, size = size, color = color) }
+    }
 }
 
 @Composable
@@ -80,8 +85,8 @@ fun Pill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick
     val shape = RoundedCornerShape(50)
     Text(
         text, style = SableType.label, color = fg,
-        modifier = modifier.background(bg, shape).border(1.dp, if (selected) SableColors.accent else SableColors.line, shape)
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
+        modifier = modifier.softClick(pressedScale = 0.96f, onClick = onClick).background(bg, shape)
+            .border(1.dp, if (selected) SableColors.accent else SableColors.line, shape).padding(horizontal = 16.dp, vertical = 9.dp),
     )
 }
 
@@ -134,6 +139,13 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         val pad = PaddingValues(bottom = bottomPad + Space.l)
         // Each tab keeps its own scroll position when you switch tabs and come back.
         val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+        // Switching tabs fades the new one in (coming back to the library does not).
+        val fade = remember { androidx.compose.animation.core.Animatable(1f) }
+        var shownTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(state.libraryTab) }
+        androidx.compose.runtime.LaunchedEffect(state.libraryTab) {
+            if (shownTab != state.libraryTab) { shownTab = state.libraryTab; fade.snapTo(0f); fade.animateTo(1f, androidx.compose.animation.core.tween(200)) }
+        }
+        Box(Modifier.graphicsLayer { alpha = fade.value }) {
         tabState.SaveableStateProvider("tab${state.libraryTab}") {
         when (state.libraryTab) {
             0 -> LazyVerticalGrid(
@@ -176,6 +188,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             }
         }
         }
+        }
     }
 }
 
@@ -183,7 +196,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
     val w by animateDpAsState(if (selected) 22.dp else 0.dp, Motion.slow(), label = "tab")
     val c by animateColorAsState(if (selected) SableColors.textPrimary else SableColors.textTertiary, Motion.medium(), label = "tabText")
-    Column(Modifier.clickable(onClick = onClick)) {
+    Column(Modifier.softClick(pressedScale = 0.96f, onClick = onClick)) {
         Text(text, style = SableType.headline, color = c, modifier = Modifier.padding(vertical = Space.s))
         Box(Modifier.width(w).height(2.dp).background(SableColors.accent))
     }
@@ -191,7 +204,7 @@ private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
-    Column(Modifier.clickable(onClick = onClick)) {
+    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
         Text(a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
