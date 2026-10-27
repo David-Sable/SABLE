@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and the A/B round log (0.9.3, fixed in 0.9.4). MATH-1.17.
-  Latest GitHub release: see Releases (0.9.4 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.9.4 (installed from the PC over USB, 2026-10-26, verified). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and the A/B round log (0.9.3, fixed in 0.9.4) and the Feel test (0.9.5). MATH-1.18.
+  Latest GitHub release: see Releases (0.9.5 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.9.5 (installed from the PC over USB, 2026-10-26, verified). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -33,9 +33,14 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-26 (PC) Feel test (0.9.5, MATH-1.18 §30.7)
+- New A/B round "Feel": song changes between albums with S, **L = Sable with PLE_anchor := L_anchor** (planner `abCondition: "sablelufs"`, items built twice, L level-matched to real S) and P. Own tally `abfeel_`. Engine refactor: albums/items/seams built in a `build(noPle)` lambda; test "condition L is Sable without the PLE offset". Round buttons wrap (FlowRow).
+- Verified on the phone with `abplans` (no pick): L sits between S and P; first change S stepped +5.0 dB, L +0.8, P −0.4.
+- **Next:** when David has ~10 Feel rounds, run `tools/ab/analyse_rounds.py` and read the Feel tally. L preferred over S → revisit the PLE offset / B_p (§16.2) with David before changing normal playback (philosophy-level).
+
 ### 2026-10-26 (PC) First saved A/B rounds analysed (0.9.4)
 - Song changes tally now S 8 / P 12 / O 4 of 24 (10 unlogged + 14 logged: S 6 / P 5 / O 3).
-- `tools/ab/analyse_rounds.py`: per round, rms loudness step at the changes (next opening vs previous ending, after gain) and between the songs' main sections (anchor LUFS after gain). Seams do not separate S and P (step at the change ≈ equal). **Lead:** in rounds David gave to Plain, Sable's main-section steps were 0.87 dB rms larger than Plain's; in rounds Sable won, 0.26 dB. Sable's main-section steps differ from LUFS because it matches the perceptual estimate (anchor PLE), which differs from LUFS by up to ±3-5 dB on some songs. Only 11 rounds: a lead, not a result. Proposed test: an A/B condition "Sable without the PLE offset" against Sable and Plain.
+- `tools/ab/analyse_rounds.py`: per round, rms loudness step at the changes (next opening vs previous ending, after gain) and between the songs' main sections (anchor LUFS after gain). Seams do not separate S and P (step at the change ≈ equal). **Lead:** in rounds David gave to Plain, Sable's main-section steps were 0.87 dB rms larger than Plain's; in rounds Sable won, 0.26 dB. Sable's main-section steps differ from LUFS because it matches the perceptual estimate (anchor PLE), which differs from LUFS by up to ±3-5 dB on some songs. Only 11 rounds: a lead, not a result. Testing it with the Feel round (0.9.5, §30.7).
 - Bug fixed: rounds saved by 0.9.3 could include the previous queue's items (a replan of the old queue after the reset). 0.9.4 resets in `prepareStart` and records only the round's queue ids (`AbSession.roundIds`). Verified with `abplans`: 8 items, ending/opening pairs.
 
 ### 2026-10-26 (PC) A/B round log (0.9.3)

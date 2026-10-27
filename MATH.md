@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.17 (2026-10-26)
+**Version:** MATH-1.18 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -938,6 +938,13 @@ A listener who cannot hear a difference picks Sable with probability `1/m`, `m` 
 - **Condition S (Sable):** what normal playback does: the first song of each change is a manual start (§21), the second follows by a natural transition, so song changes get seam smoothing (§18) and album changes share the album gain (§17.2). Learning stays off.
 - **Conditions P and O:** as §30.1, per song (plain normalization knows no albums or seams).
 - **Level match:** §30.3 unchanged (each excerpt's loudness is estimated by `L_anchor`, else `L_I`), so the round's overall loudness is the same in every condition and only the changes differ.
+
+### 30.7 Feel test (Sable without the perceptual estimate)
+The owner's saved song-change rounds (MATH-1.17 round log) suggest that where Sable's levels depart from LUFS because of the PLE offset (`PLE_anchor − L_anchor`, bounded by `B_p`, §16.2), plain normalization is preferred. A **feel round** tests this directly: the song-change sequence of §30.6 (between albums) with three conditions:
+- **S (Sable)** as §30.6.
+- **L (Sable without the estimate):** S computed with `PLE_anchor := L_anchor` for every song, so the anchor match (§16.2), album gains (§17.2) and seams (§18) all see a PLE offset of 0. Everything else (intimacy, caps, seams, manual/natural starts) is S's. L is level-matched to **S's** sequence loudness (§30.3).
+- **P (plain −14)** as §30.1.
+It has its own tally and the §30.5 verdict with `m = 3`. If L is preferred over S, the PLE offset (or `B_p`) is what to revisit; nothing in normal playback changes until then.
 
 ---
 

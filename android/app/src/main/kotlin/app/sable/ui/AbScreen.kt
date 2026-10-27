@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -50,9 +51,10 @@ import kotlin.random.Random
 
 /** Which kind of round (MATH §30.2 clips, §30.6 song and album changes), its conditions, and its own tally. */
 enum class AbKind(val prefix: String, val conditions: List<AbSession.Condition>) {
-    CLIPS("ab_", AbSession.Condition.entries),
-    CHANGES("abseam_", AbSession.Condition.entries),
+    CLIPS("ab_", listOf(AbSession.Condition.SABLE, AbSession.Condition.PLAIN, AbSession.Condition.OFF)),
+    CHANGES("abseam_", listOf(AbSession.Condition.SABLE, AbSession.Condition.PLAIN, AbSession.Condition.OFF)),
     ALBUMS("abalbum_", listOf(AbSession.Condition.SABLE, AbSession.Condition.PLAIN)),  // §30.6: off would copy Sable here
+    FEEL("abfeel_", listOf(AbSession.Condition.SABLE, AbSession.Condition.SABLE_LUFS, AbSession.Condition.PLAIN)),  // §30.7
 }
 
 /** One blind round (MATH §30.4): label i plays condition mapping[i]. [count] is songs (clips) or song changes. */
@@ -189,6 +191,7 @@ fun pickFlowChanges(rows: List<LibraryRow>, album: Boolean, rnd: Random): List<T
     return changes
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AbScreen(state: AppState, rows: List<LibraryRow>) {
     val context = LocalContext.current
@@ -226,10 +229,11 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
             val r = round
             if (r == null) {
                 Text("Can you hear the engine?", style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(top = Space.l))
-                Row(Modifier.padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                FlowRow(Modifier.padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
                     Pill("Clips", selected = kind == AbKind.CLIPS) { kind = AbKind.CLIPS }
                     Pill("Song changes", selected = kind == AbKind.CHANGES) { kind = AbKind.CHANGES }
                     Pill("Albums", selected = kind == AbKind.ALBUMS) { kind = AbKind.ALBUMS }
+                    Pill("Feel", selected = kind == AbKind.FEEL) { kind = AbKind.FEEL }
                 }
                 Text(
                     when (kind) {
@@ -248,6 +252,11 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                                 "track on the same album. Two versions, labelled 1 and 2, are Sable, which keeps the album's own balance, and plain −14 LUFS " +
                                 "normalization, which levels every track on its own. Both are matched to the same overall loudness. Pick the version where " +
                                 "the albums sounded most like themselves."
+                        AbKind.FEEL ->
+                            "Sable plays $AB_CHANGES song changes between albums. Three versions, labelled 1, 2 and 3: Sable, Sable without its estimate " +
+                                "of how loud each song feels (it uses the loudness meter alone, like plain normalization, but keeps Sable's other rules), " +
+                                "and plain −14 LUFS normalization. All are matched to the same overall loudness. Pick the version where the changes felt " +
+                                "most natural. This tells us whether Sable's feel estimate helps."
                     },
                     style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.l),
                 )
@@ -281,7 +290,7 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
                     Text(
                         when (r.kind) {
                             AbKind.CLIPS -> "Which one sounded most even from song to song?"
-                            AbKind.CHANGES -> "Which one made the song changes feel most natural?"
+                            AbKind.CHANGES, AbKind.FEEL -> "Which one made the song changes feel most natural?"
                             AbKind.ALBUMS -> "Which one let the albums sound most like themselves?"
                         },
                         style = SableType.headline, color = SableColors.textPrimary,
@@ -341,7 +350,7 @@ private fun Tally(context: Context, version: Int, kind: AbKind) {
     val total = counts.values.sum()
     if (total == 0) return
     Spacer(Modifier.height(Space.xl))
-    Text("YOUR ROUNDS · ${when (kind) { AbKind.CLIPS -> "CLIPS"; AbKind.CHANGES -> "SONG CHANGES"; AbKind.ALBUMS -> "ALBUMS" }}", style = SableType.overline, color = SableColors.textTertiary)
+    Text("YOUR ROUNDS · ${when (kind) { AbKind.CLIPS -> "CLIPS"; AbKind.CHANGES -> "SONG CHANGES"; AbKind.ALBUMS -> "ALBUMS"; AbKind.FEEL -> "FEEL" }}", style = SableType.overline, color = SableColors.textTertiary)
     for ((c, n) in counts) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text(c.label, style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.weight(1f))

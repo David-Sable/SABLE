@@ -45,9 +45,10 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet.
 
 ### 5. Proof
-- **Blind A/B**: compare Sable, plain −14 LUFS normalization and no normalization on the same shuffled sequence, unlabeled and level-matched, then see which was which. Three kinds of round: **Clips** (25 seconds from the middle of 6 songs), **Song changes**
+- **Blind A/B**: compare Sable, plain −14 LUFS normalization and no normalization on the same shuffled sequence, unlabeled and level-matched, then see which was which. Four kinds of round: **Clips** (25 seconds from the middle of 6 songs), **Song changes**
   (the end of one song running into the start of a song from another album) and **Albums** (one track running into the
-  next on the same album, Sable against plain normalization only). Each keeps its own tally, and after 10 rounds it tells you in plain words whether your picks
+  next on the same album, Sable against plain normalization only). **Feel** is an experiment: song changes with Sable, Sable
+  without its estimate of how loud each song feels, and plain normalization, to find out whether that estimate helps. Each keeps its own tally, and after 10 rounds it tells you in plain words whether your picks
   are real or could be luck.
 
 ---

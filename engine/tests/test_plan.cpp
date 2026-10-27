@@ -184,6 +184,24 @@ TEST_CASE("plan: transitions round plays Sable as normal playback, seams and alb
   CHECK(seq(p) == doctest::Approx(seq(s)).epsilon(1e-9));
 }
 
+TEST_CASE("plan: condition L is Sable without the PLE offset, level-matched to Sable (MATH §30.7)") {
+  // a feels 3 LU louder than its LUFS (PLE -11 vs anchor -14); b has no offset.
+  const std::string a = analysis(-14, -14, -11, -20, -14, -14), b = analysis(-14, -14, -14, -20, -14, -14);
+  const std::string items = "{\"analysis\":" + a + ",\"excerptSec\":20},{\"analysis\":" + b + ",\"excerptSec\":20}";
+  auto run = [&](const char* cond) {
+    std::string in = ctx(items);
+    in.insert(1, std::string("\"abCondition\":\"") + cond + "\",");
+    return sable::planQueueJson(in);
+  };
+  const std::string s = run("sable"), l = run("sablelufs");
+  CHECK(field(s, "gainDb", 1) - field(s, "gainDb", 0) == doctest::Approx(3.0).epsilon(1e-9));  // Sable follows the PLE
+  CHECK(field(l, "gainDb", 1) - field(l, "gainDb", 0) == doctest::Approx(0.0).epsilon(1e-9));  // L follows LUFS only
+  auto seq = [](const std::string& out) {
+    return 10 * std::log10((std::pow(10.0, (-14 + field(out, "gainDb", 0)) / 10.0) + std::pow(10.0, (-14 + field(out, "gainDb", 1)) / 10.0)) / 2);
+  };
+  CHECK(seq(l) == doctest::Approx(seq(s)).epsilon(1e-9));  // matched to real Sable's loudness
+}
+
 TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay bounded (MATH §19, §24.4)") {
   const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
   std::string in = ctx("{\"analysis\":" + capped + "}");
