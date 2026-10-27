@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
                     val names = SableDatabase.get(applicationContext).library().allTracks().flatMap { t -> listOfNotNull(t.contentHash, "id${t.mediaId}").map { it to t.displayName } }.toMap()
                     app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).describe(names).forEach { Log.i("SablePlay", "LEARNED $it") }
                 }
+                "reroute" -> app.sable.playback.PlaybackService.debugReroute()  // §19.3: the change-of-place path, no device needed
                 "diag" -> app.sable.playback.PlaybackDiag.run { init(applicationContext); dump() }  // the playback log (tag SableDiag)
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()

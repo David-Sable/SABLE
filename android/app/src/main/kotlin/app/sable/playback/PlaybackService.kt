@@ -256,6 +256,9 @@ class PlaybackService : MediaSessionService() {
     companion object {
         @Volatile private var current: PlaybackService? = null
 
+        /** Debug: the change-of-place path without a real device (GainController.simulatePlaceChange). */
+        fun debugReroute() { val s = current ?: return; s.main.post { s.controller.simulatePlaceChange() } }
+
         /** The widget's previous / next: acts on the running player; does nothing when Sable is not playing anything. */
         fun skip(next: Boolean) {
             val s = current ?: return

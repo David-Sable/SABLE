@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.25 (2026-10-27)
+**Version:** MATH-1.26 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -646,6 +646,7 @@ Offsets are visible on the Why sheet and resettable (per track, per artist, all)
 The same song is turned up in a car and down on headphones for reasons that have nothing to do with the song. So learning is kept **per place**: the output device that plays the media stream when the feedback window opens.
 - A place is the output's kind plus, for Bluetooth, BLE and USB, the device's name as the system reports it (`AudioDeviceInfo.productName`), e.g. "Bluetooth · CAR MULTIMEDIA" and "Bluetooth · WH-1000XM4" are two places. The phone speaker (and earpiece) is one place, wired headphones another.
 - Every state of §19.2 (`o_t`, `o_a`, their timestamps, `n_a`, and the previous event used by the environment filter of §19.1) exists separately for each place. An event updates only its place; planning uses the place that is playing now.
+- **[MATH-1.26] A change of place during a song** (the JBL connects while the phone speaker plays, the car takes over from headphones) applies at once: the playing song takes the new place's offsets, its ceiling and calibration (§20), through a user-initiated in-track change (§23.3). Before 1.26 the song kept the offsets of the place it started in until its next play (owner report: connecting the JBL mid-song was "not noticed"). This is not the double correction §28 guards against: the new place's offsets come from earlier plays there, and a press near a change of place is ignored (§19.1). The place is detected as the media output's device (kind and name); Android announces a Bluetooth device before it moves the music to it, so the output is checked again 0.4, 1.5 and 3 s after a device comes or goes, and whenever playback starts or the song changes.
 - A place with no state of its own for a track (or an artist) starts from the state learned before places existed (MATH-1.20 and earlier), decayed as usual; its first event then writes its own state. Nothing learned earlier is lost, and it fades out with the 30-day half-life.
 - The Why sheet names the place. "Forget" removes the song's (or artist's) state for the current place and the shared earlier state.
 
@@ -712,7 +713,7 @@ Each media item's first output frame is identified by its presentation timestamp
 - Between different songs, a step applied exactly at the first sample of a new item adds a discontinuity of `(g₂ − g₁)·x[0]` only if the next track's first sample is non-zero. Songs almost always begin with near-zero samples, and any step there is masked by the track change itself. This is preferred over ramping into the new song, which would alter its attack.
 
 ### 23.3 In-track changes
-For gain changes that happen while a track is playing (JIT → full analysis, provisional → JIT, setting changes; learning offsets never change mid-track, §28):
+For gain changes that happen while a track is playing (JIT → full analysis, provisional → JIT, setting changes, a change of output or place, §19.3; learning offsets never change mid-track from the track's own play, §28):
 - Rate-limited changes (analysis updates): the gain moves in dB along a raised-cosine curve over `T = max(0.5 s, (π/2)·|Δ| s)`. The curve's peak slope is `(π/2)·|Δ|/T`, which is ≤ 1 dB/s whenever `T ≥ (π/2)|Δ|`.
 - User-initiated changes (mode switch, settings): a 20 ms raised-cosine crossfade in linear amplitude: `g(n) = g₀ + (g₁ − g₀)·(1 − cos(π·n/N))/2`, `N = round(0.020·fs)`.
 
@@ -915,7 +916,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 ## 28. Edge behaviours and known blind spots [DESIGN]
 
 - **Post-processing after Sable** (Samsung Dolby Atmos/Adapt Sound/EQ, Android `LoudnessEnhancer`, Bluetooth absolute volume): all ceilings and loudness figures assume a bit-transparent path after Sable's processor. Sable reports detectable effects (`AudioEffect.queryEffects`, Samsung SoundAlive state where exposed) on the Why sheet. It does not try to compensate.
-- **Learning vs the user's own correction:** the volume press itself has already corrected the current track at the system level. Learned offsets are therefore applied **from the next play** of that track or artist, never mid-track. So there is no double correction.
+- **Learning vs the user's own correction:** the volume press itself has already corrected the current track at the system level. Learned offsets are therefore applied **from the next play** of that track or artist, never mid-track. So there is no double correction. The one exception is a change of place (§19.3, MATH-1.26): the song then takes that place's own, earlier lessons, which contain nothing from this play.
 - **Mid-stream format changes** (chained Ogg with a new rate or channel count):
   - At each link boundary the filters are re-initialised for the new format and the sub-block grid restarts. A partial trailing block of the previous link is discarded.
   - All per-time series (block powers, S, F, fine M/S, perceptual LTL, feature frames) are concatenated in time order.

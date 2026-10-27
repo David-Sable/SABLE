@@ -78,6 +78,9 @@ class GainController(
     private val audioManager = context.getSystemService(AudioManager::class.java)
     val learning = ListenerLearning(context, main)
     private val frozenLearned = HashMap<String, Double>()  // §28: learning applies from the next play, never mid-track
+    private val refreeze = HashSet<String>()  // main thread: started items to re-freeze from the next plan (new place, §19.3)
+    private var placeId: String? = null       // §19.3: the device playing now (two Bluetooth devices are two places)
+    private var placeGen = 0                  // main thread: bumped on every change of place
     private var contourKey: Pair<Boolean, Double>? = null
     private var contourVersion = 0L
     private var contourHeadroom = 0.0
@@ -88,8 +91,8 @@ class GainController(
         learning.start()
         learning.onLearned = { replan(user = false) }
         audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
-            override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
-            override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onRouteMaybeChanged()
+            override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = onDevicesChanged()
+            override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onDevicesChanged()
         }, main)
         scope.launch { PlaybackPrefs.settings.drop(1).collect { replan(user = true) } }
         scope.launch(Dispatchers.Default) {
@@ -103,7 +106,8 @@ class GainController(
 
     // ---------------- Player events ----------------
     override fun onTimelineChanged(timeline: Timeline, reason: Int) = replan(user = false)
-    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = replan(user = false)
+    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { onRouteMaybeChanged(); replan(user = false) }
+    override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) onRouteMaybeChanged() }
     override fun onRepeatModeChanged(repeatMode: Int) = replan(user = false)
 
     private val resumedIds = HashSet<String>()  // main thread: queue entries put back where they were left
@@ -196,6 +200,7 @@ class GainController(
         updateContour(settings.contour && settings.mode == PlaybackPrefs.Mode.QUIET, cal)
         val headroom = if (gains.contour != null) contourHeadroom else 0.0
         val frozen = HashMap(frozenLearned)
+        val gen = placeGen  // a plan begun before a change of place must not re-freeze the old place's lessons
         val result = withContext(Dispatchers.IO) {
             val items = JSONArray()
             val albums = JSONObject()
@@ -248,6 +253,17 @@ class GainController(
         gains.retain(ids.toSet())
         lastPlan = plan
         NowPlaying.plan.value = plan.mapValues { (_, p) -> p.optDouble("gainDb") }
+        if (refreeze.isNotEmpty() && gen == placeGen) {
+            for (id in refreeze) plan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
+            refreeze.clear()
+        }
+        // A user-side replan (output, settings) may leave the playing song's gain unchanged, so the sink reports
+        // nothing: refresh Now Playing (gain, place, rules) from the plan itself.
+        if (user) player.currentMediaItem?.mediaId?.let { id ->
+            val manual = manualByItem[id] ?: return@let
+            val p = plan[id] ?: return@let
+            publish(id, if (manual) p.optDouble("manualGainDb") else p.optDouble("gainDb"), manual)
+        }
         Log.d(TAG, "PLAN ${ids.size} items in ${SystemClock.elapsedRealtime() - t0} ms")
     }
 
@@ -324,12 +340,32 @@ class GainController(
     }
 
     // ---------------- Output (MATH §20) ----------------
-    private fun onRouteMaybeChanged() {
+    /**
+     * A device came or went. Android announces a Bluetooth device before it moves the music to it, so the output is
+     * checked now and again as the routing settles; [onRouteMaybeChanged] acts only on a real change.
+     */
+    private fun onDevicesChanged() {
+        onRouteMaybeChanged()
+        for (delay in ROUTE_RECHECK_MS) main.postDelayed({ onRouteMaybeChanged() }, delay)
+    }
+
+    /** Debug (`--es cmd reroute`): runs the change-of-place path as if a new device had taken over. */
+    fun simulatePlaceChange() { placeId = null; onRouteMaybeChanged() }
+
+    fun onRouteMaybeChanged() {
         val before = route
+        val beforePlace = placeId
         updateRoute()
-        if (before != route) {  // registering the callback reports the devices already present: not a change
-            PlaybackDiag.log("ROUTE $before -> $route")
+        // Registering the callback reports the devices already present: not a change. Two Bluetooth devices (the JBL,
+        // the car) are the same route kind but different places, so the place is compared too.
+        if (before != route || beforePlace != placeId) {
+            PlaybackDiag.log("ROUTE $before -> $route (${learning.currentPlace().label})")
             learning.onRouteChanged()
+            // §19.3 (MATH-1.26): the playing song takes the new place's lessons now, not at its next play; the next
+            // plan re-freezes them (§28 still holds: no lesson from this play is in them).
+            refreeze += frozenLearned.keys
+            frozenLearned.clear()
+            placeGen++
             replan(user = true)
         }
     }
@@ -345,6 +381,7 @@ class GainController(
             else -> PlaybackPrefs.Route.SPEAKER
         }
         OutputState.route.value = route
+        placeId = learning.currentPlace().id
         ceilingDbtp = PlaybackPrefs.settings.value.effective().ceiling(route)
     }
 
@@ -358,13 +395,14 @@ class GainController(
             id, db, p?.optString("source") ?: "provisional", manual, p?.optBoolean("albumRun") ?: false, rules, ceilingDbtp, route.label,
             learnedDb = p?.optDouble("learnedDb", 0.0) ?: 0.0, outputCalDb = s.cal(route), contourOn = gains.contour != null,
         )
-        Log.i(TAG, "ITEM $id gain %.2f dB manual=$manual ${p?.optString("source")} ${rules.joinToString { "${it.first} %+.2f".format(it.second) }}".format(db))
+        Log.i(TAG, "ITEM $id gain %.2f dB manual=$manual ${p?.optString("source")} at ${route.label} learned %+.2f ${rules.joinToString { "${it.first} %+.2f".format(it.second) }}".format(db, p?.optDouble("learnedDb", 0.0) ?: 0.0))
     }
 
     companion object {
         const val TAG = "SablePlay"
         const val JIT_WAIT_MS = 1500L   // §22.2 W_jit
         const val WINDOW_AHEAD = 30
+        val ROUTE_RECHECK_MS = longArrayOf(400L, 1_500L, 3_000L)
         const val LEARN_START_MS = 3_000L  // §19.1: a song started later than this into it opens no learning window
     }
 }
