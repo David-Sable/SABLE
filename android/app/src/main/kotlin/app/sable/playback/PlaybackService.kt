@@ -172,6 +172,7 @@ class PlaybackService : MediaSessionService() {
         val pos = if (items.size == ids.size) resumePrefs.getLong("positionMs", 0L) else 0L
         if (!stillWanted()) return null
         controller.prepareStart(items.map { it.mediaId }, start)  // JIT wait + plan before the first note
+        controller.markResumed(items[start].mediaId)  // a resumed song is not feedback (§19.1)
         return MediaSession.MediaItemsWithStartPosition(items, start, pos)
     }
 
@@ -183,6 +184,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         PlaybackDiag.log("SERVICE stop")
         current = null
+        SableWidget.stopped(this)
         saveResume()
         SleepTimer.cancel()
         session.release()

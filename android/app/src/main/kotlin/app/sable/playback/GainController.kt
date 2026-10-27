@@ -106,6 +106,11 @@ class GainController(
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = replan(user = false)
     override fun onRepeatModeChanged(repeatMode: Int) = replan(user = false)
 
+    private val resumedIds = HashSet<String>()  // main thread: queue entries put back where they were left
+
+    /** The queue entry Sable put back where you left off (restore or a play button): it never teaches (§19.1). */
+    fun markResumed(id: String) { main.post { resumedIds += id } }
+
     /** From the audio thread: the item that just started and the gain it started with. */
     fun onItemGain(key: Any?, db: Double, manual: Boolean) {
         main.post {
@@ -115,7 +120,18 @@ class GainController(
             if (firstStart) {
                 lastPlan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
                 val t = QueueId.trackId(id)?.let { trackCache[it] }
-                learning.onItemStart(t)
+                // §19.1 (MATH-1.25): a song teaches only when it starts from its beginning, with its full-analysis gain.
+                // A gapless next song reaches the sink before it is the player's current item: it starts at 0.
+                val pos = if (player.currentMediaItem?.mediaId == id) player.currentPosition else 0L
+                val source = lastPlan[id]?.optString("source")
+                val off = when {
+                    id in resumedIds -> "picked up where you left off"
+                    pos > LEARN_START_MS -> "started at ${pos / 1000} s"
+                    source != "full" -> "playing with the ${source ?: "provisional"} gain"
+                    else -> null
+                }
+                learning.onItemStart(t.takeIf { off == null })
+                if (off != null && t != null) PlaybackDiag.log("LEARN off for ${t.displayName}: $off")
             }
             publish(id, db, manual)
             if (changed) replan(user = false)  // the next item's seam depends on how this one began
@@ -349,5 +365,6 @@ class GainController(
         const val TAG = "SablePlay"
         const val JIT_WAIT_MS = 1500L   // §22.2 W_jit
         const val WINDOW_AHEAD = 30
+        const val LEARN_START_MS = 3_000L  // §19.1: a song started later than this into it opens no learning window
     }
 }

@@ -40,6 +40,9 @@ class SableWidget : AppWidgetProvider() {
         private const val ACTION_NEXT = "app.sable.widget.NEXT"
         private const val ACTION_PREV = "app.sable.widget.PREV"
 
+        /** Sable stopped: keep the song on the card, but show play (not pause). */
+        fun stopped(context: Context) = show(context, last?.copy(playing = false))
+
         /** Updates every placed widget. Cheap when none is placed. */
         fun show(context: Context, state: State?) {
             last = state

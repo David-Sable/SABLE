@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.24 (2026-10-27)
+**Version:** MATH-1.25 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -623,6 +623,8 @@ Because every `g_cur` stays within ±0.5 dB of its own `g_track`, errors cannot 
 ### 19.1 Events
 A volume-key event counts as feedback when **all** of these hold:
 - it happens within the first `t_w = 20 s` of a track that started by a natural transition or a user tap
+- **[MATH-1.25]** the track started **from its beginning** (within its first `3 s`) and **was not put back where it was left** (resume after the app was closed, or a play button waking Sable): a press then sets the volume for the room or the device, not for the song. Owner's session: "LAST DANCE!" restored at 86 s, paused; the volume turned up one step on the phone speaker taught +1.92 dB under 1.24
+- **[MATH-1.25]** the track plays with its **full-analysis gain** (`source = full`): during a provisional or quick-estimate (JIT) gain, a press may be correcting that temporary estimate, which the full analysis replaces
 - it is not reversed within 3 s (a press immediately undone cancels)
 - the output route did not change in the previous 10 s.
 

@@ -106,7 +106,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
 }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.24"
+const val MATH_DOC_VERSION = "MATH-1.25"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {

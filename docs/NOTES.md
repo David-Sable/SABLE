@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0/0.17.1) play-button resume, widget, queue clear, crash fixes, (0.17.2) screens keep their scroll position. MATH-1.24.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0/0.17.1) play-button resume, widget, queue clear, crash fixes, (0.17.2) screens keep their scroll position, (0.17.3) learning only from songs started from the top with full gain. MATH-1.25.
   Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.17.2 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
+- **On David's phone:** 0.17.3 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - USB-C output untested on the device. Bluetooth verified in real use (JBL Charge 5, car); per-place learning live on the JBL.
@@ -26,11 +26,18 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 - **Skips in the car (open):** David heard skips on a drive (car Bluetooth "CAR MULTIMEDIA", Android Auto present, Maps prompts) on 0.8.1, none on the way back. Phone logs had rolled off; nothing left pointed at Sable (no crash; Samsung's freezer tried but skipped freezing it). 0.9.1 keeps a playback log on the phone: next time read it with `--es cmd diag` (tag `SableDiag`): UNDERRUN lines mean audio starvation (then raise the AudioTrack buffer), COMMAND next from a car package means the car sent the skips, PLAY_WHEN_READY/SUPPRESSED show interruptions, ROUTE shows Bluetooth drops.
 - **Direction (David, 2026-10-26):** no more ear tests (A/B removed, MATH §30 retired). Real listening, whole songs in the car, "amazing" with the perceptual estimate. Work now: check the math and code, give the engine more understanding so it changes even less, refine the app, optimize.
 - **Done 2026-10-27 (0.16.0):** the agreed convenience round (see log).
+- **Lesson to review with David:** "LAST DANCE!" (JPEGMAFIA) +1.92 dB at the phone speaker (artist +0.96, unused with one song) came from a press right after a resume, the blind spot fixed in 0.17.3. Not removed (his data): he can tap Why → "Forget for this song" while on the phone speaker, or ask.
 - **Ideas pending:** test USB-C output and the other formats on the phone (formats need non-copyrighted test files, e.g. generated with ffmpeg). David's pronouns: he/him.
 
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Blind-spot pass: resumed songs no longer teach (0.17.3, MATH-1.25)
+- Found in David's own log: at 03:58 Sable restored "LAST DANCE!" at 86 s (paused); a volume step up on the phone speaker inside the 20 s window (opened at restore, while paused) taught track +1.92 dB, artist +0.96. Resume (0.16.0) and the play-button resumption (0.17.0) had made "a song that did not start at its beginning" common; in the car (get in, press play, set the volume) it would teach every time.
+- MATH-1.25 §19.1: a song opens a learning window only if it started from its beginning (≤ 3 s; a gapless next song counts as 0), was not put back where it was left (`GainController.markResumed`, set by the restore and the play-button resumption), and plays with its full-analysis gain (`source = full`; during JIT/provisional gains a press may correct the estimate). Skipped windows log `LEARN off for <song>: <why>` in the playback log.
+- Widget shows play (not pause) when Sable's service stops.
+- Verified on the phone (muted; volume restored to David's 6): restore → "LEARN off for 06 - Close to Heaven.flac: picked up where you left off"; a tapped song from the top kept its window; no lesson written.
 
 ### 2026-10-27 (PC) Screens keep their place (0.17.2)
 - David: going back or swiping Now Playing down reset the library to the top. Each route is now wrapped in a `rememberSaveableStateHolder` provider keyed by the route (`SableApp`), and each library tab in its own (`LibraryScreen`); the lazy list/grid and scroll states are saveable, so they come back. A screen that leaves the back stack has its state removed (reopening starts at the top).
