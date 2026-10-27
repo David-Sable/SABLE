@@ -16,7 +16,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ## Now (keep this current)
 - **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0) and the A/B verdict line (0.8.1). MATH-1.15.
   Latest GitHub release: see Releases (0.8.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On Dana's phone:** 0.8.1 (installed from the PC over USB, 2026-10-26). A/B tally then: Sable 13, Plain 9, Off 4 of 26 (luck ≈ 1 in 17). 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
+- **On Dana's phone:** 0.8.1 (installed from the PC over USB, 2026-10-26). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
