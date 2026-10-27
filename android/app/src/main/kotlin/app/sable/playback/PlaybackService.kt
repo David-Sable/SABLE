@@ -26,6 +26,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import android.os.SystemClock
 
 /**
  * Playback (Milestone 5): ExoPlayer whose audio goes through [SableAudioSink] (float, per-item gain), a MediaSession for
@@ -60,6 +63,25 @@ class PlaybackService : MediaSessionService() {
             .build()
         player.addAnalyticsListener(PlaybackDiag.listener)
         controller = GainController(this, player, gains, scope).also { it.start() }
+        // Sleep timer: when due, pause at the end of the playing song (never mid-song), then clear itself.
+        scope.launch {
+            SleepTimer.state.collectLatest { st ->
+                player.pauseAtEndOfMediaItems = st != null && st.deadlineMs == null
+                if (st?.deadlineMs != null) {
+                    delay(maxOf(0L, st.deadlineMs - SystemClock.elapsedRealtime()))
+                    PlaybackDiag.log("SLEEP due: stopping after this song")
+                    SleepTimer.due()
+                }
+            }
+        }
+        player.addListener(object : Player.Listener {
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM && SleepTimer.state.value != null) {
+                    PlaybackDiag.log("SLEEP stopped at the end of the song")
+                    SleepTimer.cancel()
+                }
+            }
+        })
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaSession.Builder(this, player).setCallback(callback).setSessionActivity(open).build()
     }
@@ -73,6 +95,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         PlaybackDiag.log("SERVICE stop")
+        SleepTimer.cancel()
         session.release()
         player.release()
         scope.cancel()

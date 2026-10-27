@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -118,6 +119,8 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
 @Composable
 fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
     val gain by NowPlaying.gain.collectAsState()
+    val sleep by app.sable.playback.SleepTimer.state.collectAsState()
+    var sleepOpen by remember { mutableStateOf(false) }
     val json = analysisJson(state.currentTrackId)
     val shape = remember(json) { SongShape.of(json) }
     val tick by frameTick(state.playing, state.durationMs, 1000)
@@ -176,7 +179,12 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
         return
     }
     Column(Modifier.fillMaxSize().then(swipe).grain()) {
-        TopBar("NOW PLAYING", { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
+        TopBar("NOW PLAYING", { state.pop() }) {
+            IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textPrimary)
+            IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
+        }
+        sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
+        if (sleepOpen) SleepSheet { sleepOpen = false }
         Column(Modifier.weight(1f).padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
             if (row != null) {
                 AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
