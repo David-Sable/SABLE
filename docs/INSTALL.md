@@ -60,3 +60,7 @@ SABLE measures and balances what it plays. Samsung's sound effects work *after* 
 - With Bluetooth headphones, any EQ in their own app also changes the sound.
 
 You don't have to. SABLE works either way.
+
+## After an update
+
+Android finishes optimizing a newly installed Sable on its own, during the phone's quiet maintenance (usually overnight while charging). Until then it works normally; afterwards it opens a little faster (on the A17 about 0.25 s instead of 0.32 s).
