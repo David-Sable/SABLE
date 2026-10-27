@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,6 +53,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
+import kotlin.math.abs
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -134,6 +138,32 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
                 else dragY.animateTo(0f, Motion.medium())
             },
         )
+    // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
+    val dragX = remember { Animatable(0f) }
+    var artWidth by remember { mutableIntStateOf(1) }
+    val artSwipe = Modifier
+        .onSizeChanged { artWidth = maxOf(1, it.width) }
+        .offset { IntOffset(dragX.value.roundToInt(), 0) }
+        .graphicsLayer { alpha = 1f - (abs(dragX.value) / artWidth).coerceIn(0f, 0.6f) }
+        .draggable(
+            orientation = Orientation.Horizontal,
+            state = rememberDraggableState { d -> scope.launch { dragX.snapTo(dragX.value + d) } },
+            onDragStopped = { velocity ->
+                val w = artWidth.toFloat()
+                val dir = when {
+                    dragX.value < -w * 0.25f || velocity < -1500f -> 1    // next
+                    dragX.value > w * 0.25f || velocity > 1500f -> -1     // previous
+                    else -> 0
+                }
+                if (dir == 0) dragX.animateTo(0f, Motion.medium())
+                else {
+                    dragX.animateTo(-dir * w, Motion.medium())
+                    state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
+                    dragX.snapTo(dir * w)  // the new cover comes in from the other side
+                    dragX.animateTo(0f, Motion.medium())
+                }
+            },
+        )
     if (row == null) {
         Column(Modifier.fillMaxSize().grain()) {
             TopBar("NOW PLAYING", { state.pop() })
@@ -149,7 +179,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?) {
         TopBar("NOW PLAYING", { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
         Column(Modifier.weight(1f).padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
             if (row != null) {
-                AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).scale(pressScale), px = 1024)
+                AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
             }
             Spacer(Modifier.height(Space.xl))
             Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -206,6 +236,7 @@ fun worldLabel(g: app.sable.playback.NowPlayingGain): String {
     val world = when {
         g.source == "provisional" -> "listening…"
         g.source == "jit" -> "quick estimate"
+        g.albumRun && g.rules.any { it.first == "FLOW" } -> "flowing album tracks"
         g.albumRun -> "album world"
         else -> "song world"
     }

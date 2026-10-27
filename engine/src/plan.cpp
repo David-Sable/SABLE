@@ -178,11 +178,13 @@ std::string num(double v) {
 constexpr double kProvisionalOffset = 8.0;  // §22.1: assume a -8 LUFS master
 constexpr double kJitTpMargin = 1.0;        // §22.2 M_jitTP
 constexpr double kPerceptualBound = 3.0;    // §16.2 B_p
+constexpr double kFlowGap = 0.5;            // §17.3 G_flow: most silence (s) a track may hold and still flow
 
 struct Track {
   LoudnessResult r;
   TrackUnderstanding u;
   bool decodeClipped = false;
+  std::optional<double> durationSec;  // decoded duration (frames / rate), for §17.3
   std::optional<double> pleOffset() const {  // §18: (PLE_anchor - L_anchor), clamped as in §16.2
     if (!u.anchorPle || !u.anchorLufs) return std::nullopt;
     return std::clamp(*u.anchorPle - *u.anchorLufs, -kPerceptualBound, kPerceptualBound);
@@ -204,6 +206,8 @@ Track trackOf(const J& a) {
   t.u.anchorLufs = a.num("anchorLufs");
   t.u.anchorPle = a.num("anchorPle");
   t.u.anchorSec = a.num("anchorSec", 0.0);
+  if (const auto nf = a.num("frames"), fs = a.num("sampleRateHz"); nf && fs && *fs > 0.0) t.durationSec = *nf / *fs;
+  if (const auto ns = a.num("nonSilentSec")) t.u.nonSilentSec = *ns;
   t.u.character = characterOf(a.str("character"));
   if (const J* p = a.get("anchorBlockPower"); p && p->t == J::T::Arr)
     for (const J& x : p->a)
@@ -219,6 +223,8 @@ struct Item {
   enum class Source { Full, Jit, Provisional } source = Source::Provisional;
   std::optional<Track> track;
   bool albumRun = false, manual = false;
+  std::string albumKey;  // §17.3: album key and position, to recognise flowing neighbours
+  int disc = 0, trackNo = 0;
   double baseDb = 0.0, capDb = std::numeric_limits<double>::infinity();
   double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0;
   std::vector<Rule> rules;
@@ -289,6 +295,9 @@ std::string planQueueJson(const std::string& input) {
         it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
       }
       const std::string key = x.str("album");
+      it.albumKey = key;
+      it.disc = static_cast<int>(x.num("disc", 0.0));
+      it.trackNo = static_cast<int>(x.num("trackNo", 0.0));
       const bool inAlbum = !key.empty() && albumMode != "track" && (albumMode == "album" || x.flag("albumIntent"));  // §17.1
       if (const J* a = x.get("analysis"); a && a->t == J::T::Obj) {
         it.source = Item::Source::Full;
@@ -321,6 +330,33 @@ std::string planQueueJson(const std::string& input) {
       }
       items.push_back(std::move(it));
     }
+
+  // §17.3 flow runs: song-world neighbours that run into each other on a complete album share its gain.
+  if (albumMode != "track" && items.size() > 1) {
+    auto noGaps = [](const Track& t) { return t.durationSec && *t.durationSec - t.u.nonSilentSec <= kFlowGap; };
+    auto flows = [&](const Item& a, const Item& b) {
+      if (a.albumRun || b.albumRun || a.source != Item::Source::Full || b.source != Item::Source::Full) return false;
+      if (a.albumKey.empty() || a.albumKey != b.albumKey) return false;
+      const auto ag = albumGain.find(a.albumKey);
+      if (ag == albumGain.end() || !ag->second) return false;
+      if (a.trackNo < 1 || a.disc != b.disc || b.trackNo != a.trackNo + 1) return false;
+      if (a.track->u.fadeOut || b.track->u.fadeIn) return false;
+      return noGaps(*a.track) && noGaps(*b.track);
+    };
+    std::vector<char> inRun(items.size(), 0);
+    for (std::size_t i = 0; i + 1 < items.size(); ++i)
+      if (flows(items[i], items[i + 1])) inRun[i] = inRun[i + 1] = 1;
+    for (std::size_t i = 0; i < items.size(); ++i) {
+      if (!inRun[i]) continue;
+      Item& it = items[i];
+      const GainDecision& d = *albumGain.at(it.albumKey);
+      it.albumRun = true;
+      it.baseDb = d.gainDb;
+      it.capDb = d.capDb;
+      it.rules = d.rules;
+      it.rules.push_back({"FLOW", 0.0});
+    }
+  }
 
   // §18 seams along the queue, in the engine domain (before learning and calibration). The chain follows what each
   // item actually plays with: its manual variant if it was started by the user, else its natural (seamed) variant.

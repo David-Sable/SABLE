@@ -178,8 +178,10 @@ class GainController(
             val albums = JSONObject()
             val missing = ArrayList<TrackEntity>()   // JIT + full analysis
             val albumMissing = ArrayList<TrackEntity>()  // full analysis only
+            val tracks = ids.map { id -> QueueId.trackId(id)?.let { track(it) } }
+            val keys = tracks.map { t -> t?.let { albumKey(it) } }
             for ((i, id) in ids.withIndex()) {
-                val t = QueueId.trackId(id)?.let { track(it) }
+                val t = tracks[i]
                 val o = JSONObject()
                 if (t != null) {
                     val a = analysis(t)
@@ -190,10 +192,13 @@ class GainController(
                     val key = albumKey(t)
                     if (key != null) {
                         o.put("album", key)
+                        // §17.3: a neighbour from the same album may flow into this song; the planner decides.
+                        val neighbour = keys.getOrNull(i - 1) == key || keys.getOrNull(i + 1) == key
                         val wantsAlbum = settings.albumMode == PlaybackPrefs.AlbumMode.ALBUM ||
-                            (settings.albumMode == PlaybackPrefs.AlbumMode.AUTO && QueueId.albumIntent(id))
+                            (settings.albumMode == PlaybackPrefs.AlbumMode.AUTO && (QueueId.albumIntent(id) || neighbour))
                         if (wantsAlbum && !albums.has(key)) albums.put(key, albumJson(key, t, albumMissing))
                     }
+                    o.put("disc", t.disc).put("trackNo", t.track)
                 }
                 o.put("albumIntent", QueueId.albumIntent(id))
                 o.put("manual", manual[i])

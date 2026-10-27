@@ -17,7 +17,8 @@ lives in the engine. The app only gathers inputs and applies the outputs.
   },
   "items": [
     {"analysis": <analysis> | absent, "jit": {"jitLufs": .., "jitTpDbtp": ..} | absent,
-     "album": "<key>" | absent, "albumIntent": true, "manual": false, "learnedDb": 0.0}
+     "album": "<key>" | absent, "albumIntent": true, "manual": false, "learnedDb": 0.0,
+     "disc": 1, "trackNo": 4}
   ]
 }
 ```
@@ -26,6 +27,9 @@ lives in the engine. The app only gathers inputs and applies the outputs.
   `fadeOut`, plus `anchorBlockPower` for album members.
 - `complete` = every track of the album in the library is analysed. Otherwise the album's items use track mode and get
   the rule `ALBUM_PENDING`.
+- `disc`, `trackNo` (§17.3): the item's place on its album. Song-world neighbours that are the next track and flow into
+  each other (no fades, ≤ 0.5 s of silence in each, read from `frames`, `sampleRateHz`, `nonSilentSec`) share the album
+  gain and get the rule `FLOW`; the album must be listed in `albums` and complete.
 - `manual` = this item began, or will begin, by a user action. The seam chain follows the gain each item actually
   plays with.
 

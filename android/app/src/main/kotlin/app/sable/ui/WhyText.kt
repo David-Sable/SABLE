@@ -25,6 +25,7 @@ object WhyText {
         "PEAK_CAP" -> "Held back so peaks stay under the ceiling"
         "LIMITER" -> "Peaks handled by the limiter"
         "SEAM" -> "Nudged to flow from the previous song"
+        "FLOW" -> "Runs straight into the next track, so they share the album's level"
         "ALBUM_PENDING" -> "Album not fully analysed yet, balanced on its own"
         "JIT" -> "Quick estimate from short excerpts"
         "PROVISIONAL" -> "Not analysed yet: started safely quiet"
@@ -45,7 +46,11 @@ object WhyText {
         if (source == "jit") {
             return "Still listening: $verb from a quick estimate of short excerpts." + (r["PEAK_CAP"]?.let { " Held ${f(it)} dB short so peaks stay clean." } ?: "")
         }
-        val head = if (albumRun) "Part of the album: one gain for every song keeps its contrast, $verb" else "${characterPhrase(character)}: $verb"
+        val head = when {
+            "FLOW" in r -> "Flows straight into its neighbour on the album, so they share one gain and the join stays seamless: $verb"
+            albumRun -> "Part of the album: one gain for every song keeps its contrast, $verb"
+            else -> "${characterPhrase(character)}: $verb"
+        }
         val clauses = buildList {
             r["INTIMACY"]?.let { add("held ${f(it)} dB under target to keep it quiet") }
             r["PEAK_CAP"]?.let { add("${f(it)} dB short of target so its peaks stay clean") }

@@ -18,6 +18,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.sable.data.SableDatabase
+import org.json.JSONObject
 import app.sable.playback.PlaybackPrefs
 import app.sable.playback.PlaybackService
 import app.sable.playback.QueueId
@@ -33,7 +34,7 @@ import kotlinx.coroutines.launch
 /**
  * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
  * adb automation (results logged under tags "SableBench" and "SablePlay"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | flows
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
@@ -108,6 +109,28 @@ class MainActivity : ComponentActivity() {
                 "sync" -> Log.i(TAG, "sync: ${LibraryScanner(applicationContext).syncMediaStore()} tracks")
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
                 "stats" -> stats()
+                "flows" -> {  // §17.3 diagnostics: per album, which song-world neighbours the planner joins (tag SablePlay)
+                    val dao = SableDatabase.get(applicationContext).library()
+                    for ((_, members) in dao.allTracks().groupBy { it.albumId to it.albumArtist }) {
+                        val tracks = members.sortedWith(compareBy({ it.disc }, { it.track }))
+                        if (tracks.size < 2) continue
+                        val an = tracks.map { dao.analysisForTrack(it.mediaId, SableDatabase.MATH_VERSION)?.json?.let(::JSONObject) }
+                        if (an.any { it == null }) continue
+                        val key = "k"
+                        val items = org.json.JSONArray()
+                        tracks.forEachIndexed { i, t ->
+                            items.put(JSONObject().put("analysis", JSONObject(an[i].toString()).apply { remove("shape"); remove("sections"); remove("anchorBlockPower") })
+                                .put("album", key).put("albumIntent", false).put("manual", i == 0).put("disc", t.disc).put("trackNo", t.track))
+                        }
+                        val albums = JSONObject().put(key, JSONObject().put("complete", true).put("tracks", org.json.JSONArray(an.map { JSONObject(it.toString()).apply { remove("shape"); remove("sections") } })))
+                        val input = JSONObject().put("targetLufs", -14.0).put("intimacyLu", 1.0).put("ceilingDbtp", -1.0).put("limiter", false)
+                            .put("outputCalDb", 0.0).put("albumMode", "auto").put("albums", albums).put("items", items)
+                        val out = JSONObject(app.sable.engine.SableEngine.planQueue(input.toString())).getJSONArray("items")
+                        val flowing = (0 until out.length()).filter { out.getJSONObject(it).getJSONArray("rules").toString().contains("\"FLOW\"") }.map { tracks[it].track }
+                        val gaps = an.map { j -> "%.1f".format(j!!.optLong("frames") / j.optDouble("sampleRateHz", 1.0) - j.optDouble("nonSilentSec")) }
+                        android.util.Log.i("SablePlay", "FLOWS ${tracks.first().album} (${tracks.size}): flowing $flowing silence $gaps")
+                    }
+                }
                 "diag" -> app.sable.playback.PlaybackDiag.run { init(applicationContext); dump() }  // the playback log (tag SableDiag)
                 "ensure" -> {  // cache test: hash + reuse-or-analyse matching tracks, logging which happened
                     LibraryScanner(applicationContext).syncMediaStore()

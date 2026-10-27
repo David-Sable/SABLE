@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, and (0.10.1) faster queue starts. MATH-1.19.
-  Latest GitHub release: see Releases (0.10.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.10.1 (installed from the PC over USB, 2026-10-26, verified). Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song. MATH-1.20.
+  Latest GitHub release: see Releases (0.11.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.11.0 (installed from the PC over USB, 2026-10-26, verified). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -32,6 +32,12 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Flowing album tracks, swipe the cover (0.11.0, MATH-1.20)
+- §17.3: song-world neighbours that are the album's next track (same disc, track+1), with no fade at the join and ≤ 0.5 s of silence in each track (duration − nonSilentSec, existing analysis, no rescan), on a complete album, share the album gain (rule FLOW, no seams). Not in Always-track mode. §18 text corrected: the first item of an album/flow run is not seamed either (the code already did this). Planner input gains `disc`, `trackNo`; GainController sends the album JSON when a neighbour shares the album. Engine test with 6 negative cases; Why sentence and "flowing album tracks" label.
+- `--es cmd flows` lists, per album, which tracks the planner joins. On David's library: segued records join (Atrocity Exhibition 5–6, 8–10; JPEGMAFIA albums; Death Certificate), pop albums with pauses join nothing (Charli, thank u next, SAWAYAMA). Verified playing "Pneumonia" by tap: ALBUM −5.78 + FLOW.
+- Now Playing: swipe the cover left for the next song, right for the previous (or restart if first); the cover follows the finger and the new one slides in. Verified on the phone (COMMAND next / previous).
+- Ideas next (agreed list): search in the library, sleep timer at the end of a song, learning per output (car vs headphones).
 
 ### 2026-10-26 (PC) Review pass, controller optimizations (0.10.1)
 - Reviewed the playback path (SableAudioSink, GainKernel, GainController) after the A/B removal: no audio or math defects found.

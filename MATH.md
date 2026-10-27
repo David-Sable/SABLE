@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.19 (2026-10-26)
+**Version:** MATH-1.20 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -568,7 +568,7 @@ Track mode solves: `g_track = argmin_g |g − g_intent|  s.t.  g ≤ g_cap`. The
 - **Always album**: whenever the track belongs to an album (album id + album artist), even in shuffle.
 - **Auto** (default) **[DESIGN, owner decision 2026-10-26]**: the listener's *intent* decides, not queue adjacency. Each queue item records how it was queued:
   - `ALBUM` intent: queued by **Play album** (shuffle off) on an album. Every item of that album placed by that action uses **album gain**. An *album run* = the maximal run of consecutive `ALBUM`-intent items of the same album.
-  - `SONG` intent: queued by **tapping a song** (from any screen, including inside an album), by shuffle, from a playlist, or into a mixed queue. The tapped song and every item that follows it are balanced **in their own world**: track mode (§16) plus seam smoothing (§18), even if they are the same album's next tracks in order.
+  - `SONG` intent: queued by **tapping a song** (from any screen, including inside an album), by shuffle, from a playlist, or into a mixed queue. The tapped song and every item that follows it are balanced **in their own world**: track mode (§16) plus seam smoothing (§18), even if they are the same album's next tracks in order, **unless they flow into each other** (§17.3).
   - Items added later inherit the intent of the action that added them.
 - Album gain needs **every track of that album in the library** to be fully analysed. Until then the run uses track mode, and the missing tracks are queued for analysis at high priority. Rule `ALBUM_PENDING`.
 
@@ -581,11 +581,23 @@ Track mode solves: `g_track = argmin_g |g − g_intent|  s.t.  g ≤ g_cap`. The
 - `g_album = min(g_album_intent, g_album_cap)`, with `g_album_cap = C_out − max_t TP_eff,t`, plus 6.0 dB when the limiter is on (as in §16.4). One gain for the whole album, so the artist's contrast between songs is preserved exactly.
 - No seam smoothing inside an album run (§18).
 
+### 17.3 Flowing tracks in song world [DESIGN, owner decision 2026-10-26]
+Some albums are one continuous piece: live records, mixtapes, segued suites. There the next track starts while the music is still going, so balancing each track in its own world (§16) can move the level right at a join that has no pause to hide it, and §18 can only soften that by 0.5 dB. Sable recognises such joins and leaves them alone.
+
+Two adjacent `SONG`-intent queue items `(a → b)` **flow** when all of these hold:
+- both have a full analysis (not JIT or provisional), the same album key, and that album's gain exists (every track analysed, §17.1);
+- `b` is the next track of `a` on the album: the same disc number, and `track_b = track_a + 1` with `track_a ≥ 1`;
+- neither edge is a fade: `a` has no fade-out and `b` no fade-in (§13.5);
+- neither track contains silence worth the name: `D − D_ns ≤ G_flow = 0.5 s` for both, where `D` is the decoded duration and `D_ns` the non-silent duration (silent sub-blocks as defined in §13.4). A track with no silent sub-blocks anywhere has none at its start or end, so the music really runs across the join. (This is conservative: a track with a pause in its middle does not qualify. A later analysis version may record leading and trailing silence separately.)
+- the album setting is not *Always track* (§17.1).
+
+Every maximal chain of flowing pairs becomes a **flow run**: all its items use the album gain `g_album` and its cap (§17.2) exactly as an album run does, with no seams inside it (§18), and rule `FLOW` (Δ = 0) is added to their rules. The first item of the run takes the album gain too, so the whole stretch keeps the artist's balance. Items outside flow runs are unchanged. Intent still decides everything else: a tapped song that does not flow into its neighbours stays in its own world.
+
 ---
 
 ## 18. Seam smoothing [DESIGN]
 
-Applies only to adjacent queue items `(prev → cur)` that are **not** in the same album run.
+Applies only to adjacent queue items `(prev → cur)` where `cur` is **not** in an album run or flow run (§17.2, §17.3). The first item of a run is not seamed either, so the run keeps exactly one gain.
 
 - `L_end(prev)` = the short-term loudness of the last 3 s of `prev`'s non-silent audio. It is `S_k` for the window ending at the last non-silent sub-block, or the energy mean over what exists if the non-silent audio is shorter than 3 s.
 - `L_open(cur)` = the short-term loudness of the first 3 s of `cur`'s non-silent audio. Both use the BS.1770 short-term values plus each track's **PLE offset** `(PLE_anchor − L_anchor)` (clamped as in §16.2), so seams are compared on the same perceptual scale as anchors.

@@ -120,6 +120,39 @@ TEST_CASE("plan: malformed input is rejected, output is deterministic") {
   CHECK(sable::planQueueJson(in) == sable::planQueueJson(in));
 }
 
+TEST_CASE("plan: song-world neighbours that flow into each other share the album gain (MATH §17.3)") {
+  // A 200 s track; `silence` seconds of it are silent. Loud (-8) and quiet (-16) tracks of one album.
+  auto timed = [](std::string a, double silence) {
+    a.pop_back();
+    return a + ",\"frames\":9600000,\"sampleRateHz\":48000,\"nonSilentSec\":" + std::to_string(200.0 - silence) + "}";
+  };
+  const std::string t1 = timed(analysis(-8, -8, -8, -6, -9, -9), 0.2), t2 = timed(analysis(-16, -16, -16, -6, -15, -15), 0.3);
+  const std::string albums = "{\"A\":{\"complete\":true,\"tracks\":[" + t1 + "," + t2 + "]}}";
+  auto item = [](const std::string& a, int no, const char* extra = "", bool intent = false) {
+    return "{\"analysis\":" + a + ",\"album\":\"A\",\"albumIntent\":" + (intent ? "true" : "false") + ",\"disc\":1,\"trackNo\":" +
+           std::to_string(no) + extra + "}";
+  };
+  const std::string flowing = item(t1, 3, ",\"manual\":true") + "," + item(t2, 4);
+  const std::string out = sable::planQueueJson(ctx(flowing, albums));
+  CHECK(field(out, "gainDb", 0) == field(out, "gainDb", 1));       // one gain across the join
+  CHECK(out.find("\"FLOW\"") != std::string::npos);
+  CHECK(out.find("\"SEAM\"") == std::string::npos);
+  const std::string played = sable::planQueueJson(ctx(item(t1, 3, "", true) + "," + item(t2, 4, "", true), albums));
+  CHECK(played.find("\"FLOW\"") == std::string::npos);            // Play album: an album run already
+  CHECK(field(out, "gainDb", 0) == field(played, "gainDb", 0));      // the flow run plays at Play album's gain
+
+  auto separate = [&](const std::string& items, const std::string& alb, const char* mode = "auto") {
+    const std::string o = sable::planQueueJson(ctx(items, alb, mode));
+    return o.find("\"FLOW\"") == std::string::npos && field(o, "gainDb", 0) != field(o, "gainDb", 1);
+  };
+  CHECK(separate(item(t1, 3) + "," + item(t2, 5), albums));                          // not the next track
+  CHECK(separate(item(t1, 3) + "," + item(timed(analysis(-16, -16, -16, -6, -15, -15), 2.0), 4), albums));  // a real pause
+  CHECK(separate(item(t1, 3) + "," + item(timed(analysis(-16, -16, -16, -6, -15, -15, "steady", true), 0.3), 4), albums));  // fade-in
+  CHECK(separate(flowing, "{\"A\":{\"complete\":false,\"tracks\":[]}}"));          // album not fully analysed
+  CHECK(separate(flowing, albums, "track"));                                           // Always track
+  CHECK(separate(item(analysis(-8, -8, -8, -6, -9, -9), 3) + "," + item(analysis(-16, -16, -16, -6, -15, -15), 4), albums));  // no duration data
+}
+
 TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay bounded (MATH §19, §24.4)") {
   const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
   std::string in = ctx("{\"analysis\":" + capped + "}");

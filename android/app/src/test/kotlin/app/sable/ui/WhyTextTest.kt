@@ -27,4 +27,11 @@ class WhyTextTest {
         assertEquals("Still listening: raised 1.4 dB from a quick estimate of short excerpts. Held 2.1 dB short so peaks stay clean.",
             WhyText.sentence(null, 1.42, listOf("JIT" to 1.42, "PEAK_CAP" to -2.09), "jit", false))
     }
+
+    @Test fun flowingTracks_sayWhyTheyShareTheAlbumGain() {
+        assertEquals(
+            "Flows straight into its neighbour on the album, so they share one gain and the join stays seamless: lowered 4.2 dB.",
+            WhyText.sentence("steady", -4.2, listOf("ALBUM" to -4.2, "FLOW" to 0.0), "full", albumRun = true),
+        )
+    }
 }
