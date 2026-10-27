@@ -14,6 +14,7 @@ import app.sable.data.TrackEntity
 import app.sable.engine.SableEngine
 import org.json.JSONObject
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Listener learning (MATH §19): volume-key presses in the first 20 s of a song are feedback. Small, bounded (±2 dB),
@@ -46,7 +47,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         v to d
     }
 
-    private fun artistKey(t: TrackEntity) = t.artist.trim().lowercase().ifBlank { "<unknown>" }
+    // A song with no real artist ("<unknown>", blank, "Various Artists") shares nothing with the others filed under that name:
+    // it has no artist state at all (MATH-1.27).
+    private fun artistKey(t: TrackEntity): String? = t.artist.trim().lowercase().takeIf { it.isNotEmpty() && it !in NO_ARTIST }
     private fun trackKey(t: TrackEntity) = t.contentHash ?: idKey(t)
     // A song taught before its content was hashed (a new file, played before analysis) was stored under its MediaStore
     // id: it is still found under that key, and moved to the hash key at its next event.
@@ -58,8 +61,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     fun offsets(t: TrackEntity, p: Place = currentPlace()): Offsets {
         val now = nowDays()
         val tr = readAt(p, "t:${trackKey(t)}") ?: readAt(p, "t:${idKey(t)}")
-        val ar = readAt(p, "a:${artistKey(t)}")
-        val taught = setAt(p, "ac:${artistKey(t)}").orEmpty()
+        val ak = artistKey(t)
+        val ar = ak?.let { readAt(p, "a:$it") }
+        val taught = ak?.let { setAt(p, "ac:$it") }.orEmpty()
         // §19.2 (MATH-1.23): the artist's taught songs' own offsets, so the engine can check they agree.
         val songs = taught.mapNotNull { k -> readAt(p, "t:$k")?.first }
         return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, taught.size, tr != null, songs)
@@ -76,8 +80,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     /** §19.3: forgets the song (or artist) for the current place and the shared earlier state. */
     fun resetTrack(t: TrackEntity, p: Place = currentPlace()) =
         prefs.edit().remove("${p.id}|t:${trackKey(t)}").remove("t:${trackKey(t)}").remove("${p.id}|t:${idKey(t)}").remove("t:${idKey(t)}").apply()
-    fun resetArtist(t: TrackEntity, p: Place = currentPlace()) = prefs.edit()
-        .remove("${p.id}|a:${artistKey(t)}").remove("${p.id}|ac:${artistKey(t)}").remove("a:${artistKey(t)}").remove("ac:${artistKey(t)}").apply()
+    fun resetArtist(t: TrackEntity, p: Place = currentPlace()) {
+        val a = artistKey(t) ?: return
+        prefs.edit().remove("${p.id}|a:$a").remove("${p.id}|ac:$a").remove("a:$a").remove("ac:$a").apply()
+    }
     fun resetAll() = prefs.edit().clear().apply()
 
     /** Everything learned, one line per entry, for the "learned" debug command. [names]: track key -> file name. */
@@ -109,6 +115,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private var lastChangeAt = 0L
     private var lastIndex = -1
     private var routeChangedAt = -1_000_000L
+    private var startIndex = 0
+    private var firstPressPosMs = -1L  // playback position at the window's first press (§19.1, MATH-1.27)
+    private var pressedWhilePaused = false
+    private var sawMute = false
     private val close = Runnable { closeWindow() }
     // One UI does not always deliver the volume broadcast to apps: also sample the volume while a window is open.
     private val poll = object : Runnable {
@@ -119,6 +129,12 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         }
     }
     var onLearned: (TrackEntity) -> Unit = {}
+
+    /** The song's loudness every 0.5 s (short-term, 3 s windows) and its anchor, from the cached analysis (MATH-1.27). */
+    class OpeningShape(val lufs: DoubleArray, val anchorLufs: Double)
+    var shapeOf: (TrackEntity) -> OpeningShape? = { null }
+    /** Whether playback is running and where it is, in ms. */
+    var playback: () -> Pair<Boolean, Long> = { true to 0L }
 
     fun start() {
         lastIndex = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
@@ -144,6 +160,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         startDb = volumeDb()
         lastChangeAt = 0L
         lastIndex = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        startIndex = lastIndex
+        firstPressPosMs = -1L
+        pressedWhilePaused = false
+        sawMute = false
         main.postDelayed(close, WINDOW_MS)
         main.postDelayed(poll, POLL_MS)
     }
@@ -155,6 +175,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val now = SystemClock.elapsedRealtime()
         if (track == null || now - startAt > WINDOW_MS) return
         Log.i(TAG, "volume index $idx at ${(now - startAt) / 1000.0} s")
+        val (playing, posMs) = playback()
+        if (lastChangeAt == 0L) firstPressPosMs = posMs
+        if (!playing) pressedWhilePaused = true  // paused: the press is about the room, not the song (MATH-1.27)
+        if (idx == 0) sawMute = true
         lastChangeAt = now
         main.removeCallbacks(close)  // a press can still be undone within 3 s: wait for that before closing
         main.postDelayed(close, maxOf(startAt + WINDOW_MS, now + UNDO_MS) - now)
@@ -170,6 +194,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         note("LEARN window ${t.displayName} at ${place.label}: volume %.2f -> %.2f dB".format(startDb, startDb + delta))
         if (abs(delta) < MIN_EVENT_DB) return
         if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { note("LEARN ignored (output changed) ${t.displayName}"); return }
+        if (pressedWhilePaused) { note("LEARN ignored (paused) ${t.displayName}"); return }
         commit(t, delta, place)
     }
 
@@ -183,20 +208,33 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
         prefs.getString("${p.id}|prevEndDb", null)?.toDoubleOrNull()?.let { input.put("prevEndDb", it) }  // §19.1 put back?
         input.put("startDb", startDb)
+        // MATH-1.27: a mute is not a verdict, and the section the press was made in is measured against the song's anchor.
+        if (startIndex == 0 || sawMute || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) input.put("muted", true)
+        var heard: Double? = null
+        shapeOf(t)?.let { sh ->
+            val k = ((firstPressPosMs / 1000.0 - 3.0) / 0.5).roundToInt().coerceIn(0, sh.lufs.size - 1)  // the 3 s before the press
+            heard = sh.lufs.getOrNull(k)?.takeIf { it.isFinite() && firstPressPosMs >= 0 }
+            heard?.let { input.put("heardLufs", it).put("anchorLufs", sh.anchorLufs) }
+        }
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
-        val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) }
+        if (out.has("ignored")) {
+            note("LEARN ignored (${out.getString("ignored")}) ${t.displayName}: volume %+.1f dB".format(delta) +
+                (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: ""))
+            return
+        }
+        val ak = artistKey(t)
+        val ac = ak?.let { (setAt(p, "ac:$it") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) } }
         prefs.edit()
             .apply { if (t.contentHash != null) remove("${p.id}|t:${idKey(t)}") }
             .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")}")
-            .putString("${p.id}|a:${artistKey(t)}", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}")
-            .putStringSet("${p.id}|ac:${artistKey(t)}", ac)
+            .apply { if (ak != null) putString("${p.id}|a:$ak", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}").putStringSet("${p.id}|ac:$ak", ac) }
             .putFloat(prev, delta.toFloat())
             .putString("${p.id}|prevDays", now.toString())
             .putString("${p.id}|prevEndDb", (startDb + delta).toString())
             .apply()
-        note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
-            .format(delta, out.getDouble("trackDb"), out.getDouble("artistDb")))
+        note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")}, counted %+.1f dB -> track %+.2f dB, artist %+.2f dB"
+            .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")))
         onLearned(t)
     }
 
@@ -217,6 +255,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
 
     companion object {
         const val TAG = "SablePlay"
+        private val NO_ARTIST = setOf("<unknown>", "unknown", "unknown artist", "various artists")
 
         /** §19.3: a place from the output's kind and, for Bluetooth, BLE and USB, the device's name. */
         fun placeOf(type: Int, productName: String?): Place {

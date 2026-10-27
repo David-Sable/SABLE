@@ -90,6 +90,8 @@ class GainController(
         updateRoute()
         learning.start()
         learning.onLearned = { replan(user = false) }
+        learning.playback = { player.isPlaying to player.currentPosition }
+        learning.shapeOf = { t -> t.contentHash?.let { shapes[it] } }
         audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = onDevicesChanged()
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onDevicesChanged()
@@ -286,6 +288,14 @@ class GainController(
         return json
     }
 
+    private val shapes = ConcurrentHashMap<String, ListenerLearning.OpeningShape>()  // by content hash, for the learning window (§19.1)
+
+    private fun openingShape(o: JSONObject): ListenerLearning.OpeningShape? {
+        val s = o.optJSONArray("shape") ?: return null
+        val anchor = o.optDouble("anchorLufs", Double.NaN).takeIf { it.isFinite() } ?: return null
+        return ListenerLearning.OpeningShape(DoubleArray(s.length()) { i -> if (s.isNull(i)) Double.NaN else s.optDouble(i) }, anchor)
+    }
+
     private fun albumKey(t: TrackEntity) = if (t.album.isBlank()) null else "${t.albumId}|${t.albumArtist}"
 
     private suspend fun track(id: Long): TrackEntity? = trackCache[id] ?: dao.track(id)?.also { trackCache[id] = it }
@@ -294,7 +304,7 @@ class GainController(
     private suspend fun analysis(t: TrackEntity, keepAlbumData: Boolean = false): String? {
         val h = t.contentHash ?: return null
         val full = analysisCache[h] ?: dao.analysis(h, SableDatabase.MATH_VERSION)?.json?.let { js ->
-            JSONObject(js).apply { remove("shape"); remove("sections") }.toString().also { analysisCache[h] = it }
+            JSONObject(js).also { o -> openingShape(o)?.let { shapes[h] = it } }.apply { remove("shape"); remove("sections") }.toString().also { analysisCache[h] = it }
         } ?: return null
         if (keepAlbumData) return full
         return planCache.getOrPut(h) { JSONObject(full).apply { remove("anchorBlockPower") }.toString() }

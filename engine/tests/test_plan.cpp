@@ -226,3 +226,29 @@ TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)"
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);
   CHECK(sable::learnUpdateJson("{}") == "{\"error\":\"bad input\"}");
 }
+
+TEST_CASE("learn: mutes, big jumps and presses explained by the section (MATH-1.27)") {
+  auto ignored = [](const std::string& out, const char* why) { return out == std::string("{\"ignored\":\"") + why + "\"}"; };
+  // A mute (either end) or more than 12 dB is the room, not the song; exactly 12 still counts.
+  CHECK(ignored(sable::learnUpdateJson("{\"deltaDb\":-60,\"nowDays\":1}"), "jump"));
+  CHECK(ignored(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"muted\":true,\"nowDays\":1}"), "jump"));
+  CHECK(ignored(sable::learnUpdateJson("{\"deltaDb\":12.5,\"nowDays\":1}"), "jump"));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"nowDays\":1}"), "trackDb") == -2.0);
+  // Quiet intro (10 dB under the anchor) turned up one step: the section explains all of it.
+  const std::string quiet = "{\"deltaDb\":3.83,\"anchorLufs\":-10,\"heardLufs\":-20,\"nowDays\":1}";
+  CHECK(ignored(sable::learnUpdateJson(quiet), "section"));
+  // 3 dB under the anchor: 1 dB band, 2 dB explained, 1.83 dB left for the song.
+  const std::string some = sable::learnUpdateJson("{\"deltaDb\":3.83,\"anchorLufs\":-10,\"heardLufs\":-13,\"nowDays\":1}");
+  CHECK(field(some, "effectiveDb") == doctest::Approx(1.83));
+  CHECK(field(some, "trackDb") == doctest::Approx(0.915));
+  // A loud opening (3 dB over the anchor) turned down one step: same, mirrored.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"anchorLufs\":-10,\"heardLufs\":-7,\"nowDays\":1}"), "effectiveDb") == doctest::Approx(-1.83));
+  // Against the section's tendency (quiet intro turned DOWN) or inside the band: the press counts in full.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"anchorLufs\":-10,\"heardLufs\":-20,\"nowDays\":1}"), "trackDb") == doctest::Approx(-1.915));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"anchorLufs\":-10,\"heardLufs\":-10.8,\"nowDays\":1}"), "trackDb") == doctest::Approx(1.915));
+  // Without the song's figures (no analysis yet) nothing changes.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"nowDays\":1}"), "trackDb") == doctest::Approx(1.915));
+  CHECK(sable::sectionAdjustedDelta(4.0, 2.5) == doctest::Approx(1.5));
+  CHECK(sable::sectionAdjustedDelta(2.0, 2.5) == 0.0);
+  CHECK(sable::sectionAdjustedDelta(-4.0, 2.5) == -4.0);
+}

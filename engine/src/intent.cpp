@@ -681,6 +681,15 @@ void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double now
   o.updatedDays = nowDays;
 }
 
+double sectionAdjustedDelta(double deltaDb, double sectionDevDb) {  // §19.1 (MATH-1.27)
+  // The section playing at the press sat |dev| dB off the song's anchor in the direction the press moved the volume
+  // (dev > 0: quieter than the anchor, so turning up fixes the section, not the song). That part is explained: only the
+  // excess counts as a statement about the song, and a press that does not exceed it counts for nothing.
+  if (deltaDb * sectionDevDb <= 0.0) return deltaDb;
+  const double rest = std::fabs(deltaDb) - std::fabs(sectionDevDb);
+  return rest <= 0.0 ? 0.0 : std::copysign(rest, deltaDb);
+}
+
 double appliedOffset(double trackDb, double artistDb, int artistTracks, bool trackTaught, bool artistAgrees) {  // §19.2
   if (trackTaught) return std::clamp(trackDb, -2.0, 2.0);  // the song's own lesson is the most specific: it wins
   return std::clamp(trackDb + (artistTracks >= 2 && artistAgrees ? artistDb : 0.0), -2.0, 2.0);

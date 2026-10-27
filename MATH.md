@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.26 (2026-10-27)
+**Version:** MATH-1.27 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -626,10 +626,14 @@ A volume-key event counts as feedback when **all** of these hold:
 - **[MATH-1.25]** the track started **from its beginning** (within its first `3 s`) and **was not put back where it was left** (resume after the app was closed, or a play button waking Sable): a press then sets the volume for the room or the device, not for the song. Owner's session: "LAST DANCE!" restored at 86 s, paused; the volume turned up one step on the phone speaker taught +1.92 dB under 1.24
 - **[MATH-1.25]** the track plays with its **full-analysis gain** (`source = full`): during a provisional or quick-estimate (JIT) gain, a press may be correcting that temporary estimate, which the full analysis replaces
 - it is not reversed within 3 s (a press immediately undone cancels)
-- the output route did not change in the previous 10 s.
+- the output route did not change in the previous 10 s
+- **[MATH-1.27]** playback was running at the press: a press made while paused is about the room (someone spoke, the car went quiet), not the song, and is ignored
+- **[MATH-1.27]** the media volume was not muted at either end of the window, and `|Δv| ≤ 12 dB` (about four steps at the middle of the range; one step there is ≈ 3.8 dB). A mute or a larger jump is the room, a call or a passenger; before 1.27 a mute (−96 dB) taught the full ±2 clamp at weight 1.
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
 **Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.
+**Section-aware press [MATH-1.27].** The first 20 s are not the song: on the owner's 392 FLACs the first 20 s sit ≥ 3 LU under the song's integrated loudness for 33 % of songs (≥ 6 LU for 12 %) and **never** ≥ 3 LU over it (median −1.8 LU), so a press up in the first seconds is mostly "I cannot hear this quiet intro", which says nothing about the song's level. Owner's session: "$ (Money)" (intro 6.4 LU under its anchor) was turned up two steps and taught JPEGMAFIA +1.68 dB. At the press, let `H` = the short-term loudness (§3.4) of the 3 s before it (the analysis's 0.5 s `shape` series at index `(t_press − 3 s)/0.5 s`, from the first press of the window; absent → no correction), `A` = the song's `anchorLufs`, `s = A − H`, and `e = sign(s)·max(0, |s| − 1 LU)` (1 LU dead band: ordinary movement inside a song). If `Δv·e > 0` (the press moved the volume the way the section deviates: up in a quiet section, down in a loud one) the section explains `e` of it: `Δv_eff = Δv − e`, and `0` (the press is ignored) if `|Δv| ≤ |e|`. A press against the section's tendency counts in full. `Δv_eff` replaces `Δv` in §19.2; the environment filter below and the stored "previous event" use the raw `Δv`. On the 392 songs, one step up (3.83 dB) would be ignored for 23 % of songs and reduced for another 48 %; a step down is never reduced (no opening is > 1 LU louder than its anchor).
+
 **Environment filter:** if the user's last feedback event (at this place) happened within the last `T_env = 10 min` and had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`. **[MATH-1.23]** Before 1.23 the previous event counted however old it was: in the owner's session a turn-down 30 min after the last event of an earlier session was weighted 0.25 although nothing linked the two. An event stored without a time (before 1.23) does not count. **[MATH-1.24]** Nor does it count when the listener **moved the volume back** between the two songs (the level at this window's start differs from the level the previous event ended at by 0.5 dB or more): the room did not change, the previous song was simply too loud (or quiet). Owner's session: "Hustle Bones" turned down two steps, the volume put back for the next song, then "JRJRJR" turned down one step 3.5 min later was weighted 0.25 under 1.23; under 1.24 it gets full weight.
 
 ### 19.2 Update (exponential decay + clamp)
@@ -639,7 +643,7 @@ On an event: `o_t ← clamp(o_t + η_t·ω·Δv, −2, +2)` and `o_a ← clamp(o
 Applied offset **[MATH-1.23]**: a song's own lesson is the most specific evidence, so it wins; the artist's offset is a prior for the artist's songs not yet taught, used only when at least two of their songs have taught it **and those songs agree in direction**:
 - the song has been taught (it has its own state `o_t`): `o = clamp(o_t, −2, +2)`;
 - otherwise: `o = clamp(n_a ≥ 2 and all o_t of the artist's taught songs have one sign ? o_a : 0, −2, +2)`,
-where `n_a` = the number of distinct tracks by that artist that have contributed events. Before 1.23 the offsets were summed (`o_t + o_a` from `n_a ≥ 2`); in the owner's session that made a song the user had just turned **down** (`o_t = −0.48`) play 1.2 dB **louder**, because the artist stood at +1.68 from another song turned up strongly.
+where `n_a` = the number of distinct tracks by that artist that have contributed events. **[MATH-1.27]** A song without a real artist (blank, `<unknown>`, `Unknown artist`, `Various Artists`) has no artist state: it neither writes nor reads one (before 1.27 every untagged file shared one artist and could teach all the others). Before 1.23 the offsets were summed (`o_t + o_a` from `n_a ≥ 2`); in the owner's session that made a song the user had just turned **down** (`o_t = −0.48`) play 1.2 dB **louder**, because the artist stood at +1.68 from another song turned up strongly.
 Offsets are visible on the Why sheet and resettable (per track, per artist, all).
 
 ### 19.3 Places [DESIGN, owner decision 2026-10-26]
@@ -888,6 +892,8 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Learning η_t, η_a | 0.5, 0.25 | | 19.2 | TUNE |
 | Learning half-life | 30 | days | 19.2 | TUNE |
 | Learning clamp | ±2 | dB | 19.2 | DESIGN (spec) |
+| Learning: largest press that counts | 12 | dB | 19.1 | TUNE |
+| Learning: section dead band | 1 | LU | 19.1 | TUNE |
 | Environment weight | 0.25 | | 19.1 | TUNE |
 | Ceilings | speaker/USB −1.0; BT −1.5; SBC/unknown −2.0 | dBTP | 20.1 | TUNE |
 | Calibration offset range | [−3, +3] | dB | 20.2 | DESIGN |

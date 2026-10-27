@@ -413,6 +413,21 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   J in;
   if (!Parser(input).parse(in) || in.t != J::T::Obj || !in.num("deltaDb")) return "{\"error\":\"bad input\"}";
   const double now = in.num("nowDays", 0.0), dv = *in.num("deltaDb");
+  // MATH-1.27: a muted end or a jump of more than 12 dB (about four steps) is the room or a mute, not a verdict on the song.
+  constexpr double kMaxEventDb = 12.0;
+  if (in.flag("muted") || std::fabs(dv) > kMaxEventDb) return "{\"ignored\":\"jump\"}";
+  // MATH-1.27: the press is measured against the section it was made in. The 3 s before it (heardLufs) against the song's
+  // anchor (anchorLufs): a quiet intro turned up, or a loud opening turned down, is mostly about the section. The band
+  // keeps ordinary movement inside a song (1 LU) from counting.
+  constexpr double kSectionBandDb = 1.0;
+  double dvEff = dv;
+  const auto heard = in.num("heardLufs");
+  const auto anchor = in.num("anchorLufs");
+  if (heard && anchor) {
+    const double dev = *anchor - *heard;
+    dvEff = sectionAdjustedDelta(dv, std::copysign(std::max(0.0, std::fabs(dev) - kSectionBandDb), dev));
+    if (dvEff == 0.0) return "{\"ignored\":\"section\"}";
+  }
   double omega = 1.0;
   // The previous event is evidence of an environment change only while recent (T_env = 10 min, MATH-1.23).
   constexpr double kEnvWindowDays = 10.0 / 1440.0;
@@ -428,10 +443,10 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
     if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
   }
   LearnedOffset t{in.num("trackDb", 0.0), in.num("trackDays", now)}, a{in.num("artistDb", 0.0), in.num("artistDays", now)};
-  learnEvent(t, 0.5, omega * dv, now);   // eta_t
-  learnEvent(a, 0.25, omega * dv, now);  // eta_a
+  learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
+  learnEvent(a, 0.25, omega * dvEff, now);  // eta_a
   return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
-         ",\"artistDays\":" + num(a.updatedDays) + ",\"omega\":" + num(omega) + "}";
+         ",\"artistDays\":" + num(a.updatedDays) + ",\"omega\":" + num(omega) + ",\"effectiveDb\":" + num(dvEff) + "}";
 }
 
 }  // namespace sable
