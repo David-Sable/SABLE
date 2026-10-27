@@ -87,12 +87,13 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             showMini, Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(Motion.slow()) { it } + fadeIn(Motion.slow()), exit = slideOutVertically(Motion.medium()) { it } + fadeOut(Motion.medium()),
         ) { MiniPlayer(state, current) }
+        state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
         state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
     }
 }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.23"
+const val MATH_DOC_VERSION = "MATH-1.24"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {

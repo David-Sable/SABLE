@@ -78,6 +78,12 @@ class PlaybackService : MediaSessionService() {
         val playerPrefs = getSharedPreferences("sable_player", MODE_PRIVATE)
         player.repeatMode = playerPrefs.getInt("repeat", Player.REPEAT_MODE_OFF)
         player.addListener(object : Player.Listener {
+            // Pick up where you left off: the queue, the song and the spot in it are kept as playback moves.
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) = saveResume()
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) = saveResume()
+            override fun onIsPlayingChanged(isPlaying: Boolean) = saveResume()
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) = saveResume()
+
             override fun onRepeatModeChanged(repeatMode: Int) {
                 PlaybackDiag.log("REPEAT ${listOf("off", "one", "all").getOrElse(repeatMode) { "$repeatMode" }}")
                 playerPrefs.edit().putInt("repeat", repeatMode).apply()
@@ -90,11 +96,51 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         })
+        // While playing, the spot in the song is also saved every 10 s (a crash or a swipe-away loses at most that).
+        scope.launch { while (true) { delay(10_000); if (player.isPlaying) saveResume() } }
+        restoreResume()
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaSession.Builder(this, player).setCallback(callback).setSessionActivity(open).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
+
+    private val resumePrefs by lazy { getSharedPreferences("sable_resume", MODE_PRIVATE) }
+
+    /** Saves the queue as request ids ("<trackId>:<A|S>": the album or song world each entry was started in). */
+    private fun saveResume() {
+        val n = player.mediaItemCount
+        if (n == 0) return
+        val ids = (0 until n).joinToString(",") { i ->
+            val id = player.getMediaItemAt(i).mediaId
+            QueueId.request(QueueId.trackId(id) ?: return@joinToString "", QueueId.albumIntent(id))
+        }
+        resumePrefs.edit().putString("ids", ids).putInt("index", player.currentMediaItemIndex)
+            // A queue that played to its end starts its last song again rather than sitting at the very end.
+            .putLong("positionMs", if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition.coerceAtLeast(0L)).apply()
+    }
+
+    /**
+     * Puts the last queue back, paused at the same song and spot, when the service starts with nothing loaded. Never
+     * starts playback by itself; songs no longer in the library are skipped.
+     */
+    private fun restoreResume() {
+        val ids = resumePrefs.getString("ids", null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+        if (ids.isEmpty()) return
+        val index = resumePrefs.getInt("index", 0)
+        val pos = resumePrefs.getLong("positionMs", 0L)
+        scope.launch {
+            val requests = ids.map { MediaItem.Builder().setMediaId(it).build() }
+            val items = resolve(requests)
+            if (items.isEmpty() || player.mediaItemCount > 0) return@launch  // the app already started something new
+            val start = index.coerceIn(0, items.size - 1)
+            controller.prepareStart(items.map { it.mediaId }, start)
+            if (player.mediaItemCount > 0) return@launch
+            player.setMediaItems(items, start, if (items.size == ids.size) pos else 0L)
+            player.prepare()
+            PlaybackDiag.log("RESUME ${items.size} songs at ${start + 1}, ${pos / 1000} s (paused)")
+        }
+    }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         PlaybackDiag.log("TASK removed (swiped away), playing=${player.playWhenReady}")
@@ -103,6 +149,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         PlaybackDiag.log("SERVICE stop")
+        saveResume()
         SleepTimer.cancel()
         session.release()
         player.release()

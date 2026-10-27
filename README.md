@@ -45,6 +45,9 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet. Each place learns on its own (§19.3): your car, your headphones and the phone speaker are told apart by the device, so turning a song up in the car never changes it on headphones.
 - **Search**: the magnifier at the top of the library. Type part of a title, album or artist (accents and capitals don't matter); tapping a song plays it and the songs listed after it.
 - **Sleep timer**: the moon on Now Playing (right of the controls). Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
+- **Swipe the mini player** (the bar at the bottom) left or right to change songs from any page; tap it to open Now Playing.
+- **Picks up where you left off**: if the phone closes Sable, or you swipe it away, it comes back paused on the same song, at the same spot, with the same queue.
+- **Long-press a song** for Play next, Add to queue, Go to album or Why. **Shuffle all** sits at the top of the Songs tab. On Now Playing, tap the title to open its album, the artist line to open the artist.
 - **Repeat**: the loop left of the controls. Tap once to repeat the queue, again to repeat this song, again to turn it off. Sable plans the gain across the jump from the last song back to the first, so the wrap sounds as smooth as any other change.
 - **Swipe the cover** on Now Playing to change songs: left for the next, right for the previous.
 

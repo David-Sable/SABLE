@@ -33,6 +33,7 @@ class AppState {
     var libraryTab by mutableIntStateOf(0)
     var whyTrack by mutableStateOf<Long?>(null)
     var searchQuery by mutableStateOf("")  // kept while browsing from a result and back
+    var menuTrack by mutableStateOf<Long?>(null)  // the long-pressed song (SongMenu)
 
     var controller by mutableStateOf<MediaController?>(null)
     private val pending = ArrayList<(MediaController) -> Unit>()
@@ -100,6 +101,18 @@ class AppState {
     /** Song world: the tapped song and everything after it, each balanced in its own world. */
     fun playSongWorld(tracks: List<LibraryRow>, from: Int) =
         play(tracks.drop(from).map { MediaItem.Builder().setMediaId(QueueId.request(it.mediaId, false)).build() }, 0)
+
+    /** Slips a song in right after the playing one (song world); with nothing loaded it just plays. */
+    fun playNext(r: LibraryRow) = withController { c ->
+        val item = MediaItem.Builder().setMediaId(QueueId.request(r.mediaId, false)).build()
+        if (c.mediaItemCount == 0) play(listOf(item), 0) else c.addMediaItem(c.currentMediaItemIndex + 1, item)
+    }
+
+    /** Adds a song at the end of the queue (song world); with nothing loaded it just plays. */
+    fun addToQueue(r: LibraryRow) = withController { c ->
+        val item = MediaItem.Builder().setMediaId(QueueId.request(r.mediaId, false)).build()
+        if (c.mediaItemCount == 0) play(listOf(item), 0) else c.addMediaItem(item)
+    }
 
     fun play(items: List<MediaItem>, start: Int) = withController { c ->
         c.setMediaItems(items, start, 0L)

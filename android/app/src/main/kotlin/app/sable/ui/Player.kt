@@ -105,6 +105,45 @@ fun analysisJson(trackId: Long?): JSONObject? {
     return v
 }
 
+/**
+ * Swipe sideways to change songs: left for the next one, right for the previous one (or the start of the first). The
+ * content follows the finger in the draw phase, leaves on the side it was pushed, and the new song comes in from the
+ * other side on a spring that carries the finger's speed. Used by the Now Playing cover and the mini player.
+ */
+@Composable
+fun songSwipe(state: AppState): Modifier {
+    val scope = rememberCoroutineScope()
+    val settle = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+    val dragX = remember { Animatable(0f) }
+    var width by remember { mutableIntStateOf(1) }
+    return Modifier
+        .onSizeChanged { width = maxOf(1, it.width) }
+        .graphicsLayer {
+            translationX = dragX.value
+            alpha = 1f - (abs(dragX.value) / width).coerceIn(0f, 0.6f)
+            compositingStrategy = CompositingStrategy.ModulateAlpha
+        }
+        .draggable(
+            orientation = Orientation.Horizontal,
+            state = rememberDraggableState { d -> scope.launch(start = CoroutineStart.UNDISPATCHED) { dragX.snapTo(dragX.value + d) } },
+            onDragStopped = { velocity ->
+                val w = width.toFloat()
+                val dir = when {
+                    dragX.value < -w * 0.25f || velocity < -1500f -> 1    // next
+                    dragX.value > w * 0.25f || velocity > 1500f -> -1     // previous
+                    else -> 0
+                }
+                if (dir == 0) dragX.animateTo(0f, settle, initialVelocity = velocity)
+                else {
+                    dragX.animateTo(-dir * w, tween(160, easing = LinearOutSlowInEasing), initialVelocity = velocity)
+                    state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
+                    dragX.snapTo(dir * w * 0.6f)  // the new song comes in from the other side
+                    dragX.animateTo(0f, settle)
+                }
+            },
+        )
+}
+
 @Composable
 fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier) {
     val tick by frameTick(state.playing, state.durationMs, 1080)
@@ -115,10 +154,13 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
             drawRect(SableColors.accent, size = size.copy(width = size.width * state.progress()))
         }
         Row(Modifier.padding(horizontal = Space.l, vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
+            // Cover and title swipe sideways to change songs; a tap anywhere still opens Now Playing.
+            Row(Modifier.weight(1f).then(songSwipe(state)), verticalAlignment = Alignment.CenterVertically) {
             if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
                 Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(row?.let { clean(it.artist) } ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             }
             IconButton(if (state.playing) Glyph.PAUSE else Glyph.PLAY, { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } })
             IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 20.dp)
@@ -159,34 +201,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
             },
         )
     // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
-    val dragX = remember { Animatable(0f) }
-    var artWidth by remember { mutableIntStateOf(1) }
-    val artSwipe = Modifier
-        .onSizeChanged { artWidth = maxOf(1, it.width) }
-        .graphicsLayer {
-            translationX = dragX.value
-            alpha = 1f - (abs(dragX.value) / artWidth).coerceIn(0f, 0.6f)
-            compositingStrategy = CompositingStrategy.ModulateAlpha
-        }
-        .draggable(
-            orientation = Orientation.Horizontal,
-            state = rememberDraggableState { d -> follow(dragX, dragX.value + d) },
-            onDragStopped = { velocity ->
-                val w = artWidth.toFloat()
-                val dir = when {
-                    dragX.value < -w * 0.25f || velocity < -1500f -> 1    // next
-                    dragX.value > w * 0.25f || velocity > 1500f -> -1     // previous
-                    else -> 0
-                }
-                if (dir == 0) dragX.animateTo(0f, settle, initialVelocity = velocity)
-                else {
-                    dragX.animateTo(-dir * w, tween(160, easing = LinearOutSlowInEasing), initialVelocity = velocity)
-                    state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
-                    dragX.snapTo(dir * w * 0.6f)  // the new cover comes in from the other side
-                    dragX.animateTo(0f, settle)
-                }
-            },
-        )
+    val artSwipe = songSwipe(state)
     // Decode the neighbours' covers ahead of time, so a swipe never shows a blank square while the new one loads.
     val context = LocalContext.current
     LaunchedEffect(state.queueIndex, state.queueIds) {
@@ -217,9 +232,11 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
                 AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
             }
             Spacer(Modifier.height(Space.xl))
-            Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // Tap the title for its album, the artist line for the artist.
+            Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
             Text(listOfNotNull(row?.artist, row?.album).map(::clean).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(Space.xl))
             if (shape != null) {
                 LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(56.dp).graphicsLayer()) { state.seekFraction(it) }  // own layer

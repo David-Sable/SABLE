@@ -181,6 +181,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val prev = "${p.id}|prevDelta"
         if (prefs.contains(prev)) input.put("prevDeltaDb", prefs.getFloat(prev, 0f).toDouble())
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
+        prefs.getString("${p.id}|prevEndDb", null)?.toDoubleOrNull()?.let { input.put("prevEndDb", it) }  // §19.1 put back?
+        input.put("startDb", startDb)
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
         val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) }
@@ -191,6 +193,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .putStringSet("${p.id}|ac:${artistKey(t)}", ac)
             .putFloat(prev, delta.toFloat())
             .putString("${p.id}|prevDays", now.toString())
+            .putString("${p.id}|prevEndDb", (startDb + delta).toString())
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("trackDb"), out.getDouble("artistDb")))

@@ -97,7 +97,7 @@ fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     items(results.songs.size, key = { "s-" + results.songs[it].mediaId }) { i ->
                         val r = results.songs[i]
                         SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}",
-                            { keyboard?.hide(); state.playSongWorld(results.songs, i) }) { state.whyTrack = r.mediaId }
+                            { keyboard?.hide(); state.playSongWorld(results.songs, i) }, { keyboard?.hide(); state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
                     }
                 }
             }

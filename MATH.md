@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.23 (2026-10-27)
+**Version:** MATH-1.24 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -628,7 +628,7 @@ A volume-key event counts as feedback when **all** of these hold:
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
 **Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.
-**Environment filter:** if the user's last feedback event (at this place) happened within the last `T_env = 10 min` and had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`. **[MATH-1.23]** Before 1.23 the previous event counted however old it was: in the owner's session a turn-down 30 min after the last event of an earlier session was weighted 0.25 although nothing linked the two. An event stored without a time (before 1.23) does not count.
+**Environment filter:** if the user's last feedback event (at this place) happened within the last `T_env = 10 min` and had the same sign and similar size (|ratio| ∈ [0.5, 2]), this event is treated as a change of environment and weighted `ω = 0.25`. Otherwise `ω = 1`. **[MATH-1.23]** Before 1.23 the previous event counted however old it was: in the owner's session a turn-down 30 min after the last event of an earlier session was weighted 0.25 although nothing linked the two. An event stored without a time (before 1.23) does not count. **[MATH-1.24]** Nor does it count when the listener **moved the volume back** between the two songs (the level at this window's start differs from the level the previous event ended at by 0.5 dB or more): the room did not change, the previous song was simply too loud (or quiet). Owner's session: "Hustle Bones" turned down two steps, the volume put back for the next song, then "JRJRJR" turned down one step 3.5 min later was weighted 0.25 under 1.23; under 1.24 it gets full weight.
 
 ### 19.2 Update (exponential decay + clamp)
 State per track `o_t` and per artist `o_a` (dB), each with a timestamp `τ`.

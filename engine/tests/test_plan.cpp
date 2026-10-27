@@ -214,6 +214,13 @@ TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)"
   // down 30 min after the last event of an earlier session was weighted 0.25; now full weight. No time stored: full weight.
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"prevDeltaDb\":-3.83,\"prevDays\":9.979,\"nowDays\":10}"), "omega") == 1.0);
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"prevDeltaDb\":-3.83,\"nowDays\":10}"), "omega") == 1.0);
+  // MATH-1.24, owner's session: "Hustle Bones" turned down 2 steps (-24.67 -> -32.33 dB), the volume put back to -24.67,
+  // then "JRJRJR" turned down 1 step 3.5 min later. The put-back shows both presses were about the songs: full weight.
+  const std::string jr = "{\"deltaDb\":-3.83,\"prevDeltaDb\":-7.67,\"prevDays\":9.9976,\"prevEndDb\":-32.33,\"startDb\":-24.67,\"nowDays\":10}";
+  CHECK(field(sable::learnUpdateJson(jr), "omega") == 1.0);
+  CHECK(field(sable::learnUpdateJson(jr), "trackDb") == doctest::Approx(-1.915));
+  // Volume left where the previous press put it: still an environment change.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"prevDeltaDb\":-7.6,\"prevDays\":9.9976,\"prevEndDb\":-32.26,\"startDb\":-32.26,\"nowDays\":10}"), "omega") == 0.25);
   // Opposite sign: full weight. Clamp at +-2.
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3,\"prevDeltaDb\":-3,\"nowDays\":0}"), "omega") == 1.0);
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);

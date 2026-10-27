@@ -418,7 +418,12 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   constexpr double kEnvWindowDays = 10.0 / 1440.0;
   const auto prev = in.num("prevDeltaDb");
   const auto prevAt = in.num("prevDays");
-  if (prev && *prev != 0.0 && prevAt && now - *prevAt <= kEnvWindowDays) {
+  // ...and only while the listener kept the level the previous press set: putting the volume back before this song
+  // (MATH-1.24) shows the previous press belonged to its own song, not to the room.
+  const auto startDb = in.num("startDb");
+  const auto prevEndDb = in.num("prevEndDb");
+  const bool restored = startDb && prevEndDb && std::fabs(*startDb - *prevEndDb) >= 0.5;
+  if (prev && *prev != 0.0 && prevAt && now - *prevAt <= kEnvWindowDays && !restored) {
     const double ratio = dv / *prev;
     if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
   }

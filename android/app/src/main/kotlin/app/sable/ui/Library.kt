@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,10 +85,12 @@ fun Pill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick
     )
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onClick: () -> Unit, onWhy: () -> Unit) {
+fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onClick: () -> Unit, onLong: (() -> Unit)? = null, onWhy: () -> Unit) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = Space.gutter, end = Space.xs, top = 10.dp, bottom = 10.dp),
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong?.let { f -> { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); f() } }).padding(start = Space.gutter, end = Space.xs, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (index != null) {
@@ -148,9 +151,15 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             2 -> {
                 val songs = remember(rows) { rows.sortedBy { titleOf(it).lowercase() } }
                 LazyColumn(contentPadding = pad) {
+                    item(key = "shuffle") {
+                        // Every song, shuffled, each balanced in its own world.
+                        Row(Modifier.padding(start = Space.gutter, top = Space.l, bottom = Space.s)) {
+                            Pill("Shuffle all", selected = false) { state.playSongWorld(songs.shuffled(), 0); state.go(Route.NowPlaying) }
+                        }
+                    }
                     items(songs.size, key = { songs[it].mediaId }) { i ->
                         val r = songs[i]
-                        SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }) { state.whyTrack = r.mediaId }
+                        SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
                     }
                 }
             }
@@ -222,7 +231,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
         }
         items(album.tracks.size, key = { album.tracks[it].mediaId }) { i ->
             val r = album.tracks[i]
-            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, clean(r.artist), { state.playSongWorld(album.tracks, i) }) { state.whyTrack = r.mediaId }
+            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, clean(r.artist), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
         }
     }
 }
@@ -257,7 +266,7 @@ fun FolderScreen(state: AppState, rows: List<LibraryRow>, path: String, bottomPa
         }
         items(songs.size, key = { songs[it].mediaId }) { i ->
             val r = songs[i]
-            SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }) { state.whyTrack = r.mediaId }
+            SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
         }
     }
 }
