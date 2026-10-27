@@ -4,7 +4,7 @@ A local Android music player built around one idea: **understand each song befor
 
 The player exists to serve the **Sable Intent Engine**. By default the engine makes exactly one change per track: one static gain. There is no compression, no dynamic processing and no EQ (the one exception is the gentle Quiet-mode contour described below, which you can turn off). Your files are never modified.
 
-> Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.20), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
+> Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.21), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
 
 ---
 
@@ -42,7 +42,7 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 ### 4. Context (opt-in extras)
 - **Quiet-mode contour** (§24): at low volume your ears lose bass and treble. In Quiet mode Sable adds a gentle correction based on ISO 226 equal-loudness contours (a +2 dB lift below 200 Hz and +0.6 dB of air, at most +3 dB). It is on by default in Quiet, can be turned off in Advanced settings, and is the only non-flat processing in Sable. Peaks stay protected.
 - **Your outputs** (§20): each output (speaker, Bluetooth, USB-C, wired) keeps its own level offset and peak ceiling.
-- **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet.
+- **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet. Each place learns on its own (§19.3): your car, your headphones and the phone speaker are told apart by the device, so turning a song up in the car never changes it on headphones.
 - **Sleep timer**: the moon on Now Playing. Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
 - **Swipe the cover** on Now Playing to change songs: left for the next, right for the previous.
 

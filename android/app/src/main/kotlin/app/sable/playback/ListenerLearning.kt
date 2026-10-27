@@ -17,8 +17,8 @@ import kotlin.math.abs
 
 /**
  * Listener learning (MATH §19): volume-key presses in the first 20 s of a song are feedback. Small, bounded (±2 dB),
- * decaying (30-day half-life) offsets per track and per artist. The update math is in the engine (learnUpdate);
- * this class stores the offsets and decides when a press counts.
+ * decaying (30-day half-life) offsets per track and per artist, kept per place (§19.3: the output device). The update
+ * math is in the engine (learnUpdate); this class stores the offsets and decides when a press counts.
  */
 class ListenerLearning(private val context: Context, private val main: Handler) {
     private val prefs = context.getSharedPreferences("sable_learning", Context.MODE_PRIVATE)
@@ -26,7 +26,17 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
 
     data class Offsets(val trackDb: Double, val trackDays: Double, val artistDb: Double, val artistDays: Double, val artistTracks: Int)
 
+    /** §19.3: where the media stream plays now. */
+    data class Place(val id: String, val label: String)
+
+    fun currentPlace(): Place {
+        val d = audio.getAudioDevicesForAttributes(mediaAttrs).firstOrNull()
+        return placeOf(d?.type ?: android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, d?.productName?.toString())
+    }
+
     // ---------------- Storage ----------------
+    // Keys: "<place>|t:<track>", "<place>|a:<artist>", "<place>|ac:<artist>", "<place>|prevDelta"; the same keys without
+    // a place prefix hold what was learned before places existed (MATH-1.20), the starting point of every place.
     private fun read(key: String): Pair<Double, Double>? = prefs.getString(key, null)?.split(',')?.let { p ->
         val v = p.getOrNull(0)?.toDoubleOrNull() ?: return null
         val d = p.getOrNull(1)?.toDoubleOrNull() ?: return null
@@ -36,27 +46,34 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private fun artistKey(t: TrackEntity) = t.artist.trim().lowercase().ifBlank { "<unknown>" }
     private fun trackKey(t: TrackEntity) = t.contentHash ?: "id${t.mediaId}"
 
-    fun offsets(t: TrackEntity): Offsets {
+    private fun readAt(p: Place, key: String) = read("${p.id}|$key") ?: read(key)
+    private fun setAt(p: Place, key: String): Set<String>? = prefs.getStringSet("${p.id}|$key", null) ?: prefs.getStringSet(key, null)
+
+    fun offsets(t: TrackEntity, p: Place = currentPlace()): Offsets {
         val now = nowDays()
-        val tr = read("t:${trackKey(t)}")
-        val ar = read("a:${artistKey(t)}")
-        val n = prefs.getStringSet("ac:${artistKey(t)}", emptySet())!!.size
+        val tr = readAt(p, "t:${trackKey(t)}")
+        val ar = readAt(p, "a:${artistKey(t)}")
+        val n = setAt(p, "ac:${artistKey(t)}")?.size ?: 0
         return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, n)
     }
 
-    /** The planner's "learn" input (it decays and combines them, §19.2). */
+    /** The planner's "learn" input (it decays and combines them, §19.2), for the place playing now. */
     fun learnJson(t: TrackEntity): JSONObject {
         val o = offsets(t)
         return JSONObject().put("trackDb", o.trackDb).put("trackDays", o.trackDays).put("artistDb", o.artistDb)
             .put("artistDays", o.artistDays).put("artistTracks", o.artistTracks)
     }
 
-    fun resetTrack(t: TrackEntity) = prefs.edit().remove("t:${trackKey(t)}").apply()
-    fun resetArtist(t: TrackEntity) = prefs.edit().remove("a:${artistKey(t)}").remove("ac:${artistKey(t)}").apply()
+    /** §19.3: forgets the song (or artist) for the current place and the shared earlier state. */
+    fun resetTrack(t: TrackEntity, p: Place = currentPlace()) =
+        prefs.edit().remove("${p.id}|t:${trackKey(t)}").remove("t:${trackKey(t)}").apply()
+    fun resetArtist(t: TrackEntity, p: Place = currentPlace()) = prefs.edit()
+        .remove("${p.id}|a:${artistKey(t)}").remove("${p.id}|ac:${artistKey(t)}").remove("a:${artistKey(t)}").remove("ac:${artistKey(t)}").apply()
     fun resetAll() = prefs.edit().clear().apply()
 
     // ---------------- Feedback window (§19.1) ----------------
     private var track: TrackEntity? = null
+    private var place = Place("speaker", "Phone speaker")  // where the open window's song is playing
     private var startAt = 0L
     private var startDb = 0.0
     private var lastChangeAt = 0L
@@ -92,6 +109,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         closeWindow()
         if (t == null) return
         track = t
+        place = currentPlace()
         startAt = SystemClock.elapsedRealtime()
         startDb = volumeDb()
         lastChangeAt = 0L
@@ -122,25 +140,26 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         Log.i(TAG, "LEARN window ${t.displayName}: %.2f -> %.2f dB".format(startDb, startDb + delta))
         if (abs(delta) < MIN_EVENT_DB) return
         if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { Log.i(TAG, "LEARN ignored (output changed) ${t.displayName}"); return }
-        commit(t, delta)
+        commit(t, delta, place)
     }
 
-    private fun commit(t: TrackEntity, delta: Double) {
-        val o = offsets(t)
+    private fun commit(t: TrackEntity, delta: Double, p: Place) {
+        val o = offsets(t, p)
         val now = nowDays()
         val input = JSONObject().put("deltaDb", delta).put("trackDb", o.trackDb).put("trackDays", o.trackDays)
             .put("artistDb", o.artistDb).put("artistDays", o.artistDays).put("nowDays", now)
-        if (prefs.contains("prevDelta")) input.put("prevDeltaDb", prefs.getFloat("prevDelta", 0f).toDouble())
+        val prev = "${p.id}|prevDelta"
+        if (prefs.contains(prev)) input.put("prevDeltaDb", prefs.getFloat(prev, 0f).toDouble())
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
-        val ac = prefs.getStringSet("ac:${artistKey(t)}", emptySet())!!.toMutableSet().apply { add(trackKey(t)) }
+        val ac = (setAt(p, "ac:${artistKey(t)}") ?: emptySet()).toMutableSet().apply { add(trackKey(t)) }
         prefs.edit()
-            .putString("t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")}")
-            .putString("a:${artistKey(t)}", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}")
-            .putStringSet("ac:${artistKey(t)}", ac)
-            .putFloat("prevDelta", delta.toFloat())
+            .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")}")
+            .putString("${p.id}|a:${artistKey(t)}", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}")
+            .putStringSet("${p.id}|ac:${artistKey(t)}", ac)
+            .putFloat(prev, delta.toFloat())
             .apply()
-        Log.i(TAG, "LEARN ${t.displayName}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
+        Log.i(TAG, "LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")} -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("trackDb"), out.getDouble("artistDb")))
         onLearned(t)
     }
@@ -149,15 +168,31 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private fun volumeDb(): Double {
         val idx = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val media = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build()
-        val type = audio.getAudioDevicesForAttributes(media).firstOrNull()?.type ?: android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+        val type = audio.getAudioDevicesForAttributes(mediaAttrs).firstOrNull()?.type ?: android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
         fun platform(i: Int) = runCatching { audio.getStreamVolumeDb(AudioManager.STREAM_MUSIC, i, type).toDouble() }.getOrDefault(Double.NaN)
         val usable = platform(max).let { top -> platform(max / 2).let { mid -> top.isFinite() && mid.isFinite() && top - mid > 1.0 } }
         return if (usable) platform(idx).let { if (it.isFinite()) it else -96.0 } else defaultCurveDb(idx, max)
     }
 
+    private val mediaAttrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build()
+
     companion object {
         const val TAG = "SablePlay"
+
+        /** §19.3: a place from the output's kind and, for Bluetooth, BLE and USB, the device's name. */
+        fun placeOf(type: Int, productName: String?): Place {
+            val name = productName?.trim()?.takeIf { it.isNotEmpty() }
+            fun named(kind: String, label: String) = if (name == null) Place(kind, label) else Place("$kind:$name", "$label · $name")
+            return when (type) {
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> named("bt", "Bluetooth")
+                android.media.AudioDeviceInfo.TYPE_BLE_HEADSET, android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                android.media.AudioDeviceInfo.TYPE_BLE_BROADCAST -> named("ble", "Bluetooth LE")
+                android.media.AudioDeviceInfo.TYPE_USB_HEADSET, android.media.AudioDeviceInfo.TYPE_USB_DEVICE,
+                android.media.AudioDeviceInfo.TYPE_USB_ACCESSORY -> named("usb", "USB-C")
+                android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET, android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Place("wired", "Wired headphones")
+                else -> Place("speaker", "Phone speaker")
+            }
+        }
         const val WINDOW_MS = 20_000L     // §19.1 t_w
         const val UNDO_MS = 3_000L        // a press undone within 3 s cancels
         const val ROUTE_QUIET_MS = 10_000L

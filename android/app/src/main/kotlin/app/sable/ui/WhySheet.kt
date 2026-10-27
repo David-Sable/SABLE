@@ -163,14 +163,15 @@ private fun Learned(row: LibraryRow) {
         value = withContext(Dispatchers.IO) { SableDatabase.get(context).library().track(row.mediaId) }
     }
     val t = track ?: return
-    val o = remember(t, version) { learning.offsets(t) }
+    val place = remember(version) { learning.currentPlace() }
+    val o = remember(t, version) { learning.offsets(t, place) }
     if (o.trackDb == 0.0 && o.artistDb == 0.0) return
-    Section("Learned")
+    Section("Learned for ${place.label}")
     if (o.trackDb != 0.0) Measure("This song (set %.0f days ago)".format(ListenerLearning.nowDays() - o.trackDays), "%+.1f dB".format(o.trackDb))
     if (o.artistDb != 0.0) Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(o.artistDb))
     Row(Modifier.padding(top = Space.s), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-        if (o.trackDb != 0.0) Pill("Forget for this song", false) { learning.resetTrack(t); version++ }
-        if (o.artistDb != 0.0) Pill("Forget for the artist", false) { learning.resetArtist(t); version++ }
+        if (o.trackDb != 0.0) Pill("Forget for this song", false) { learning.resetTrack(t, place); version++ }
+        if (o.artistDb != 0.0) Pill("Forget for the artist", false) { learning.resetArtist(t, place); version++ }
     }
 }
 

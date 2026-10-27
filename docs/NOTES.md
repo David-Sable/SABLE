@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, and (0.12.0) the sleep timer. MATH-1.20.
-  Latest GitHub release: see Releases (0.12.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). Library 396 songs, all analysed.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, and (0.13.0) learning per place. MATH-1.21.
+  Latest GitHub release: see Releases (0.13.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **On David's phone:** 0.12.0 (installed from the PC over USB, 2026-10-26, verified). 0.13.0 not installed yet (phone unplugged): install over USB and check a LEARN line names the place. Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - Bluetooth and USB-C outputs untested on the device (per-route settings covered by code and tests only).
@@ -33,10 +33,12 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-26 (PC) Learning per place (0.13.0, MATH-1.21 §19.3)
+- ListenerLearning keys every state by place (`placeOf(type, productName)`: speaker, wired, `bt:<name>`, `ble:<name>`, `usb:<name>`); unprefixed keys = the pre-1.21 shared state, used as the seed when a place has none. The window remembers the place it opened in; the environment filter's previous event is per place. Why sheet: "Learned for Bluetooth · CAR MULTIMEDIA"; Forget removes the place's and the shared state. Test: LearningPlaceTest. Not yet on the phone.
+
 ### 2026-10-26 (PC) Sleep timer (0.12.0)
 - `playback/SleepTimer.kt` (state) + PlaybackService: when due, `player.pauseAtEndOfMediaItems = true`, so playback stops at the end of the playing song (no cut, no fade); it clears itself when the song ends (PLAY_WHEN_READY false, reason end of item). Choices: end of this song, 15/30/45/60/90 min. UI: moon on Now Playing, `SleepSheet`, status line "Stops after this song" / "Stops at the end of the song playing at HH:MM". Diag log: SLEEP lines.
 - Verified on the phone: "End of this song", seek to 2:30 of 2:37, stopped at the end (SLEEP stopped at the end of the song). Timed path tested with the debug command `--es cmd sleep --ei sec 5`: due mid-song (SLEEP due), stopped at the song's end 6 s later.
-- Ideas next: search in the library, learning per output (car vs headphones).
 
 ### 2026-10-26 (PC) Flowing album tracks, swipe the cover (0.11.0, MATH-1.20)
 - §17.3: song-world neighbours that are the album's next track (same disc, track+1), with no fade at the join and ≤ 0.5 s of silence in each track (duration − nonSilentSec, existing analysis, no rescan), on a complete album, share the album gain (rule FLOW, no seams). Not in Always-track mode. §18 text corrected: the first item of an album/flow run is not seamed either (the code already did this). Planner input gains `disc`, `trackNo`; GainController sends the album JSON when a neighbour shares the album. Engine test with 6 negative cases; Why sentence and "flowing album tracks" label.

@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.20 (2026-10-26)
+**Version:** MATH-1.21 (2026-10-26)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -636,6 +636,13 @@ Decay to now: `o ← o·2^(−(now − τ)/H_life)`, `H_life = 30 days`.
 On an event: `o_t ← clamp(o_t + η_t·ω·Δv, −2, +2)` and `o_a ← clamp(o_a + η_a·ω·Δv, −2, +2)`, with `η_t = 0.5`, `η_a = 0.25`, then `τ ← now` **[TUNE: η, H_life]**.
 Applied offset: `o = clamp(o_t + (n_a ≥ 2 ? o_a : 0), −2, +2)`, where `n_a` = the number of distinct tracks by that artist that have contributed events.
 Offsets are visible on the Why sheet and resettable (per track, per artist, all).
+
+### 19.3 Places [DESIGN, owner decision 2026-10-26]
+The same song is turned up in a car and down on headphones for reasons that have nothing to do with the song. So learning is kept **per place**: the output device that plays the media stream when the feedback window opens.
+- A place is the output's kind plus, for Bluetooth, BLE and USB, the device's name as the system reports it (`AudioDeviceInfo.productName`), e.g. "Bluetooth · CAR MULTIMEDIA" and "Bluetooth · WH-1000XM4" are two places. The phone speaker (and earpiece) is one place, wired headphones another.
+- Every state of §19.2 (`o_t`, `o_a`, their timestamps, `n_a`, and the previous event used by the environment filter of §19.1) exists separately for each place. An event updates only its place; planning uses the place that is playing now.
+- A place with no state of its own for a track (or an artist) starts from the state learned before places existed (MATH-1.20 and earlier), decayed as usual; its first event then writes its own state. Nothing learned earlier is lost, and it fades out with the 30-day half-life.
+- The Why sheet names the place. "Forget" removes the song's (or artist's) state for the current place and the shared earlier state.
 
 ---
 
