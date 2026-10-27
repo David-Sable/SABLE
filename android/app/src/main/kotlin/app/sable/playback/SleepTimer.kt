@@ -20,7 +20,8 @@ object SleepTimer {
     val choices = listOf(15, 30, 45, 60, 90)
 
     fun endOfSong() { state.value = State(null, 0) }
-    fun after(minutes: Int) { state.value = State(SystemClock.elapsedRealtime() + minutes * 60_000L, minutes) }
+    fun after(minutes: Int) = afterMs(minutes * 60_000L, minutes)
+    fun afterMs(ms: Long, minutes: Int = 0) { state.value = State(SystemClock.elapsedRealtime() + ms, minutes) }
     fun cancel() { state.value = null }
 
     /** Called when the deadline passes: from now on, stop at the end of the current song. */

@@ -35,7 +35,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ### 2026-10-26 (PC) Sleep timer (0.12.0)
 - `playback/SleepTimer.kt` (state) + PlaybackService: when due, `player.pauseAtEndOfMediaItems = true`, so playback stops at the end of the playing song (no cut, no fade); it clears itself when the song ends (PLAY_WHEN_READY false, reason end of item). Choices: end of this song, 15/30/45/60/90 min. UI: moon on Now Playing, `SleepSheet`, status line "Stops after this song" / "Stops at the end of the song playing at HH:MM". Diag log: SLEEP lines.
-- Verified on the phone: "End of this song", seek to 2:30 of 2:37, stopped at the end (SLEEP stopped at the end of the song). The timed path (deadline → due) was not run in real time (shortest choice 15 min).
+- Verified on the phone: "End of this song", seek to 2:30 of 2:37, stopped at the end (SLEEP stopped at the end of the song). Timed path tested with the debug command `--es cmd sleep --ei sec 5`: due mid-song (SLEEP due), stopped at the song's end 6 s later.
 - Ideas next: search in the library, learning per output (car vs headphones).
 
 ### 2026-10-26 (PC) Flowing album tracks, swipe the cover (0.11.0, MATH-1.20)

@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 /**
  * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
  * adb automation (results logged under tags "SableBench" and "SablePlay"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | flows
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | flows | sleep --ei sec N
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
@@ -109,6 +109,7 @@ class MainActivity : ComponentActivity() {
                 "sync" -> Log.i(TAG, "sync: ${LibraryScanner(applicationContext).syncMediaStore()} tracks")
                 "scan" -> ScanWorker.enqueue(applicationContext, requireCharging = false)
                 "stats" -> stats()
+                "sleep" -> app.sable.playback.SleepTimer.afterMs(intent.getIntExtra("sec", 10) * 1000L)  // timer test in seconds
                 "flows" -> {  // §17.3 diagnostics: per album, which song-world neighbours the planner joins (tag SablePlay)
                     val dao = SableDatabase.get(applicationContext).library()
                     for ((_, members) in dao.allTracks().groupBy { it.albumId to it.albumArtist }) {
