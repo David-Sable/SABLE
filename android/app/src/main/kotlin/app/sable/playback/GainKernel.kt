@@ -32,6 +32,8 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
     private var edgeTotal = -1L       // §30.2 excerpt length in frames (-1: not an excerpt)
     private var edgeN = 0             // fade length in frames
     private var edgePos = 0L          // frames of the current item processed so far
+    private var edgeIn = true         // fade in at the start / out at the end (§30.6: not across a real transition)
+    private var edgeOut = true
     // §24 Quiet contour: low shelf then high shelf ({b0, b1, b2, a1, a2}), TDF-II in double, per channel,
     // mixed in with a 20 ms raised-cosine crossfade when switched on or off.
     private var lo: DoubleArray? = null
@@ -56,11 +58,16 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
         edgePos = 0L
     }
 
-    /** §30.2: the item just started is an excerpt of [totalFrames]; fade its first and last [fadeFrames] in and out. */
-    fun setEdges(totalFrames: Long, fadeFrames: Int) {
+    /**
+     * §30.2: the item just started is an excerpt of [totalFrames]; fade its first and last [fadeFrames] in and out.
+     * §30.6: a song change keeps its real transition, so the edge on that side is not faded ([fadeIn], [fadeOut]).
+     */
+    fun setEdges(totalFrames: Long, fadeFrames: Int, fadeIn: Boolean = true, fadeOut: Boolean = true) {
         edgeTotal = totalFrames
         edgeN = max(1, fadeFrames)
         edgePos = 0L
+        edgeIn = fadeIn
+        edgeOut = fadeOut
     }
 
     /**
@@ -173,8 +180,8 @@ class GainKernel(seed: Long = 0x5AB1E5AB1EL) {
 
     private fun edgeGain(): Float {
         val k = edgePos++
-        val fromEnd = edgeTotal - 1 - k
-        val d = minOf(k, fromEnd)
+        val fromEnd = if (edgeOut) edgeTotal - 1 - k else Long.MAX_VALUE
+        val d = minOf(if (edgeIn) k else Long.MAX_VALUE, fromEnd)
         if (d >= edgeN) return 1f
         if (d < 0) return 0f  // past the expected end: silent until the next item starts
         return ((1.0 - cos(PI * (d + 0.5) / edgeN)) / 2.0).toFloat()

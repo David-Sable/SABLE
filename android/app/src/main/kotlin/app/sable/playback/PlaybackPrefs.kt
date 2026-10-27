@@ -101,4 +101,6 @@ object NowPlaying {
 object AbSession {
     enum class Condition(val key: String, val label: String) { SABLE("sable", "Sable"), PLAIN("plain", "Plain -14 LUFS"), OFF("off", "No normalization") }
     val condition = MutableStateFlow<String?>(null)
+    /** §30.6: the round is song changes (pairs: a song's ending, then the next song's opening) rather than clips. */
+    @Volatile var transitions = false
 }

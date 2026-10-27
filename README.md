@@ -45,7 +45,10 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet.
 
 ### 5. Proof
-- **Blind A/B**: compare Sable, plain −14 LUFS normalization and no normalization on the same shuffled sequence, unlabeled and level-matched, then see which was which. After 10 rounds it tells you in plain words whether your picks are real or could be luck.
+- **Blind A/B**: compare Sable, plain −14 LUFS normalization and no normalization on the same shuffled sequence, unlabeled and level-matched, then see which was which. Two kinds of round: **Clips** (25 seconds from the middle of 6 songs) and **Song changes**
+  (the end of one song running into the start of the next, inside albums and between albums, where Sable differs most
+  from plain normalization). Each keeps its own tally, and after 10 rounds it tells you in plain words whether your picks
+  are real or could be luck.
 
 ---
 

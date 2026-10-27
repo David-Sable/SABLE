@@ -14,8 +14,8 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0) and the A/B verdict line (0.8.1). MATH-1.15.
-  Latest GitHub release: see Releases (0.8.1 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0). MATH-1.16.
+  Latest GitHub release: see Releases (0.9.0 pushed 2026-10-26), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
 - **On Dana's phone:** 0.8.1 (installed from the PC over USB, 2026-10-26). A/B tally (17:18): Sable 15, Plain 12, Off 6 of 33 (luck ≈ 1 in 10). Off clearly loses; Sable vs Plain is close. Expected: A/B excerpts leave out seams and album world (§30.1), where Sable differs most from plain −14. 0.7.1 had been installed from GitHub build 8: the release path works end to end. Library 396 songs, all analysed.
   Battery shows "Optimized"; Dana may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
@@ -25,12 +25,17 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   - EBU official test files (Tech 3341/3342) still need a browser download; compliance tests use generated signals.
   - Release `build-3` on GitHub has the wrong key; Dana can delete it (Releases → build-3 → Delete). Harmless.
   - Dana's listening check of character labels and the largest gain moves (from M3) is still open.
-- **Next (Claude's pick, Dana agreed 2026-10-26):** a transitions A/B: whole song changes (end of one song into the start of the next, seams on) and a stretch of one album, Sable vs plain −14, same blind rules as §30. Needs a MATH §30 extension first (what is level-matched, excerpt rules around seams). Buildable from the cloud; verify on the phone.
+- **Next:** Dana tries the Song changes A/B (0.9.0). It was built while the phone was unplugged: **not yet verified on the device**. Next USB session: play a Song changes round, check in logcat (`SablePlay` ITEM lines) that the second song of each change starts natural (`manual=false`) with SEAM or album gain, that clip edges do not fade at the real transition, and that switching labels works.
 - **Ideas pending (agreed with Dana, 2026-10-26):** test Bluetooth/USB-C outputs and the other formats on the phone (needs USB; formats need non-copyrighted test files, e.g. generated with ffmpeg); a sleep timer that stops at the end of a song (no fades, keeps one static gain per song).
 
 ---
 
 ## Log (newest first)
+
+### 2026-10-26 (PC) Song changes A/B (0.9.0)
+- Why: Dana's clip rounds stood at Sable 15, Plain 12, Off 6 of 33. Clips (§30.1) leave out seams and album world, where Sable differs most from plain −14, so Sable vs Plain is expected to be close there.
+- New round kind (MATH-1.16 §30.6): 4 song changes, the last 20 s of one song straight into the first 20 s of the next; 2 inside complete albums (tracks really in a row, album world) and 2 between albums (song world, seams). Sable plays as normal playback (first song manual, second natural); plain and off as before; level match unchanged. Own tally (`abflow_*` prefs), same verdict line.
+- Engine: `abSeams` planner input + test. App: `GainController.Excerpt` (length and start), no edge fade across the real transition (`setEdges` fadeIn/fadeOut), `pickFlowChanges` + `FlowSequenceTest`. Engine 53 cases, app tests green. Not verified on the phone (unplugged).
 
 ### 2026-10-26 (PC) A/B verdict (0.8.1)
 - Under the A/B tally, one plain sentence: the chance that random picking would make Sable win this often (binomial tail, chance 1/3 per round), shown after 10 rounds; under 5% reads "You can hear the engine". MATH-1.15 §30.5 (display rule only). Unit tests in `AbVerdictTest`.

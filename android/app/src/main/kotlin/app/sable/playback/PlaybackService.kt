@@ -85,7 +85,7 @@ class PlaybackService : MediaSessionService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
             val items = resolve(mediaItems)
             val start = if (startIndex == C.INDEX_UNSET) 0 else startIndex.coerceIn(0, maxOf(0, items.size - 1))
-            val excerpts = items.mapNotNull { i -> GainController.excerptMsOf(i)?.let { i.mediaId to it } }.toMap()
+            val excerpts = items.mapNotNull { i -> GainController.excerptOf(i)?.let { i.mediaId to it } }.toMap()
             this@PlaybackService.controller.prepareStart(items.map { it.mediaId }, start, excerpts)  // JIT wait + plan before playing
             MediaSession.MediaItemsWithStartPosition(items, start, if (startIndex == C.INDEX_UNSET) 0 else startPositionMs)
         }

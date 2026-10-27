@@ -346,8 +346,10 @@ std::string planQueueJson(const std::string& input) {
     cur.naturalSeamedDb = seamGain(s, &cur.rules);
   }
 
-  // §30 blind A/B: every item gets the chosen condition's level-matched gain (manual start, no seams, no learning).
+  // §30 blind A/B: every item gets the chosen condition's level-matched gain (no learning). Sable is the manual start
+  // without seams (§30.1), or, in a transitions round (§30.6), each item as it starts: manual or natural (seamed).
   const std::string ab = in.str("abCondition");  // "" | "sable" | "plain" | "off"
+  const bool abSeams = in.flag("abSeams");        // §30.6 transitions round: Sable plays as in normal playback
   std::vector<double> abGain(items.size(), 0.0);
   double abOffset = 0.0;
   if (!ab.empty()) {
@@ -355,7 +357,7 @@ std::string planQueueJson(const std::string& input) {
     double eS = 0.0, eC = 0.0, w = 0.0;
     for (std::size_t i = 0; i < items.size(); ++i) {
       const Item& it = items[i];
-      gS[i] = finalGain(it.manualSeamedDb, 0.0, outputCal, it.capDb);
+      gS[i] = finalGain(abSeams && !it.manual ? it.naturalSeamedDb : it.manualSeamedDb, 0.0, outputCal, it.capDb);
       gC[i] = gS[i];
       if (!it.track || !it.track->r.integratedLufs) continue;
       const Track& t = *it.track;

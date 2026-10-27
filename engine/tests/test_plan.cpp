@@ -157,6 +157,33 @@ TEST_CASE("plan: blind A/B conditions are level-matched to Sable and respect the
   CHECK(field(capped, "gainDb", 0) <= -0.5 + 1e-12);
 }
 
+TEST_CASE("plan: transitions round plays Sable as normal playback, seams and album world included (MATH §30.6)") {
+  auto run = [](std::string items, const char* cond, bool seams, const std::string& albums = "{}") {
+    std::string in = ctx(items, albums);
+    in.insert(1, std::string("\"abCondition\":\"") + cond + "\"," + (seams ? "\"abSeams\":true," : ""));
+    return sable::planQueueJson(in);
+  };
+  // Song change: same pair as the seam test; the second song opens 10 LU under the first song's ending.
+  const std::string prev = analysis(-14, -14, -14, -20, -14, -10), cur = analysis(-14, -14, -14, -20, -20, -14);
+  const std::string song = "{\"analysis\":" + prev + ",\"manual\":true,\"excerptSec\":20},{\"analysis\":" + cur + ",\"excerptSec\":20}";
+  CHECK(field(run(song, "sable", true), "gainDb", 1) == doctest::Approx(0.5).epsilon(1e-12));   // seamed
+  CHECK(field(run(song, "sable", false), "gainDb", 1) == doctest::Approx(0.0).epsilon(1e-12));  // §30.1: no seams
+  CHECK(field(run(song, "sable", true), "gainDb", 0) == doctest::Approx(0.0).epsilon(1e-12));   // manual start
+  // Album change: Sable shares the album gain, plain keeps the songs' own -6 dB difference.
+  const std::string t1 = analysis(-10, -10, -10, -6, -12, -12), t2 = analysis(-16, -16, -16, -6, -18, -18);
+  const std::string albums = "{\"A\":{\"complete\":true,\"tracks\":[" + t1 + "," + t2 + "]}}";
+  const std::string alb = "{\"analysis\":" + t1 + ",\"album\":\"A\",\"albumIntent\":true,\"manual\":true,\"excerptSec\":20},"
+                          "{\"analysis\":" + t2 + ",\"album\":\"A\",\"albumIntent\":true,\"excerptSec\":20}";
+  const std::string s = run(alb, "sable", true, albums), p = run(alb, "plain", true, albums);
+  CHECK(field(s, "gainDb", 0) == field(s, "gainDb", 1));
+  CHECK(field(p, "gainDb", 1) - field(p, "gainDb", 0) == doctest::Approx(6.0).epsilon(1e-9));
+  // Level match still holds (anchors -10, -16).
+  auto seq = [](const std::string& out) {
+    return 10 * std::log10((std::pow(10.0, (-10 + field(out, "gainDb", 0)) / 10.0) + std::pow(10.0, (-16 + field(out, "gainDb", 1)) / 10.0)) / 2);
+  };
+  CHECK(seq(p) == doctest::Approx(seq(s)).epsilon(1e-9));
+}
+
 TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay bounded (MATH §19, §24.4)") {
   const std::string capped = analysis(-20, -20, -20, -2, -20, -20);  // intent +6, cap +1
   std::string in = ctx("{\"analysis\":" + capped + "}");

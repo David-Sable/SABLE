@@ -28,6 +28,10 @@ lives in the engine. The app only gathers inputs and applies the outputs.
   the rule `ALBUM_PENDING`.
 - `manual` = this item began, or will begin, by a user action. The seam chain follows the gain each item actually
   plays with.
+- Blind A/B (§30): `"abCondition": "sable" | "plain" | "off"` gives every item that condition's level-matched gain
+  (`gainDb` = `manualGainDb`, learning off), with `"excerptSec"` per item as the excerpt length. `"abSeams": true`
+  (§30.6 song changes) makes Sable play each item as it starts (`manual` or natural with seams, album world as usual);
+  without it Sable is the unseamed manual start (§30.1).
 
 ## Output
 ```json
