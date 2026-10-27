@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -227,21 +229,22 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
         }
         sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
         if (sleepOpen) SleepSheet { sleepOpen = false }
-        Column(Modifier.weight(1f).padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-            if (row != null) {
-                AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
-            }
-            Spacer(Modifier.height(Space.xl))
+        // A short window (split screen, a small pane) puts the cover beside the controls instead of above them.
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val compact = maxHeight < 440.dp
+            val gap = if (compact) Space.s else Space.xl
+            val shapeH = if (compact) 40.dp else 56.dp
+            val info: @Composable ColumnScope.() -> Unit = {
             // Tap the title for its album, the artist line for the artist.
             Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
             Text(listOfNotNull(row?.artist, row?.album).map(::clean).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
-            Spacer(Modifier.height(Space.xl))
+            Spacer(Modifier.height(gap))
             if (shape != null) {
-                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(56.dp).graphicsLayer()) { state.seekFraction(it) }  // own layer
+                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) { state.seekFraction(it) }  // own layer
             } else {
-                Canvas(Modifier.fillMaxWidth().height(56.dp).graphicsLayer()) {
+                Canvas(Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) {
                     tick
                     val y = size.height - 1f
                     drawLine(SableColors.line, Offset(0f, y), Offset(size.width, y), 2f)
@@ -253,13 +256,13 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
                 Spacer(Modifier.weight(1f))
                 Text(mmss(state.durationMs), style = SableType.caption, color = SableColors.textTertiary)
             }
-            Row(Modifier.fillMaxWidth().padding(top = Space.l), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = if (compact) Space.s else Space.l), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 // Repeat on the left, sleep on the right: both lit in the accent while on.
                 IconButton(if (state.repeatMode == Player.REPEAT_MODE_ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, { state.cycleRepeat() }, size = 22.dp,
                     color = if (state.repeatMode == Player.REPEAT_MODE_OFF) SableColors.textTertiary else SableColors.accent)
                 IconButton(Glyph.PREV, { state.withController { it.seekToPrevious() } }, size = 26.dp)
                 Box(
-                    Modifier.size(72.dp).background(SableColors.accent, CircleShape).clickable { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } },
+                    Modifier.size(if (compact) 48.dp else 72.dp).background(SableColors.accent, CircleShape).clickable { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } },
                     contentAlignment = Alignment.Center,
                 ) { Icon(if (state.playing) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) }
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
@@ -269,6 +272,19 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
                 when (state.repeatMode) { Player.REPEAT_MODE_ALL -> "Repeating the queue"; Player.REPEAT_MODE_ONE -> "Repeating this song"; else -> "" },
                 style = SableType.caption, color = SableColors.accent, modifier = Modifier.fillMaxWidth().padding(top = Space.xs), textAlign = TextAlign.Center,
             )
+            }
+            if (compact) {
+                Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
+                    Column(Modifier.weight(0.7f).padding(start = Space.m), verticalArrangement = Arrangement.Center, content = info)
+                }
+            } else {
+                Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
+                    Spacer(Modifier.height(gap))
+                    info()
+                }
+            }
         }
         // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
         Row(
