@@ -109,4 +109,6 @@ object AbSession {
      * song's key loudness figures. Filled from the first plan that covers an item (the round start), saved with the pick.
      */
     @Volatile var plans = org.json.JSONObject()
+    /** The queue ids of the running round: plans of an older queue (a replan still in flight) are not recorded. */
+    @Volatile var roundIds: Set<String> = emptySet()
 }

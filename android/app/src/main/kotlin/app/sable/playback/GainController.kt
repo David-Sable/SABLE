@@ -128,7 +128,13 @@ class GainController(
             val job = scope.async(Dispatchers.Default) { runJit(t) }
             withTimeoutOrNull(JIT_WAIT_MS) { job.await() }
         }
-        mutex.withLock { plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false, excerpts) }
+        mutex.withLock {
+            if (AbSession.condition.value != null) {  // a new A/B round: its own log entries only
+                AbSession.plans = JSONObject()
+                AbSession.roundIds = ids.toSet()
+            }
+            plan(ids, startIndex, ids.indices.map { it == startIndex }, user = false, excerpts)
+        }
     }
 
     fun replan(user: Boolean) {
@@ -291,6 +297,7 @@ class GainController(
                 val res = if (c.key == ab) out else JSONObject(SableEngine.planQueue(input.put("abCondition", c.key).toString()))
                 val arr = res.optJSONArray("items") ?: continue
                 for (i in ids.indices) {
+                    if (ids[i] !in AbSession.roundIds) continue
                     val p = arr.optJSONObject(i) ?: continue
                     val rec = plans.optJSONObject(ids[i]) ?: JSONObject().also { r ->
                         r.put("track", QueueId.trackId(ids[i]))

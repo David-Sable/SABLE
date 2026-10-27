@@ -213,7 +213,6 @@ fun AbScreen(state: AppState, rows: List<LibraryRow>) {
             }
             note = null
             AbSession.transitions = k != AbKind.CLIPS
-            AbSession.plans = JSONObject()  // filled while the round is planned (round log)
             val nr = AbRound(k, n, k.conditions.shuffled())
             nr.current = Random.nextInt(nr.mapping.size)
             AbSession.condition.value = nr.mapping[nr.current].key  // set before the queue is planned
