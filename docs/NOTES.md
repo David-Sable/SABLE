@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0/0.17.1) play-button resume, widget, queue clear, crash fixes. MATH-1.24.
+- **State:** all milestones M1-M7 done, plus Easy mode (default), swipe-down Now Playing, the Quiet contour on by default in Quiet (0.7.1), the white lion logo (0.8.0), the A/B verdict line (0.8.1) and the song-changes A/B round (0.9.0) the playback log (0.9.1), separate Song changes / Albums rounds (0.9.2) and (0.10.0) the blind A/B removed by owner decision, (0.10.1) faster queue starts, and (0.11.0) flowing album tracks kept together plus swipe-to-change-song, (0.12.0) the sleep timer, (0.13.0) learning per place, (0.14.0) smoother animations plus the fragment fix, (0.14.1) a Baseline Profile, and (0.15.0) library search and repeat, (0.15.1) learning fixes, (0.15.2) learning rules MATH-1.23 and room for the mini player, (0.16.0) convenience round + MATH-1.24, (0.17.0/0.17.1) play-button resume, widget, queue clear, crash fixes, (0.17.2) screens keep their scroll position. MATH-1.24.
   Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
-- **On David's phone:** 0.17.1 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
+- **On David's phone:** 0.17.2 installed over USB 2026-10-27 (speed-profile compiled). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
 - **Open items (none blocking):**
   - USB-C output untested on the device. Bluetooth verified in real use (JBL Charge 5, car); per-place learning live on the JBL.
@@ -31,6 +31,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-27 (PC) Screens keep their place (0.17.2)
+- David: going back or swiping Now Playing down reset the library to the top. Each route is now wrapped in a `rememberSaveableStateHolder` provider keyed by the route (`SableApp`), and each library tab in its own (`LibraryScreen`); the lazy list/grid and scroll states are saveable, so they come back. A screen that leaves the back stack has its state removed (reopening starts at the top).
+- Verified on the phone: Albums scrolled → open Illmatic → Back: same spot; Now Playing → swipe down: same spot; Songs scrolled → Albums → Songs: same spot.
 
 ### 2026-10-27 (PC) Big pass: play button, widget, queue clear, formats, crash fixes (0.17.0)
 - **Play button wakes Sable:** Media3 `MediaButtonReceiver` in the manifest + `onPlaybackResumption` (the saved queue, resolved and planned). Verified: Sable killed (`am kill`, as the system does), `KEYCODE_MEDIA_PLAY` → RESUMPTION asked → playing from the saved spot. (A force-stopped app cannot be woken; that is Android, not Sable.)

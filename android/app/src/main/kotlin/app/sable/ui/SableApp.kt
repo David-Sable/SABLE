@@ -32,6 +32,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -58,6 +60,15 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     Box(Modifier.fillMaxSize().background(SableColors.base)) {
         val showMini = current != null && state.route !is Route.NowPlaying
         val pad = if (showMini) bottomBarHeight() else 0.dp
+        // Each screen keeps its scroll position (and tab) while it is in the back stack: going back or swiping Now
+        // Playing down returns to the same spot. A screen that leaves the stack forgets it, so reopening starts fresh.
+        val saved = rememberSaveableStateHolder()
+        val inStack = state.back.map { it.toString() }.toSet()
+        val known = remember { mutableSetOf<String>() }
+        LaunchedEffect(inStack) {
+            (known - inStack).forEach(saved::removeState)
+            known.clear(); known += inStack
+        }
         AnimatedContent(
             state.route,
             transitionSpec = {
@@ -71,6 +82,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 transitionSpec = { if (targetState == EnterExitState.Visible) Motion.slow() else Motion.medium() }, label = "screen",
             ) { if (it == EnterExitState.Visible) 1f else 0f }
             Box(Modifier.lightAlpha { a }) {
+            saved.SaveableStateProvider(r.toString()) {
             when (r) {
                 Route.Library -> LibraryScreen(state, rows, pad)
                 is Route.Album -> AlbumScreen(state, rows, r.key, pad)
@@ -80,6 +92,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 Route.Queue -> QueueScreen(state, rows, pad)
                 Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
                 Route.Search -> SearchScreen(state, rows, pad)
+            }
             }
             }
         }

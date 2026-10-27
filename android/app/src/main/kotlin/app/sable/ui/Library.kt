@@ -132,6 +132,9 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(SableColors.line))
         val pad = PaddingValues(bottom = bottomPad + Space.l)
+        // Each tab keeps its own scroll position when you switch tabs and come back.
+        val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+        tabState.SaveableStateProvider("tab${state.libraryTab}") {
         when (state.libraryTab) {
             0 -> LazyVerticalGrid(
                 GridCells.Fixed(2), contentPadding = PaddingValues(start = Space.gutter, end = Space.gutter, top = Space.l, bottom = bottomPad + Space.l),
@@ -171,6 +174,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     }
                 }
             }
+        }
         }
     }
 }
