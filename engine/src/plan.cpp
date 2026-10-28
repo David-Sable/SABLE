@@ -442,6 +442,12 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
     const double ratio = dv / *prev;
     if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
   }
+  // MATH-1.28: a jump that was ignored (a mute or more than 12 dB) left the level somewhere the listener had not settled it. While
+  // it stays where the jump put it (0.5 dB) and within T_env, a press is about the level, not the song: weighted 0.25 like any
+  // other change of environment. Putting the volume back to a level of their own ends it.
+  const auto jumpAt = in.num("jumpDays");
+  const auto jumpEnd = in.num("jumpEndDb");
+  if (jumpAt && jumpEnd && startDb && now - *jumpAt <= kEnvWindowDays && std::fabs(*startDb - *jumpEnd) < 0.5) omega = std::min(omega, 0.25);
   LearnedOffset t{in.num("trackDb", 0.0), in.num("trackDays", now)}, a{in.num("artistDb", 0.0), in.num("artistDays", now)};
   learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
   learnEvent(a, 0.25, omega * dvEff, now);  // eta_a

@@ -248,6 +248,15 @@ TEST_CASE("learn: mutes, big jumps and presses explained by the section (MATH-1.
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"anchorLufs\":-10,\"heardLufs\":-10.8,\"nowDays\":1}"), "trackDb") == doctest::Approx(1.915));
   // Without the song's figures (no analysis yet) nothing changes.
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"nowDays\":1}"), "trackDb") == doctest::Approx(1.915));
+  // MATH-1.28, owner's session on the JBL: the volume jumped -17 -> 0 dB (ignored), and 4 min later "Bye Storm" was turned down
+  // 5.67 dB from that level. The level had not settled: weight 0.25 (was 1.0, track -2.00 and artist -2.00).
+  const std::string bye = "{\"deltaDb\":-5.67,\"startDb\":0,\"jumpDays\":9.9972,\"jumpEndDb\":0,\"nowDays\":10}";
+  CHECK(field(sable::learnUpdateJson(bye), "omega") == 0.25);
+  CHECK(field(sable::learnUpdateJson(bye), "trackDb") == doctest::Approx(-0.708).epsilon(1e-3));
+  // The volume put back to a level of its own, an old jump (> 10 min), or no jump: full weight.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-5.67,\"startDb\":-17,\"jumpDays\":9.9972,\"jumpEndDb\":0,\"nowDays\":10}"), "omega") == 1.0);
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-5.67,\"startDb\":0,\"jumpDays\":9.98,\"jumpEndDb\":0,\"nowDays\":10}"), "omega") == 1.0);
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-5.67,\"startDb\":0,\"nowDays\":10}"), "omega") == 1.0);
   CHECK(sable::sectionAdjustedDelta(4.0, 2.5) == doctest::Approx(1.5));
   CHECK(sable::sectionAdjustedDelta(2.0, 2.5) == 0.0);
   CHECK(sable::sectionAdjustedDelta(-4.0, 2.5) == -4.0);

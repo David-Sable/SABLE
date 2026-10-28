@@ -208,6 +208,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
         prefs.getString("${p.id}|prevEndDb", null)?.toDoubleOrNull()?.let { input.put("prevEndDb", it) }  // §19.1 put back?
         input.put("startDb", startDb)
+        // MATH-1.28: the last ignored jump, so a press while the level is still where it left it counts as the room's
+        prefs.getString("${p.id}|jumpDays", null)?.toDoubleOrNull()?.let { input.put("jumpDays", it) }
+        prefs.getString("${p.id}|jumpEndDb", null)?.toDoubleOrNull()?.let { input.put("jumpEndDb", it) }
         // MATH-1.27: a mute is not a verdict, and the section the press was made in is measured against the song's anchor.
         if (startIndex == 0 || sawMute || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) input.put("muted", true)
         var heard: Double? = null
@@ -219,6 +222,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
         if (out.has("error")) return
         if (out.has("ignored")) {
+            if (out.getString("ignored") == "jump") prefs.edit().putString("${p.id}|jumpDays", now.toString()).putString("${p.id}|jumpEndDb", (startDb + delta).toString()).apply()
             note("LEARN ignored (${out.getString("ignored")}) ${t.displayName}: volume %+.1f dB".format(delta) +
                 (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: ""))
             return
