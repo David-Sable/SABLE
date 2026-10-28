@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.rotate
 import app.sable.ui.theme.Motion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -65,10 +66,22 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
     val live by NowPlaying.gain.collectAsState()
     val settings by PlaybackPrefs.settings.collectAsState()
     val isPlaying = state.currentTrackId == row.mediaId && live.mediaId == state.currentQueueId
+    // Scrolling past the end of the details must not lift the sheet (the content moved up and bounced back): the leftover upward scroll stops here;
+    // pulling down still reaches the sheet, so swiping it away works.
+    val noSheetLift = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource) =
+                androidx.compose.ui.geometry.Offset(0f, minOf(available.y, 0f))
+            override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity) = androidx.compose.ui.unit.Velocity(0f, minOf(available.y, 0f))
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
         dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
     ) {
+        // No stretch at the ends: inside a sheet it fights the sheet's own drag and the content jitters when you keep scrolling.
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollFactory provides null) {
+        Box(Modifier.nestedScroll(noSheetLift)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text("WHY", style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m))
             Text(titleOf(row), style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.xs))
@@ -149,6 +162,8 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(Space.xxl))
+        }
+        }
         }
     }
 }

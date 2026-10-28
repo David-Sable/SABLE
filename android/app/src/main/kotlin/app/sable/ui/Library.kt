@@ -139,13 +139,8 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         val pad = PaddingValues(bottom = bottomPad + Space.l)
         // Each tab keeps its own scroll position when you switch tabs and come back.
         val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-        // Switching tabs fades the new one in (coming back to the library does not).
-        val fade = remember { androidx.compose.animation.core.Animatable(1f) }
-        var shownTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(state.libraryTab) }
-        androidx.compose.runtime.LaunchedEffect(state.libraryTab) {
-            if (shownTab != state.libraryTab) { shownTab = state.libraryTab; fade.snapTo(0f); fade.animateTo(1f, androidx.compose.animation.core.tween(200)) }
-        }
-        Box(Modifier.graphicsLayer { alpha = fade.value }) {
+        // Switching tabs is instant: the old fade snapped the content to black and back, which read as the albums reloading.
+        Box {
         tabState.SaveableStateProvider("tab${state.libraryTab}") {
         when (state.libraryTab) {
             0 -> LazyVerticalGrid(
