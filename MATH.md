@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.29 (2026-10-27)
+**Version:** MATH-1.30 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -646,6 +646,11 @@ Applied offset **[MATH-1.23]**: a song's own lesson is the most specific evidenc
 - the song has been taught (it has its own state `o_t`): `o = clamp(o_t, −2, +2)`;
 - otherwise: `o = clamp(n_a ≥ 2 and all o_t of the artist's taught songs have one sign ? o_a : 0, −2, +2)`,
 where `n_a` = the number of distinct tracks by that artist that have contributed events. **[MATH-1.27]** A song without a real artist (blank, `<unknown>`, `Unknown artist`, `Various Artists`) has no artist state: it neither writes nor reads one (before 1.27 every untagged file shared one artist and could teach all the others). Before 1.23 the offsets were summed (`o_t + o_a` from `n_a ≥ 2`); in the owner's session that made a song the user had just turned **down** (`o_t = −0.48`) play 1.2 dB **louder**, because the artist stood at +1.68 from another song turned up strongly.
+**One press is a hint; a repeat on another day is a lesson [MATH-1.30].** Volume presses follow mood as much as taste (the owner: "sometimes I like a section really loud and then randomly I like it low"). Mood does not repeat on cue; taste does. So:
+- **A song's first lesson is tentative.** Per place and track the state keeps `τ₀` (the time of its first counted event) and a flag `confirmed`. While `confirmed` is false the applied track offset is `clamp(o_t, −P, +P)` with `P = 1 dB` (the stored `o_t` still moves as in §19.2 and still clamps at ±2). A later counted event **in the same direction as the standing offset, at least `D = 12 h` after `τ₀`**, sets `confirmed`. An event in the opposite direction does not confirm (it cancels in `o_t`); a second press the same day does not either. When nothing stands (`o_t` decayed to 0 or never set) the next event starts a new tentative lesson (`τ₀ = now`).
+- **An artist's offset needs two different days.** It also stores its first event time; the artist's offset is applied to the other songs only if its last event is at least `D` after its first (on top of §19.2's two songs that agree). Owner's session on the JBL: two Danny Brown songs turned up five minutes apart taught the artist +1.16 dB for every other Danny Brown song; under 1.30 that waits for another listening session.
+- **State stored before 1.30** has no `τ₀`/`confirmed`: a song's lesson counts as confirmed and an artist counts as older than 12 h, so a first event after 1.30 does not suspend it. Nothing the owner has taught changes retroactively.
+The 1 dB probation and the 12 h gap are **[TUNE]**; neither changes how fast `o_t` moves, only what is applied until a lesson repeats.
 Offsets are visible on the Why sheet and resettable (per track, per artist, all).
 
 ### 19.3 Places [DESIGN, owner decision 2026-10-26]

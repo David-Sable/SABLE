@@ -28,6 +28,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     data class Offsets(
         val trackDb: Double, val trackDays: Double, val artistDb: Double, val artistDays: Double, val artistTracks: Int,
         val trackTaught: Boolean = false, val artistTrackDbs: List<Double> = emptyList(),
+        /** MATH-1.30: when the song (artist) was first taught and whether another day has confirmed it; null = stored before 1.30. */
+        val trackFirstDays: Double? = null, val trackConfirmed: Boolean? = null, val artistFirstDays: Double? = null,
     )
 
     /** §19.3: where the media stream plays now. */
@@ -55,6 +57,11 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     // id: it is still found under that key, and moved to the hash key at its next event.
     private fun idKey(t: TrackEntity) = "id${t.mediaId}"
 
+    // MATH-1.30 adds "first" and "confirmed" to the stored value: "db,days[,first[,confirmed 0|1]]" (older entries lack them).
+    private fun extra(key: String, i: Int): String? = prefs.getString(key, null)?.split(',')?.getOrNull(i)
+    private fun extraAt(p: Place, key: String, i: Int): String? =
+        if (prefs.contains("${p.id}|$key")) extra("${p.id}|$key", i) else extra(key, i)
+
     private fun readAt(p: Place, key: String) = read("${p.id}|$key") ?: read(key)
     private fun setAt(p: Place, key: String): Set<String>? = prefs.getStringSet("${p.id}|$key", null) ?: prefs.getStringSet(key, null)
 
@@ -66,7 +73,11 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val taught = ak?.let { setAt(p, "ac:$it") }.orEmpty()
         // §19.2 (MATH-1.23): the artist's taught songs' own offsets, so the engine can check they agree.
         val songs = taught.mapNotNull { k -> readAt(p, "t:$k")?.first }
-        return Offsets(tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, taught.size, tr != null, songs)
+        val tk = if (readAt(p, "t:${trackKey(t)}") != null) "t:${trackKey(t)}" else "t:${idKey(t)}"
+        return Offsets(
+            tr?.first ?: 0.0, tr?.second ?: now, ar?.first ?: 0.0, ar?.second ?: now, taught.size, tr != null, songs,
+            extraAt(p, tk, 2)?.toDoubleOrNull(), extraAt(p, tk, 3)?.let { it == "1" }, ak?.let { extraAt(p, "a:$it", 2)?.toDoubleOrNull() },
+        )
     }
 
     /** The planner's "learn" input (it decays and combines them, §19.2), for the place playing now. */
@@ -75,6 +86,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         return JSONObject().put("trackDb", o.trackDb).put("trackDays", o.trackDays).put("artistDb", o.artistDb)
             .put("artistDays", o.artistDays).put("artistTracks", o.artistTracks)
             .put("trackTaught", o.trackTaught).put("artistTrackDbs", org.json.JSONArray(o.artistTrackDbs))
+            .apply { o.trackConfirmed?.let { put("trackConfirmed", it) }; o.artistFirstDays?.let { put("artistFirstDays", it) } }
     }
 
     /** §19.3: forgets the song (or artist) for the current place and the shared earlier state. */
@@ -255,6 +267,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val now = nowDays()
         val input = JSONObject().put("deltaDb", delta).put("trackDb", o.trackDb).put("trackDays", o.trackDays)
             .put("artistDb", o.artistDb).put("artistDays", o.artistDays).put("nowDays", now)
+            .apply { o.trackFirstDays?.let { put("trackFirstDays", it) }; o.trackConfirmed?.let { put("trackConfirmed", it) }; o.artistFirstDays?.let { put("artistFirstDays", it) } }
         val prev = "${p.id}|prevDelta"
         if (prefs.contains(prev)) input.put("prevDeltaDb", prefs.getFloat(prev, 0f).toDouble())
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
@@ -283,8 +296,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val ac = ak?.let { (setAt(p, "ac:$it") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) } }
         prefs.edit()
             .apply { if (t.contentHash != null) remove("${p.id}|t:${idKey(t)}") }
-            .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")}")
-            .apply { if (ak != null) putString("${p.id}|a:$ak", "${out.getDouble("artistDb")},${out.getDouble("artistDays")}").putStringSet("${p.id}|ac:$ak", ac) }
+            .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")},${out.getDouble("trackFirstDays")},${if (out.getBoolean("trackConfirmed")) 1 else 0}")
+            .apply { if (ak != null) putString("${p.id}|a:$ak", "${out.getDouble("artistDb")},${out.getDouble("artistDays")},${out.getDouble("artistFirstDays")}").putStringSet("${p.id}|ac:$ak", ac) }
             .putFloat(prev, delta.toFloat())
             .putString("${p.id}|prevDays", now.toString())
             .putString("${p.id}|prevEndDb", (startDb + delta).toString())

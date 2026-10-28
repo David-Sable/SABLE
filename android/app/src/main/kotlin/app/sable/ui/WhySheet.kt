@@ -168,13 +168,15 @@ private fun Learned(row: LibraryRow) {
     if (o.trackDb == 0.0 && o.artistDb == 0.0) return
     Section("Learned for ${place.label}")
     if (o.trackDb != 0.0) Measure("This song (set %.0f days ago)".format(ListenerLearning.nowDays() - o.trackDays), "%+.1f dB".format(o.trackDb))
+    if (o.trackDb != 0.0 && o.trackConfirmed == false) Text("A first hint: it counts up to 1 dB until you do the same on another day.", style = SableType.caption, color = SableColors.textTertiary)
     if (o.artistDb != 0.0) {
         Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(o.artistDb))
         // §19.2 (MATH-1.23): when the artist's offset is not part of this song's gain, say why.
         val unused = when {
             o.trackTaught -> "Not used here: this song has its own."
             o.artistTracks < 2 -> "Used for their other songs once you have taught two."
-            o.artistTrackDbs.none { it > 0 } || o.artistTrackDbs.none { it < 0 } -> null
+            o.artistTrackDbs.none { it > 0 } || o.artistTrackDbs.none { it < 0 } ->
+                if (o.artistFirstDays != null && o.artistDays - o.artistFirstDays < 0.5) "Waits for another day before it is used for their other songs." else null
             else -> "Not used: you turned their songs in different directions."
         }
         unused?.let { Text(it, style = SableType.caption, color = SableColors.textTertiary) }

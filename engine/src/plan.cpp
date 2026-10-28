@@ -178,7 +178,9 @@ std::string num(double v) {
 constexpr double kProvisionalOffset = 8.0;  // §22.1: assume a -8 LUFS master
 constexpr double kJitTpMargin = 1.0;        // §22.2 M_jitTP
 constexpr double kPerceptualBound = 3.0;    // §16.2 B_p
-constexpr double kFlowGap = 0.5;            // §17.3 G_flow: most silence (s) a track may hold and still flow
+constexpr double kProbationDb = 1.0;        // §19.2 (MATH-1.30): most an unconfirmed first lesson applies
+constexpr double kConfirmDays = 0.5;        // §19.2 (MATH-1.30): "another day" = at least this far apart (12 h)
+constexpr double kFlowGap = 0.5;          // §17.3 G_flow: most silence (s) a track may hold and still flow
 
 struct Track {
   LoudnessResult r;
@@ -304,7 +306,14 @@ std::string planQueueJson(const std::string& input) {
           n = static_cast<int>(s->a.size());
           agree = (up == n || down == n);
         }
-        it.learnedDb = appliedOffset(t, a, n, l->flag("trackTaught"), agree);
+        // MATH-1.30: one press is a hint, a repeat on another day is a lesson. A song's first lesson counts at most
+        // kProbationDb until it is confirmed; the artist's counts only once its events span two different days.
+        // State stored before 1.30 carries no such fields and is trusted as it was.
+        const bool confirmed = !l->get("trackConfirmed") || l->flag("trackConfirmed");
+        const double tApplied = confirmed ? t : std::clamp(t, -kProbationDb, kProbationDb);
+        if (const auto first = l->num("artistFirstDays"))
+          agree = agree && l->num("artistDays", nowDays) - *first >= kConfirmDays;
+        it.learnedDb = appliedOffset(tApplied, a, n, l->flag("trackTaught"), agree);
       } else {
         it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
       }
@@ -451,10 +460,20 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   const auto jumpEnd = in.num("jumpEndDb");
   if (jumpAt && jumpEnd && startDb && now - *jumpAt <= kEnvWindowDays && std::fabs(*startDb - *jumpEnd) < 0.5) omega = std::min(omega, 0.25);
   LearnedOffset t{in.num("trackDb", 0.0), in.num("trackDays", now)}, a{in.num("artistDb", 0.0), in.num("artistDays", now)};
+  // MATH-1.30: when the song was first taught and whether a second press on another day, the same way, has confirmed it.
+  // A lesson stored before 1.30 (a value without these fields) counts as confirmed.
+  const double tBefore = decayedOffset(t, now);
+  const bool legacy = !in.get("trackConfirmed") && !in.num("trackFirstDays") && t.valueDb != 0.0;
+  double tFirst = in.num("trackFirstDays", now);
+  bool tConfirmed = legacy || in.flag("trackConfirmed");
+  if (!tConfirmed && tBefore != 0.0 && std::signbit(tBefore) == std::signbit(dvEff) && now - tFirst >= kConfirmDays) tConfirmed = true;
+  if (tBefore == 0.0 && !legacy) { tFirst = now; tConfirmed = false; }  // nothing standing (new, or decayed/cancelled away): a fresh first lesson
+  const double aFirst = in.num("artistFirstDays").value_or(a.valueDb != 0.0 ? a.updatedDays - kConfirmDays : now);  // a pre-1.30 artist is trusted: it dates from before its last event
   learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
   learnEvent(a, 0.25, omega * dvEff, now);  // eta_a
   return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
-         ",\"artistDays\":" + num(a.updatedDays) + ",\"omega\":" + num(omega) + ",\"effectiveDb\":" + num(dvEff) + "}";
+         ",\"artistDays\":" + num(a.updatedDays) + ",\"trackFirstDays\":" + num(tFirst) + ",\"trackConfirmed\":" + (tConfirmed ? "true" : "false") +
+         ",\"artistFirstDays\":" + num(aFirst) + ",\"omega\":" + num(omega) + ",\"effectiveDb\":" + num(dvEff) + "}";
 }
 
 }  // namespace sable

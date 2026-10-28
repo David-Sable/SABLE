@@ -34,7 +34,10 @@ lives in the engine. The app only gathers inputs and applies the outputs.
   gain and get the rule `FLOW`; the album must be listed in `albums` and complete.
 - `learn` (§19.2): stored offsets for the place playing now; the planner decays and combines them. `trackTaught` = the
   song has its own lesson (then the artist's is not used); `artistTrackDbs` = the stored offsets of the artist's taught
-  songs (the artist's applies only when there are ≥ 2 and they share one sign). `learnedDb` instead = a value frozen
+  songs (the artist's applies only when there are ≥ 2 and they share one sign). MATH-1.30: `trackConfirmed` (absent = stored
+  before 1.30 = trusted; false = at most 1 dB applies) and `artistFirstDays` (the artist's offset applies only once its
+  last event is ≥ 12 h after this). `learnUpdateJson` takes/returns `trackFirstDays`, `trackConfirmed`, `artistFirstDays`.
+  `learnedDb` instead = a value frozen
   when the item started.
 - `manual` = this item began, or will begin, by a user action. The seam chain follows the gain each item actually
   plays with.

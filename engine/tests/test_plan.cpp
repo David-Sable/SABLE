@@ -296,3 +296,39 @@ TEST_CASE("learn: mutes, big jumps and presses explained by the section (MATH-1.
   CHECK(sable::sectionAdjustedDelta(2.0, 2.5) == 0.0);
   CHECK(sable::sectionAdjustedDelta(-4.0, 2.5) == -4.0);
 }
+
+TEST_CASE("learn: a first lesson is a hint until another day confirms it (MATH-1.30 §19.2)") {
+  auto has = [](const std::string& s, const char* part) { return s.find(part) != std::string::npos; };
+  // A song never taught: the lesson starts unconfirmed, stamped with now.
+  const std::string first = sable::learnUpdateJson("{\"deltaDb\":3.83,\"nowDays\":10}");
+  CHECK(has(first, "\"trackConfirmed\":false"));
+  CHECK(field(first, "trackFirstDays") == 10.0);
+  // The same way again the same day: still a hint. Another day (12 h or more): confirmed.
+  const std::string same = "{\"deltaDb\":3.83,\"trackDb\":1.9,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.1}";
+  CHECK(has(sable::learnUpdateJson(same), "\"trackConfirmed\":false"));
+  const std::string later = "{\"deltaDb\":3.83,\"trackDb\":1.9,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.6}";
+  CHECK(has(sable::learnUpdateJson(later), "\"trackConfirmed\":true"));
+  // The opposite way on another day does not confirm: it cancels.
+  const std::string opposite = "{\"deltaDb\":-3.83,\"trackDb\":1.9,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.6}";
+  CHECK(has(sable::learnUpdateJson(opposite), "\"trackConfirmed\":false"));
+  // A lesson stored before 1.30 has no such fields and is trusted.
+  CHECK(has(sable::learnUpdateJson("{\"deltaDb\":3.83,\"trackDb\":1.5,\"trackDays\":5,\"nowDays\":10}"), "\"trackConfirmed\":true"));
+  // A pre-1.30 artist is trusted: it dates from before its last event.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"artistDb\":0.5,\"artistDays\":8,\"nowDays\":10}"), "artistFirstDays") == 7.5);
+
+  // Planning: an unconfirmed lesson applies at most 1 dB; a confirmed one in full.
+  const std::string mid = analysis(-14, -14, -14, -20, -14, -14);
+  auto learned = [&](const std::string& learn) {
+    return field(sable::planQueueJson(ctx("{\"analysis\":" + mid + ",\"learn\":" + learn + "}")), "learnedDb");
+  };
+  CHECK(learned("{\"trackDb\":2.0,\"trackTaught\":true,\"trackConfirmed\":false}") == doctest::Approx(1.0));
+  CHECK(learned("{\"trackDb\":-1.9,\"trackTaught\":true,\"trackConfirmed\":false}") == doctest::Approx(-1.0));
+  CHECK(learned("{\"trackDb\":-0.4,\"trackTaught\":true,\"trackConfirmed\":false}") == doctest::Approx(-0.4));
+  CHECK(learned("{\"trackDb\":2.0,\"trackTaught\":true,\"trackConfirmed\":true}") == doctest::Approx(2.0));
+  CHECK(learned("{\"trackDb\":2.0,\"trackTaught\":true}") == doctest::Approx(2.0));  // before 1.30
+  // The artist's offset waits for events on two different days (owner's session: two songs in five minutes taught
+  // Danny Brown +1.16 dB for every other song).
+  const std::string art = "\"artistDb\":-0.9,\"artistTrackDbs\":[-1.5,-0.4],\"artistFirstDays\":10,";
+  CHECK(learned("{" + art + "\"artistDays\":10.01}") == 0.0);
+  CHECK(learned("{" + art + "\"artistDays\":10.6}") != 0.0);
+}
