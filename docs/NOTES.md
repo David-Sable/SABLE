@@ -43,6 +43,11 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-28 (PC) Deep phone optimization: measured baseline, no code change
+- Phone (0.21.2, speed-compiled): cold start 297/358/292 ms (`am start -W`). Baseline profile covers all of `app.sable` and androidx.profileinstaller is active. `tools/perf/anim_frames.sh`: cover swipes 3.3 % late, Now Playing close/open 5.0 %, library scroll 2.5 % (the advanced-toggle tap coordinates are stale: 0 frames; fix before relying on it).
+- Device Info screenshots: Apps and Battery pages read, nothing useful (the Battery current/power readings are bogus). Others still unread.
+- Conclusion so far: nothing cheap is left at frame level; no change made. Still open: per-frame trace (Perfetto) of Now Playing's first-frame ~40 ms hitch, and the fast-reopen bug in "Tomorrow" (3).
+
 ### 2026-10-28 (PC) The Life of Pablo through the engine (no phone)
 - David bought Kanye West - The Life Of Pablo (20 FLAC, 16-bit/44.1k stereo); copied to ~/dev/sable-corpus/phone-extra/Kanye-TLOP (never committed). Results in %TEMP%/aud/tlop.jsonl.
 - **Engine reads it identically:** `--decide` on the decoded WAV and `--decide-native` (the engine's own FLAC path) give the same gain on all 20. No decode clipping, short-file or anchor-fallback flags.
