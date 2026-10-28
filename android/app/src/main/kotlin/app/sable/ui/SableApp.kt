@@ -37,9 +37,15 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.sable.data.LibraryRow
@@ -69,19 +75,58 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             (known - inStack).forEach(saved::removeState)
             known.clear(); known += inStack
         }
+        // While Now Playing is up, the screen beneath it is not composed (it is the same route list), so dragging the sheet down
+        // would drag it over black. The screen is recorded into a layer while it is on top; when Now Playing opens, the last
+        // frame is kept as a picture and drawn beneath the sheet, and the real screen takes over at the same frame the sheet goes.
+        val layer = rememberGraphicsLayer()
+        val sheetUp = state.route is Route.NowPlaying
+        val recordedRoute = remember { arrayOfNulls<Route>(1) }
+        var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
+        LaunchedEffect(sheetUp) {
+            if (!sheetUp) { frozen = null; return@LaunchedEffect }
+            val beneath = state.back.getOrNull(state.back.lastIndex - 1)
+            frozen = if (recordedRoute[0] == beneath) runCatching { layer.toImageBitmap() }.getOrNull() else null
+        }
+        Box(Modifier.fillMaxSize().drawWithContent {
+            if (state.route !is Route.NowPlaying) {
+                recordedRoute[0] = state.route
+                layer.record { this@drawWithContent.drawContent() }
+                drawLayer(layer)
+            } else {
+                frozen?.let { drawImage(it) }
+                drawContent()
+            }
+        }) {
         AnimatedContent(
             state.route,
             transitionSpec = {
-                // Screens cross-fade with the light fade (below), not Compose's offscreen one.
-                (if (targetState is Route.NowPlaying) slideInVertically(Motion.slow()) { it / 6 } else EnterTransition.None) togetherWith
-                    ExitTransition.KeepUntilTransitionsFinished
+                // No cross-fade: two half-see-through screens on black dip to nearly black in the middle, which tires the eyes.
+                // Every screen is solid and only the one on top moves or fades: going forward the new screen comes in over the
+                // old one, which stays put; going back the leaving screen goes away over the one it uncovers. Now Playing is a
+                // sheet that slides up from the bottom and slides back down (also after a swipe, from where the finger left it).
+                val leaving = initialState !in state.back  // going back: the screen we are on is leaving for good
+                // Other screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
+                val enter = if (targetState is Route.NowPlaying) slideInVertically(Motion.slow()) { it }
+                    else if (leaving) EnterTransition.None else slideInVertically(Motion.medium()) { it / 50 }
+                val exit = if (leaving && initialState is Route.NowPlaying) slideOutVertically(Motion.medium()) { it }
+                    else if (leaving) slideOutVertically(Motion.medium()) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
+                val t = enter togetherWith exit
+                t.targetContentZIndex = if (initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
+                t
             },
             label = "route",
         ) { r ->
+            val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
             val a by transition.animateFloat(
-                transitionSpec = { if (targetState == EnterExitState.Visible) Motion.slow() else Motion.medium() }, label = "screen",
-            ) { if (it == EnterExitState.Visible) 1f else 0f }
-            Box(Modifier.lightAlpha { a }) {
+                transitionSpec = { Motion.medium() }, label = "screen",
+            ) {
+                when (it) {
+                    EnterExitState.Visible -> 1f
+                    EnterExitState.PreEnter -> if (revealed || r is Route.NowPlaying) 1f else 0f
+                    EnterExitState.PostExit -> if (r is Route.NowPlaying || r in state.back) 1f else 0f  // covered: stays; left for good: fades away
+                }
+            }
+            Box(Modifier.graphicsLayer { alpha = a }.then(if (r is Route.NowPlaying) Modifier else Modifier.background(SableColors.base))) {  // Now Playing paints its own, so the background moves with its sheet
             saved.SaveableStateProvider(r.toString()) {
             when (r) {
                 Route.Library -> LibraryScreen(state, rows, pad)
@@ -95,6 +140,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             }
             }
             }
+        }
         }
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter),

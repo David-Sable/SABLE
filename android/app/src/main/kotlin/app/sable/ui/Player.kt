@@ -193,8 +193,6 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
     val swipe = Modifier
         .graphicsLayer {
             translationY = dragY.value
-            alpha = 1f - (dragY.value / (closeAt * 4)).coerceIn(0f, 0.5f)
-            compositingStrategy = CompositingStrategy.ModulateAlpha  // no offscreen copy of the whole screen per frame
         }
         .draggable(
             orientation = Orientation.Vertical,
@@ -225,7 +223,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
         }
         return
     }
-    Column(Modifier.fillMaxSize().then(swipe).grain()) {
+    Column(Modifier.fillMaxSize().then(swipe).background(SableColors.base).grain()) {
         TopBar("NOW PLAYING", { state.pop() }) {
             IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
         }

@@ -19,18 +19,18 @@ class LibraryScanner(private val context: Context) {
     private val textTags = context.getSharedPreferences("sable_texttag", Context.MODE_PRIVATE)
 
     /**
-     * MediaStore turns characters outside the Basic Multilingual Plane (emoji) into "?" in titles, artists and albums, so a
-     * song titled with an emoji shows as "????". When a MediaStore text holds a "?" (or the replacement character), the
-     * file's own tag is read once per file version and used if it is different and not blank.
+     * MediaStore (and MediaMetadataRetriever, which gives the same answer) turns characters outside the Basic Multilingual
+     * Plane (emoji) into "?" in titles, artists and albums, so a song titled with an emoji shows as "????". When a text holds
+     * a "?" (or the replacement character) the file's own tag is read (FileText), once per file version, and used if it
+     * differs and is not blank. A "?" that is really in the title reads back as itself.
      */
-    private fun fileText(id: Long, uri: Uri, size: Long, modified: Long, key: Int, ms: String): String {
-        if (ms.indexOf('?') < 0 && ms.indexOf('\uFFFD') < 0) return ms
-        val k = "$id:$size:$modified:$key"
+    private val fileTags = HashMap<Long, Map<String, String>>()
+    private fun fileText(id: Long, uri: Uri, size: Long, modified: Long, field: String, ms: String): String {
+        if (ms.indexOf('?') < 0 && ms.indexOf('�') < 0) return ms
+        val k = "v3:$id:$size:$modified:$field"
         textTags.getString(k, null)?.let { return it.ifEmpty { ms } }
-        val tag = runCatching {
-            MediaMetadataRetriever().use { r -> r.setDataSource(context, uri); r.extractMetadata(key) }
-        }.getOrNull()
-        val use = tag?.takeIf { it.isNotBlank() && it != ms && it.indexOf('\uFFFD') < 0 } ?: ""
+        val tags = fileTags.getOrPut(id) { runCatching { context.contentResolver.openInputStream(uri)?.use { FileText.read(it) } }.getOrNull() ?: emptyMap() }
+        val use = tags[field]?.takeIf { it.isNotBlank() && it != ms && it.indexOf('�') < 0 } ?: ""
         textTags.edit().putString(k, use).apply()
         return use.ifEmpty { ms }
     }
@@ -80,10 +80,10 @@ class LibraryScanner(private val context: Context) {
                     uri = uri.toString(),
                     relativePath = relPath,
                     displayName = c.getString(14) ?: "",
-                    title = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_TITLE, c.getString(1) ?: ""),
-                    artist = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ARTIST, c.getString(2) ?: ""),
-                    albumArtist = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, c.getString(3) ?: (c.getString(2) ?: "")),
-                    album = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ALBUM, album),
+                    title = fileText(id, uri, size, modified, "TITLE", c.getString(1) ?: ""),
+                    artist = fileText(id, uri, size, modified, "ARTIST", c.getString(2) ?: ""),
+                    albumArtist = fileText(id, uri, size, modified, "ALBUMARTIST", c.getString(3) ?: (c.getString(2) ?: "")),
+                    album = fileText(id, uri, size, modified, "ALBUM", album),
                     albumId = c.getLong(5),
                     disc = disc,
                     track = trackNo,

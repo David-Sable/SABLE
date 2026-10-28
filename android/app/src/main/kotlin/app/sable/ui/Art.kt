@@ -40,6 +40,13 @@ object ArtCache {
     }
     private val missing = HashSet<String>()
 
+    /** A cover already in memory, so a screen that comes back shows it in its first frame (no empty tiles filling in). */
+    fun peek(albumId: Long, px: Int): ImageBitmap? = cache.get("$albumId@$px")
+
+    /** The cover at the size asked for, else any size already in memory (shown scaled until the right one loads, with no fade). */
+    fun peekAny(albumId: Long, px: Int): ImageBitmap? =
+        peek(albumId, px) ?: cache.snapshot().entries.firstOrNull { it.key.startsWith("$albumId@") }?.value
+
     suspend fun load(context: Context, albumId: Long, trackUri: String?, px: Int): ImageBitmap? {
         val key = "$albumId@$px"
         cache.get(key)?.let { return it }
@@ -67,7 +74,7 @@ object ArtCache {
 @Composable
 fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier: Modifier = Modifier, px: Int = 512) {
     val context = LocalContext.current
-    val img by produceState<ImageBitmap?>(null, albumId, px) { value = ArtCache.load(context, albumId, trackUri, px) }
+    val img by produceState(ArtCache.peekAny(albumId, px), albumId, px) { value = ArtCache.load(context, albumId, trackUri, px) }
     val shown by animateFloatAsState(if (img != null) 1f else 0f, Motion.slow(), label = "art")
     Box(
         modifier.clip(RoundedCornerShape(Radius.art))
