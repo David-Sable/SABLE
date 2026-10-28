@@ -332,3 +332,15 @@ TEST_CASE("learn: a first lesson is a hint until another day confirms it (MATH-1
   CHECK(learned("{" + art + "\"artistDays\":10.01}") == 0.0);
   CHECK(learned("{" + art + "\"artistDays\":10.6}") != 0.0);
 }
+
+TEST_CASE("learn: a press up on a song its peak cap holds teaches nothing (MATH-1.31 §19.1)") {
+  auto has = [](const std::string& s, const char* part) { return s.find(part) != std::string::npos; };
+  // At the cap (no room): up is ignored, down counts, and so does an unknown room.
+  CHECK(has(sable::learnUpdateJson("{\"deltaDb\":3.83,\"headroomDb\":0.0,\"nowDays\":10}"), "\"ignored\":\"capped\""));
+  CHECK(has(sable::learnUpdateJson("{\"deltaDb\":3.83,\"headroomDb\":0.3,\"nowDays\":10}"), "\"ignored\":\"capped\""));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-3.83,\"headroomDb\":0.0,\"nowDays\":10}"), "trackDb") == doctest::Approx(-1.915));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"headroomDb\":2.0,\"nowDays\":10}"), "trackDb") == doctest::Approx(1.915));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3.83,\"nowDays\":10}"), "trackDb") == doctest::Approx(1.915));
+  // The section rule can still reduce an up press to nothing first; the cap only looks at a press that would count.
+  CHECK(has(sable::learnUpdateJson("{\"deltaDb\":3.83,\"headroomDb\":5,\"anchorLufs\":-10,\"heardLufs\":-20,\"nowDays\":10}"), "\"ignored\""));
+}

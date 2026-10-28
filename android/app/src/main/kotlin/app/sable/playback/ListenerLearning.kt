@@ -157,6 +157,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     /** The song's loudness every 0.5 s (short-term, 3 s windows) and its anchor, from the cached analysis (MATH-1.27). */
     class OpeningShape(val lufs: DoubleArray, val anchorLufs: Double)
     var shapeOf: (TrackEntity) -> OpeningShape? = { null }
+    /** How much louder the playing song could still go before its peak cap holds it (dB); null = unknown (MATH-1.31). */
+    var headroomOf: (TrackEntity) -> Double? = { null }
     /** Whether playback is running and where it is, in ms. */
     var playback: () -> Pair<Boolean, Long> = { true to 0L }
 
@@ -273,6 +275,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
         prefs.getString("${p.id}|prevEndDb", null)?.toDoubleOrNull()?.let { input.put("prevEndDb", it) }  // §19.1 put back?
         input.put("startDb", startDb)
+        val room = headroomOf(t)
+        room?.let { input.put("headroomDb", it) }  // MATH-1.31: a press up on a song its peak cap already holds teaches nothing
         // MATH-1.28: the last ignored jump, so a press while the level is still where it left it counts as the room's
         prefs.getString("${p.id}|jumpDays", null)?.toDoubleOrNull()?.let { input.put("jumpDays", it) }
         prefs.getString("${p.id}|jumpEndDb", null)?.toDoubleOrNull()?.let { input.put("jumpEndDb", it) }
@@ -289,7 +293,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         if (out.has("ignored")) {
             if (out.getString("ignored") == "jump") prefs.edit().putString("${p.id}|jumpDays", now.toString()).putString("${p.id}|jumpEndDb", (startDb + delta).toString()).apply()
             note("LEARN ignored (${out.getString("ignored")}) ${t.displayName}: volume %+.1f dB".format(delta) +
-                (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: ""))
+                (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: "") + (room?.let { ", room under the cap %.1f dB".format(it) } ?: ""))
             return
         }
         val ak = artistKey(t)
@@ -303,7 +307,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .putString("${p.id}|prevEndDb", (startDb + delta).toString())
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")}, counted %+.1f dB -> track %+.2f dB, artist %+.2f dB"
-            .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")))
+            .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")) + (room?.let { ", room %.1f dB".format(it) } ?: ""))
         onLearned(t)
     }
 

@@ -95,6 +95,7 @@ class GainController(
         learning.onLearned = { replan(user = false) }
         learning.playback = { player.isPlaying to player.currentPosition }
         learning.shapeOf = { t -> t.contentHash?.let { shapes[it] } }
+        learning.headroomOf = { t -> headroomOf(t) }
         audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) = onDevicesChanged()
             override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) = onDevicesChanged()
@@ -111,11 +112,63 @@ class GainController(
 
     // ---------------- Player events ----------------
     override fun onTimelineChanged(timeline: Timeline, reason: Int) = replan(user = false)
-    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { onRouteMaybeChanged(); replan(user = false) }
+    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        onRouteMaybeChanged()
+        // MATH-1.31: a queue entry that was already the playing one and plays again (repeat one, the wrap of repeat all, Previous,
+        // skipping back) is a new play: it takes today's lessons and opens its own learning window. A first play is handled where
+        // the sink reports it (onItemGain), whichever of the two events comes first.
+        mediaItem?.mediaId?.let { id ->
+            if (id in playedBefore && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) replay(id)
+            playedBefore += id
+        }
+        replan(user = false)
+    }
     override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) onRouteMaybeChanged() }
+    /** MATH-1.31: a seek back to the start of the song that is playing (Previous after the first seconds, the scrubber at 0:00) starts it again. */
+    override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+        if (reason != Player.DISCONTINUITY_REASON_SEEK || oldPosition.mediaItemIndex != newPosition.mediaItemIndex) return
+        if (newPosition.positionMs > REPLAY_AT_MS || oldPosition.positionMs <= LEARN_START_MS) return
+        newPosition.mediaItem?.mediaId?.let { id -> if (id in playedBefore) replay(id) }
+    }
     override fun onRepeatModeChanged(repeatMode: Int) = replan(user = false)
 
     private val resumedIds = HashSet<String>()  // main thread: queue entries put back where they were left
+    private val playedBefore = HashSet<String>()  // main thread: queue entries that have been the playing item
+
+    /** MATH-1.31: the entry plays again from its start: drop the offset frozen for its first play (the next plan takes the current one and freezes it), and open a window. */
+    private fun replay(id: String) {
+        frozenLearned.remove(id)
+        refreeze += id
+        resumedIds -= id
+        QueueId.trackId(id)?.let { trackCache[it] }?.let { PlaybackDiag.log("REPLAY ${it.displayName}") }
+        openWindow(id)
+    }
+
+    /** §19.1: opens the learning window for a play that starts now, unless one of the rules says this play teaches nothing. */
+    private fun openWindow(id: String) {
+        val t = QueueId.trackId(id)?.let { trackCache[it] }
+        // A gapless next song reaches the sink before it is the player's current item: it starts at 0.
+        val pos = if (player.currentMediaItem?.mediaId == id) player.currentPosition else 0L
+        val source = lastPlan[id]?.optString("source")
+        val off = when {
+            id in resumedIds -> "picked up where you left off"
+            pos > LEARN_START_MS -> "started at ${pos / 1000} s"
+            source != "full" -> "playing with the ${source ?: "provisional"} gain"
+            else -> null
+        }
+        learning.onItemStart(t.takeIf { off == null })
+        if (off != null && t != null) PlaybackDiag.log("LEARN off for ${t.displayName}: $off")
+    }
+
+    /** MATH-1.31: how much louder the playing song could still go before its peak cap holds it (dB), from the plan that started it. */
+    private fun headroomOf(t: TrackEntity): Double? {
+        val id = player.currentMediaItem?.mediaId ?: return null
+        if (QueueId.trackId(id) != t.mediaId) return null
+        val p = lastPlan[id] ?: return null
+        val gain = (if (manualByItem[id] != false) p.optDouble("manualGainDb") else p.optDouble("gainDb"))
+        val cap = p.optDouble("capDb")
+        return if (gain.isFinite() && cap.isFinite()) (cap - gain).coerceAtLeast(0.0) else null
+    }
 
     /** The queue entry Sable put back where you left off (restore or a play button): it never teaches (§19.1). */
     fun markResumed(id: String) { main.post { resumedIds += id } }
@@ -128,19 +181,8 @@ class GainController(
             val changed = manualByItem.put(id, manual) != manual
             if (firstStart) {
                 lastPlan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
-                val t = QueueId.trackId(id)?.let { trackCache[it] }
                 // §19.1 (MATH-1.25): a song teaches only when it starts from its beginning, with its full-analysis gain.
-                // A gapless next song reaches the sink before it is the player's current item: it starts at 0.
-                val pos = if (player.currentMediaItem?.mediaId == id) player.currentPosition else 0L
-                val source = lastPlan[id]?.optString("source")
-                val off = when {
-                    id in resumedIds -> "picked up where you left off"
-                    pos > LEARN_START_MS -> "started at ${pos / 1000} s"
-                    source != "full" -> "playing with the ${source ?: "provisional"} gain"
-                    else -> null
-                }
-                learning.onItemStart(t.takeIf { off == null })
-                if (off != null && t != null) PlaybackDiag.log("LEARN off for ${t.displayName}: $off")
+                openWindow(id)
             }
             publish(id, db, manual)
             if (changed) replan(user = false)  // the next item's seam depends on how this one began
@@ -416,6 +458,7 @@ class GainController(
         const val JIT_WAIT_MS = 1500L   // §22.2 W_jit
         const val WINDOW_AHEAD = 30
         val ROUTE_RECHECK_MS = longArrayOf(400L, 1_500L, 3_000L)
+        const val REPLAY_AT_MS = 1_000L  // a seek that lands this close to the start begins the song again (MATH-1.31)
         const val LEARN_START_MS = 3_000L  // §19.1: a song started later than this into it opens no learning window
     }
 }

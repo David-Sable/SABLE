@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.30 (2026-10-27)
+**Version:** MATH-1.31 (2026-10-28)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -629,6 +629,9 @@ A volume-key event counts as feedback when **all** of these hold:
 - the output route did not change in the previous 10 s
 - **[MATH-1.27]** playback was running at the press: a press made while paused is about the room (someone spoke, the car went quiet), not the song, and is ignored
 - **[MATH-1.27]** the media volume was not muted at either end of the window, and `|Δv| ≤ 12 dB` (about four steps at the middle of the range; one step there is ≈ 3.8 dB). A mute or a larger jump is the room, a call or a passenger; before 1.27 a mute (−96 dB) taught the full ±2 clamp at weight 1.
+
+- **[MATH-1.31]** the press is not **up on a song its peak cap already holds**: with `room = g_cap − g_applied < 0.5 dB` (§16.4, from the plan that started the song) a press up asks for a level that cannot be played; the lesson would be stored, never heard, and would nudge the artist for nothing, so it is ignored (`ignored: capped`). A press down always counts. Owner's library: three of the Pimmie EP's six songs sit at their cap (Over Freestyle, Kobe Freestyle, I'm Not Ready).
+- **[MATH-1.31] a song that plays again is a new play.** A queue entry that was already the playing one and plays again (repeat one, the wrap of repeat all, Previous, skipping back) used to open no window and kept the offset frozen for its first play for as long as the queue lived. Now it takes the current offsets (§28 still holds: the offset is frozen again for this play) and opens a window under the same rules as a first play (from its beginning, full-analysis gain, not put back where it was left).
 
 `Δv` = the change of the media stream's output level in dB, from `AudioManager.getStreamVolumeDb()` before and after (negative = turned down). Presses within one 20 s window accumulate into a single event.
 **Measured on the A17 (MATH-1.13):** One UI's `getStreamVolumeDb()` returns ≈ 0 dB at every index, so it cannot measure a press. When the platform figure is flat (less than 1 dB between the top and middle index), `Δv` uses AOSP's default media volume curve instead (`frameworks/av` audiopolicy `default_volume_tables.xml`, `DEFAULT_MEDIA_VOLUME_CURVE`): index as a percentage of the range → dB, piecewise linear through (1 %, −58), (20 %, −40), (60 %, −17), (100 %, 0); index 0 is muted. Low steps are large (1 → 3 of 15 is +12.6 dB), which the ±2 dB clamp bounds. The window closes 20 s after the start, or 3 s after the last press inside it, whichever is later, so a press undone within 3 s nets out. Events with `|Δv| < 0.5 dB` are ignored **[DESIGN]**. Volume changes are sampled every 250 ms while a window is open, because One UI does not always deliver the volume broadcast to apps.

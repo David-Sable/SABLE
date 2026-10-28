@@ -439,6 +439,10 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
     dvEff = sectionAdjustedDelta(dv, std::copysign(std::max(0.0, std::fabs(dev) - kSectionBandDb), dev));
     if (dvEff == 0.0) return "{\"ignored\":\"section\"}";
   }
+  // MATH-1.31: a press up on a song its peak cap already holds (less than 0.5 dB of room) asks for a level that cannot be played:
+  // the lesson would be stored but never heard, and would nudge the artist for nothing. A press down always counts.
+  constexpr double kCappedRoomDb = 0.5;
+  if (const auto room = in.num("headroomDb"); room && *room < kCappedRoomDb && dvEff > 0.0) return "{\"ignored\":\"capped\"}";
   double omega = 1.0;
   // The previous event is evidence of an environment change only while recent (T_env = 10 min, MATH-1.23).
   constexpr double kEnvWindowDays = 10.0 / 1440.0;
