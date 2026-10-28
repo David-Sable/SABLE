@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd forgetsong|forgetartist --es match "<title part>|<artist>"   (every place; logs what went)
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd next | prev | pause | play | seek --el ms N
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd mode --es value quiet|standard
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd open --es screen nowplaying|queue|settings|library|why
@@ -191,6 +192,15 @@ class MainActivity : ComponentActivity() {
                         runCatching { getDrawable(id) }.onSuccess { Log.i(TAG, "ICON $name ok ${it?.javaClass?.simpleName}") }
                             .onFailure { Log.e(TAG, "ICON $name failed", it) }
                     }
+                }
+                "forgetsong", "forgetartist" -> {  // one song's (or one artist's) lessons in every place: --es match "<title part>" / "<artist>"
+                    val m = intent.getStringExtra("match") ?: ""
+                    val learning = app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper))
+                    if (cmd == "forgetsong") {
+                        val hit = SableDatabase.get(applicationContext).library().allTracks().filter { it.displayName.contains(m, true) }
+                        val n = learning.forgetEverywhere(trackKeys = hit.flatMap { listOfNotNull(it.contentHash, "id${it.mediaId}") })
+                        Log.i(TAG, "forgot $n entries for ${hit.size} song(s) matching '$m': ${hit.map { it.displayName }}")
+                    } else Log.i(TAG, "forgot ${learning.forgetEverywhere(artist = m.trim().lowercase())} entries for artist '$m'")
                 }
                 "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
                 "contour" -> PlaybackPrefs.update(applicationContext) { it.copy(contour = intent.getStringExtra("value") == "on") }

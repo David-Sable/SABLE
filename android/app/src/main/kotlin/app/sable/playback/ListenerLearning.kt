@@ -86,6 +86,18 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     }
     fun resetAll() = prefs.edit().clear().apply()
 
+    /** Maintenance (debug commands): forgets songs (by track key) and/or an artist (lower-case name) in every place; the Why sheet only reaches the place playing now. Returns how many entries went. */
+    fun forgetEverywhere(trackKeys: Collection<String> = emptyList(), artist: String? = null): Int {
+        val ed = prefs.edit()
+        var n = 0
+        for (k in prefs.all.keys) {
+            val tail = k.substringAfter('|')
+            if ((tail.startsWith("t:") && tail.removePrefix("t:") in trackKeys) || (artist != null && (tail == "a:$artist" || tail == "ac:$artist"))) { ed.remove(k); n++ }
+        }
+        ed.apply()
+        return n
+    }
+
     /** Everything learned, one line per entry, for the "learned" debug command. [names]: track key -> file name. */
     fun describe(names: Map<String, String>): List<String> {
         val now = nowDays()
