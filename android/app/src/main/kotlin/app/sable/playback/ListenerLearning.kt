@@ -166,6 +166,29 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         observer = o
     }
 
+    /**
+     * Maintenance (debug command): removes what one place learned in the last [hours] (songs, artists, their song sets and the
+     * environment memory), leaving everything older and every other place alone. Returns how many entries went.
+     */
+    fun purgeRecent(placeId: String, hours: Double): Int {
+        val maxAgeDays = hours / 24.0
+        val now = nowDays()
+        val ed = prefs.edit()
+        var n = 0
+        val artists = HashSet<String>()
+        for ((k, v) in prefs.all) {
+            if (!k.startsWith("$placeId|")) continue
+            val tail = k.substringAfter('|')
+            if (tail.startsWith("t:") || tail.startsWith("a:")) {
+                val days = (v as? String)?.split(',')?.getOrNull(1)?.toDoubleOrNull() ?: continue
+                if (now - days < maxAgeDays) { ed.remove(k); n++; if (tail.startsWith("a:")) artists += tail.removePrefix("a:") }
+            } else if (tail in ENV_KEYS) { ed.remove(k); n++ }
+        }
+        for (a in artists) { ed.remove("$placeId|ac:$a"); n++ }
+        ed.apply()
+        return n
+    }
+
     /** The service is going away: stop listening (each restart used to leave its receiver and observer behind). */
     fun stop() {
         main.removeCallbacks(close)
@@ -288,6 +311,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
 
     companion object {
         const val TAG = "SablePlay"
+        private val ENV_KEYS = setOf("prevDelta", "prevDays", "prevEndDb", "jumpDays", "jumpEndDb")
         private val NO_ARTIST = setOf("<unknown>", "unknown", "unknown artist", "various artists")
 
         /** §19.3: a place from the output's kind and, for Bluetooth, BLE and USB, the device's name. */

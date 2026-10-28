@@ -202,6 +202,11 @@ class MainActivity : ComponentActivity() {
                         Log.i(TAG, "forgot $n entries for ${hit.size} song(s) matching '$m': ${hit.map { it.displayName }}")
                     } else Log.i(TAG, "forgot ${learning.forgetEverywhere(artist = m.trim().lowercase())} entries for artist '$m'")
                 }
+                "purgeplace" -> {  // what one place learned in the last N hours: --es place speaker --ei hours 3
+                    val n = app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper))
+                        .purgeRecent(intent.getStringExtra("place") ?: "speaker", intent.getIntExtra("hours", 3).toDouble())
+                    Log.i(TAG, "purged $n entries")
+                }
                 "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
                 "contour" -> PlaybackPrefs.update(applicationContext) { it.copy(contour = intent.getStringExtra("value") == "on") }
                 "mode" -> PlaybackPrefs.update(applicationContext) {

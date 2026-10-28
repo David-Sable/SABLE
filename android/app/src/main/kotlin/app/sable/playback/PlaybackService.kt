@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -79,11 +80,23 @@ class PlaybackService : MediaSessionService() {
         // Repeat is remembered between sessions.
         val playerPrefs = getSharedPreferences("sable_player", MODE_PRIVATE)
         player.repeatMode = playerPrefs.getInt("repeat", Player.REPEAT_MODE_OFF)
+        var unplayableInARow = 0
         player.addListener(object : Player.Listener {
+            // A song that cannot be played (deleted, damaged, a format the phone cannot decode) must not stop the music: go on to
+            // the next one. After a whole queue of them in a row, stop.
+            override fun onPlayerError(error: PlaybackException) {
+                unplayableInARow++
+                if (player.hasNextMediaItem() && unplayableInARow <= player.mediaItemCount) {
+                    PlaybackDiag.log("SKIP unplayable song (${error.errorCodeName}), on to the next")
+                    player.seekToNextMediaItem()
+                    player.prepare()  // keeps playWhenReady: playing stays playing, paused stays paused
+                } else unplayableInARow = 0
+            }
+
             // Pick up where you left off: the queue, the song and the spot in it are kept as playback moves.
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { saveResume(); updateWidget() }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) = saveResume()
-            override fun onIsPlayingChanged(isPlaying: Boolean) { saveResume(); updateWidget() }
+            override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) unplayableInARow = 0; saveResume(); updateWidget() }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) = saveResume()
 
             override fun onRepeatModeChanged(repeatMode: Int) {
