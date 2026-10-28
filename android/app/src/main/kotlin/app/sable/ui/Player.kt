@@ -189,6 +189,9 @@ fun MiniPlayer(
         Row(Modifier.padding(horizontal = Space.l, vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
             // Cover and title swipe sideways to change songs; a tap anywhere still opens Now Playing.
             Row(Modifier.weight(1f).then(songSwipe(state)), verticalAlignment = Alignment.CenterVertically) {
+            // The big cover Now Playing will want, decoded and uploaded while the song plays (not in the first frames of the open).
+            val artContext = LocalContext.current
+            LaunchedEffect(row?.albumId) { row?.let { ArtCache.load(artContext, it.albumId, it.uri, 1024) } }
             if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
                 Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
