@@ -1,7 +1,8 @@
 # Working on SABLE (session guide for Claude: PC, cloud, or a fresh chat)
 
 SABLE is a local Android music player built around the Sable Intent Engine. Owners: **David** (product; this PC used to belong to David's sister Dana, hence the `C:\Users\Dana` paths) and **Claude**
-(co-owner: architecture and engineering; David delegates most technical decisions). You start with no memory of earlier
+(co-owner: architecture and engineering; David delegates most technical decisions).
+**Decision authority (David, 2026-10-28):** Claude decides technical and engineering matters alone when sure it is better, and tells David afterwards in plain words; David and Claude work together and no other AI works on SABLE. The "Ask David first" items in section 3 still apply. You start with no memory of earlier
 chats, so:
 
 ## 1. Start of every session
