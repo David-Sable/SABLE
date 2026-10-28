@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package app.sable.ui
 
 import androidx.activity.compose.BackHandler
@@ -7,6 +9,7 @@ import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
@@ -63,7 +66,9 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val current = state.currentTrackId?.let { byId[it] }
     BackHandler(enabled = state.back.size > 1) { state.pop() }
-    Box(Modifier.fillMaxSize().background(SableColors.base)) {
+    SharedTransitionLayout(Modifier.fillMaxSize().background(SableColors.base)) {
+    val sharedScope = this
+    Box(Modifier.fillMaxSize()) {
         val showMini = current != null && state.route !is Route.NowPlaying
         val pad = if (showMini) bottomBarHeight() else 0.dp
         // Each screen keeps its scroll position (and tab) while it is in the back stack: going back or swiping Now
@@ -80,6 +85,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         // frame is kept as a picture and drawn beneath the sheet, and the real screen takes over at the same frame the sheet goes.
         val layer = rememberGraphicsLayer()
         val sheetUp = state.route is Route.NowPlaying
+        LaunchedEffect(sheetUp) { if (!sheetUp) { kotlinx.coroutines.delay(800); state.coverFlight = true } }  // a swipe-down close switched the flight off; the next opening flies
         val recordedRoute = remember { arrayOfNulls<Route>(1) }
         var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(sheetUp) {
@@ -116,6 +122,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             },
             label = "route",
         ) { r ->
+            val contentScope: androidx.compose.animation.AnimatedVisibilityScope = this
             val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
             val a by transition.animateFloat(
                 transitionSpec = { Motion.medium() }, label = "screen",
@@ -133,7 +140,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 is Route.Album -> AlbumScreen(state, rows, r.key, pad)
                 is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
                 is Route.Folder -> FolderScreen(state, rows, r.path, pad)
-                Route.NowPlaying -> NowPlayingScreen(state, current) { byId[it] }
+                Route.NowPlaying -> NowPlayingScreen(state, current, sharedScope, contentScope) { byId[it] }
                 Route.Queue -> QueueScreen(state, rows, pad)
                 Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
                 Route.Search -> SearchScreen(state, rows, pad)
@@ -145,9 +152,10 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(Motion.slow()) { it } + fadeIn(Motion.slow()), exit = slideOutVertically(Motion.medium()) { it } + fadeOut(Motion.medium()),
-        ) { MiniPlayer(state, current) }
+        ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
         state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
         state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
+    }
     }
 }
 

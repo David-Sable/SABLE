@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
-- **0.20.3 is on David's phone (USB, 2026-10-28 ~02:30; equals the release build).** Learning (MATH-1.31): a song that plays again (repeat one, repeat all's wrap, Previous, skip back, scrubber to 0:00) is a new play and teaches; a press up on a song its peak cap already holds is ignored. Before it: 0.20.2 singles, 0.20.1 Why sheet/tabs, 0.20.0 transitions, 0.19.2 emoji.
+- **0.21.0 is on David's phone (USB, 2026-10-28 ~03:00; equals the release build).** The album cover now grows out of the mini player when Now Playing opens and shrinks back into it when it closes (a Compose shared element); a swipe-down close is unchanged. Before it: 0.20.3 (replays teach, capped songs ignore a press up, MATH-1.31), 0.20.2 singles, 0.20.1 Why sheet/tabs, 0.20.0 transitions, 0.19.2 emoji.
 - **Open from David (2026-10-28):** the car volume knob cannot be read (see the log); maybe an opt-in "louder/quieter for this song" hint, only if David wants it. Idea: read Artist and Title from a tag-less file's name ("Tinashe - Brainrot [Official Audio]").
 - **0.19.0 is on David's phone (USB, 2026-10-27 night; the local build equals the release build).** New: learning needs a repeat (MATH-1.30, see the log): a first press applies at most 1 dB until the same direction repeats 12 h or more later; an artist's offset needs events on two different days. Verified live on the JBL (a test turn-down taught -1.92, applied -1.00; test lessons purged). **Still to hear:** David's feel for it over a few days; his tonight's Tell Me What I Don't Know and Lost (+2.00 each, JBL, from riding the volume) are pre-1.30 lessons and still count in full: offer to forget them.
 - **Animation (checked with screen recordings, 2026-10-27):** open and close of Now Playing run at ~90 fps. Both dip towards black in the middle (a cross-fade of two see-through screens); David likes it (it matches every other screen), so it stays. Ideas not built: the cover growing out of the mini player, a slight dim of the screen behind, controls arriving a beat after the cover.
@@ -24,7 +24,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
   Latest GitHub release: build-28 = 0.15.2 (2026-10-27; CI keeps the newest three), signed with the phone's key (certificate SHA-256 `0786a932…3be2`).
 - **On David's phone:** 0.17.5 installed over USB 2026-10-27 (speed-profile compiled); 0.18.3 installed over USB 2026-10-27 night (the local build equals the release build). Per-place learning verified live (JBL Charge 5, see log). Library 396 songs, all analysed.
   Battery shows "Optimized"; David may tap "Allow unrestricted" in Settings.
-- **Still to do (agreed with David):** (1) read what 0.19.0-0.20.3 learned after he listens (JBL/car: `--es cmd diag` and `learned`; look for `REPLAY`, `ignored (capped)`, tentative lessons); (2) animation experiment, recorded before/after: the cover growing out of the mini player (Compose SharedTransitionLayout; risky with the sheet and the frozen underlay: keep only if clearly better). Keep the transitions without the dark dip.
+- **Still to do (agreed with David):** read what 0.19.0-0.21.0 learned after he listens (JBL/car: `--es cmd diag` and `learned`; look for `REPLAY`, `ignored (capped)`, tentative lessons, that nothing got worse). Keep the transitions without the dark dip.
 - **Open items (none blocking):**
   - USB-C output untested on the device. Bluetooth verified in real use (JBL Charge 5, car); per-place learning live on the JBL.
   - Formats verified on the A17 (2026-10-27, generated signals): AAC, Opus, Vorbis, WAV 16/24 match the PC within 0.05 LU. **ALAC** (ffmpeg-made) is "audio/unknown" to the platform extractor: it plays (Media3's own extractor) but cannot be analysed, so it stays at the provisional gain. Untested: ALAC from iTunes/XLD (may differ).
@@ -39,6 +39,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-28 (PC, night) 0.21.0: the cover grows out of the mini player
+- Compose `SharedTransitionLayout` around the app root (`SableApp`); `Modifier.coverShared(...)` (Player.kt) puts the same shared element key on the mini player's 44 dp cover and on Now Playing's cover (both layouts); the mini's `AnimatedVisibility` and the route's `AnimatedContent` give the two visibility scopes. `AppState.coverFlight` is switched off by a swipe-down close (the sheet already moves with the finger; a flight would jump from the undragged position) and back on 800 ms after the sheet is gone. With no mini player (first play from a list) there is nothing to share with and the cover just appears with the sheet.
+- Verified by recording on the phone (0.5x animator scale): open = the thumbnail grows to the full cover while the sheet rises; arrow close = the cover shrinks back into the bar while the sheet sinks; swipe close = as before. gfxinfo over 3 open/close cycles: 163 frames, 4.3 % janky, p90 19 ms, 0 missed vsync (similar to the burst gaps before the change).
 
 ### 2026-10-28 (PC, night) 0.20.3: replays teach, capped songs ignore a press up (MATH-1.31)
 - **5.1 check:** none in the library (442 stereo, 2 mono spoken-word files, ffprobe over the corpus and phone-extra): the open item stays a note.

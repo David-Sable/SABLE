@@ -39,6 +39,8 @@ class AppState {
     private val pending = ArrayList<(MediaController) -> Unit>()
 
     var playing by mutableStateOf(false)
+    /** The cover flies between the mini player and Now Playing; off for a swipe-down close, which already moves the sheet. */
+    var coverFlight by mutableStateOf(true)
     var currentQueueId by mutableStateOf<String?>(null)
     val currentTrackId: Long? get() = currentQueueId?.let(QueueId::trackId)
     var durationMs by mutableLongStateOf(0L)

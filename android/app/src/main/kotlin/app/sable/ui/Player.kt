@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+
 package app.sable.ui
 
 import androidx.media3.common.Player
@@ -148,8 +150,25 @@ fun songSwipe(state: AppState): Modifier {
         )
 }
 
+/**
+ * The cover that grows out of the mini player into Now Playing and back (a shared element). Off where there is nobody to share
+ * it with (previews, tests) and while [enabled] is false (after a swipe-down, which already moves the sheet).
+ */
 @Composable
-fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier) {
+fun Modifier.coverShared(shared: androidx.compose.animation.SharedTransitionScope?, visibility: androidx.compose.animation.AnimatedVisibilityScope?, enabled: Boolean): Modifier =
+    if (shared == null || visibility == null || !enabled) this
+    else with(shared) {
+        this@coverShared.sharedElement(
+            rememberSharedContentState("cover"), visibility,
+            boundsTransform = { _, _ -> androidx.compose.animation.core.tween(Motion.SLOW, easing = Motion.easing) },
+        )
+    }
+
+@Composable
+fun MiniPlayer(
+    state: AppState, row: LibraryRow?, modifier: Modifier = Modifier,
+    shared: androidx.compose.animation.SharedTransitionScope? = null, visibility: androidx.compose.animation.AnimatedVisibilityScope? = null,
+) {
     val tick by frameTick(state.playing, state.durationMs, 1080)
     Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().clickable { state.go(Route.NowPlaying) }) {
         Canvas(Modifier.fillMaxWidth().height(2.dp).graphicsLayer()) {  // own layer: the 150 ms progress redraw stays here
@@ -160,7 +179,7 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
         Row(Modifier.padding(horizontal = Space.l, vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
             // Cover and title swipe sideways to change songs; a tap anywhere still opens Now Playing.
             Row(Modifier.weight(1f).then(songSwipe(state)), verticalAlignment = Alignment.CenterVertically) {
-            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp), px = 128)
+            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverShared(shared, visibility, state.coverFlight), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
                 Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(row?.let { clean(it.artist) } ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -173,7 +192,11 @@ fun MiniPlayer(state: AppState, row: LibraryRow?, modifier: Modifier = Modifier)
 }
 
 @Composable
-fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> LibraryRow? = { null }) {
+fun NowPlayingScreen(
+    state: AppState, row: LibraryRow?,
+    shared: androidx.compose.animation.SharedTransitionScope? = null, visibility: androidx.compose.animation.AnimatedVisibilityScope? = null,
+    rowOf: (Long) -> LibraryRow? = { null },
+) {
     val gain by NowPlaying.gain.collectAsState()
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
     var sleepOpen by remember { mutableStateOf(false) }
@@ -198,7 +221,7 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
             orientation = Orientation.Vertical,
             state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
             onDragStopped = { velocity ->
-                if (dragY.value > closeAt || velocity > 2500f) state.pop()
+                if (dragY.value > closeAt || velocity > 2500f) { state.coverFlight = false; state.pop() }
                 else dragY.animateTo(0f, settle, initialVelocity = velocity)
             },
         )
@@ -276,12 +299,12 @@ fun NowPlayingScreen(state: AppState, row: LibraryRow?, rowOf: (Long) -> Library
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverShared(shared, visibility, state.coverFlight).then(artSwipe).scale(pressScale), px = 1024)
                     Column(Modifier.weight(0.7f).padding(start = Space.m), verticalArrangement = Arrangement.Center, content = info)
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverShared(shared, visibility, state.coverFlight).then(artSwipe).scale(pressScale), px = 1024)
                     Spacer(Modifier.height(gap))
                     info()
                 }
