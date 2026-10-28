@@ -80,3 +80,4 @@ From the cloud: code, math, UI, tests, docs → push → check CI → tell David
 - Plain language, short updates, honest about failures (say what failed and what you did). David is often on the phone.
 - David watches usage: be efficient, don't redo finished work, don't spawn helpers unless asked.
 - Measure before claiming (on the phone when it matters) and record numbers in the reports/NOTES.
+- **Release routine (David asked for this):** when the work is done and pushed, first tell David he can unplug the phone (say so every time), then stay and watch CI until the build is green (a background loop on the check-runs API, not repeated chatter). If it fails, read the annotations, fix, push, and keep watching. Only then say which release to install.
