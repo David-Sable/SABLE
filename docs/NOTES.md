@@ -38,7 +38,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ### 2026-10-27 (PC, evening) Tap feel, kept minimal (0.18.0)
 - David asked for small touches for a more premium feel, still minimal. Looked at every main screen on the phone first (library, album, songs, settings): clean, nothing to tidy. Added `ui/Touch.kt` `Modifier.softClick`: no ripple, the control gives a little under the finger (0.94-0.97) and springs back, and a soft haptic tick (`TextHandleMove`); used on the icon buttons, pills, tab labels, album tiles (no haptic) and the big play button; a changing glyph (play/pause, repeat) crossfades in 140 ms; switching library tabs fades the new tab in over 200 ms (coming back to the library does not); the song-change swipe gives the same tick when it commits. Song rows keep their ripple and long-press haptic.
-- Verified on the phone: tabs, mini-player play/pause (icon swaps, state toggles), no crash in the crash buffer; `tools/perf/anim_frames.sh` late frames: cover swipes 3.3 %, Now Playing open/close 4.2 %, library scroll 2.5 % (unchanged from 3 / 4-6 / 1-2 %). The press-in scale and the haptic cannot be seen in a screenshot: David to feel them.
+- Verified on the phone: tabs, mini-player play/pause (icon swaps, state toggles), no crash in the crash buffer; `tools/perf/anim_frames.sh` late frames: cover swipes 3.3 %, Now Playing open/close 4.2 %, library scroll 2.5 % (unchanged from 3 / 4-6 / 1-2 %). The press-in scale and the haptic cannot be seen in a screenshot: David felt them and said keep it (2026-10-27).
 
 
 ### 2026-10-27 (PC, evening) Album audit and a crash guard (0.17.7)
