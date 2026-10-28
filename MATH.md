@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.28 (2026-10-27)
+**Version:** MATH-1.29 (2026-10-27)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -549,7 +549,7 @@ If the label is **quiet and intimate**: `g_intent = g_anchor − a_int`. Otherwi
 ### 16.4 Peak integrity
 `g_cap = C_out − TP_eff`, where `C_out` is the output ceiling (§20.1) and `TP_eff = truePeakDbtp + (decodeClipped ? M_clipTP : 0) + H_contour` (`H_contour` §24.4; 0 when the contour is off).
 `g_track = min(g_intent, g_cap)`. Rule `PEAK_CAP` fires if `g_cap < g_intent`, and the Why sheet reports how much quieter the song is because of it (`g_intent − g_cap`).
-If TP is absent (digital silence), `g_cap = +∞` and the rule never fires.
+If TP is absent because the track is digital silence (no loudness), `g_cap = +∞` and the rule never fires. **[MATH-1.29]** If the loudness is defined but the TP is not (a non-finite sample in a float decode makes the peak unmeasurable), the peak is unknown, not absent: a full-scale peak (0 dBTP, plus the clip margin and contour headroom) is assumed, and the quick estimate (§22.2) assumes 0 dBTP before its own margin. Before 1.29 such a track got no cap at all and a quiet one could be lifted by 12 dB or more with nothing to stop it clipping.
 With the opt-in limiter (§23.5), the cap becomes `g_cap_lim = g_cap + 6.0` (at most 6 dB of limiting **[DESIGN]**), and `g_track = min(g_intent, g_cap_lim)`. Rule `LIMITER` fires only if `g_intent > g_cap`, i.e. only when the limiter actually has work to do. `PEAK_CAP` then also fires only if `g_intent > g_cap_lim`. §17, §18 and §21 use `g_cap_eff` as the effective cap: `g_cap_lim` with the limiter, `g_cap` without.
 
 ### 16.5 Formal statement
@@ -696,7 +696,7 @@ Never play un-normalized audio at full level. Before any analysis exists, `g_pro
 
 ### 22.2 JIT analysis
 Started when a never-analysed track is about to play (queue look-ahead: the next item is pre-analysed while the current one plays):
-- Excerpts: `[0, 10 s)` and three 15 s windows centred at 30%, 50% and 70% of the duration (clipped and merged). Decoded by seeking.
+- Excerpts: `[0, 10 s)` and three 15 s windows centred at 30%, 50% and 70% of the duration (clipped and merged). Decoded by seeking. **[MATH-1.29]** If the source does not know its length (a streamed FLAC has `total_samples = 0`), the engine first counts the frames by one decode pass; before 1.29 all three "middle" windows then landed at the start, and a song with a −30 LUFS intro and a −14 LUFS body was measured at −30 and lifted by about 16 dB until its full analysis arrived (found by testing a piped FLAC; none of the owner's 392 FLACs has a zero length).
 - Measures (§2–§6) on each excerpt. `L_jit` = the loudest middle-excerpt integrated loudness (§4.1 per excerpt). `TP_jit` = max over excerpts + `M_jitTP = 1.0 dB` (peaks not yet seen) **[TUNE]**.
 - `g_jit = min(T − L_jit, C_out − TP_jit)`. No perceptual model, no labels, no intimacy. Rule `JIT`.
 - Wait budget: playback waits up to `W_jit = 1.5 s` for JIT. If it isn't ready, playback starts at `g_prov` and moves to `g_jit` when ready (§23.3).
@@ -761,7 +761,7 @@ Deterministic, with a hard maximum boost of +3 dB, so it is "subtle" by construc
 Playback (MATH-1.13): the cascade runs after the gain, in double precision per channel (TDF-II). Switching it on or off crossfades wet/dry over 20 ms (raised cosine), and its state is cleared after a flush. Off, the path is bit-identical to no contour.
 
 ### 24.4 Headroom
-`H_contour = max(0, G_L) + max(0, G_H)` dB is added to `TP_eff` (§16.4) while the contour is on. This bounds the cascade's maximum gain at all frequencies up to Nyquist, which is where the high shelf peaks. It is conservative: the boost is assumed to add to peaks.
+`H_contour = max(0, G_L) + max(0, G_H)` dB is added to `TP_eff` (§16.4) while the contour is on. This bounds the cascade's maximum gain at all frequencies up to Nyquist, which is where the high shelf peaks. It is conservative: the boost is assumed to add to peaks. **[MATH-1.29]** The planner bounds its inputs: the contour headroom to `[0, 12]` dB (and the target to `[−40, −5]` LUFS and the ceiling to `[−10, 0]` dBTP, far outside anything the app sends): the app's own design stays well under that, and a hostile or corrupt value can no longer push a gain towards −∞ (found by fuzzing the planner).
 
 ---
 

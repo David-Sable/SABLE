@@ -134,6 +134,8 @@ class AppState {
 fun albumKey(r: LibraryRow) = "${r.albumId}|${r.albumArtist}"
 /** MediaStore writes "<unknown>" for missing tags. */
 fun clean(tag: String) = if (tag == "<unknown>") "" else tag
+/** "Artist · Album", without a dangling dot when the song has no album. */
+fun songSubtitle(r: LibraryRow) = listOf(clean(r.artist).ifBlank { "Unknown artist" }, clean(r.album)).filter { it.isNotBlank() }.joinToString(" · ")
 fun artistOf(r: LibraryRow) = clean(r.albumArtist).ifBlank { clean(r.artist) }.ifBlank { "Unknown artist" }
 fun titleOf(r: LibraryRow) = r.title.ifBlank { r.displayName }
 fun mmss(ms: Long): String {

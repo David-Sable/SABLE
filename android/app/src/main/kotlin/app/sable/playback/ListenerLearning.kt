@@ -148,6 +148,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     /** Whether playback is running and where it is, in ms. */
     var playback: () -> Pair<Boolean, Long> = { true to 0L }
 
+    private var receiver: BroadcastReceiver? = null
+    private var observer: ContentObserver? = null
+
     fun start() {
         lastIndex = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         // Volume changes: the system broadcast where delivered, and the settings observer as a fallback.
@@ -155,9 +158,23 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             override fun onReceive(c: Context, i: Intent) = onVolumeMaybeChanged()
         }
         context.registerReceiver(r, IntentFilter("android.media.VOLUME_CHANGED_ACTION"), Context.RECEIVER_EXPORTED)
-        context.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, object : ContentObserver(main) {
+        val o = object : ContentObserver(main) {
             override fun onChange(selfChange: Boolean) = onVolumeMaybeChanged()
-        })
+        }
+        context.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, o)
+        receiver = r
+        observer = o
+    }
+
+    /** The service is going away: stop listening (each restart used to leave its receiver and observer behind). */
+    fun stop() {
+        main.removeCallbacks(close)
+        main.removeCallbacks(poll)
+        track = null
+        receiver?.let { runCatching { context.unregisterReceiver(it) } }
+        observer?.let { context.contentResolver.unregisterContentObserver(it) }
+        receiver = null
+        observer = null
     }
 
     fun onRouteChanged() { routeChangedAt = SystemClock.elapsedRealtime() }

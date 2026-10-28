@@ -2,6 +2,8 @@ package app.sable.library
 
 import android.content.ContentUris
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.provider.MediaStore
 import app.sable.data.SableDatabase
 import app.sable.data.TrackEntity
@@ -13,6 +15,22 @@ import app.sable.data.TrackEntity
  */
 class LibraryScanner(private val context: Context) {
     private val dao = SableDatabase.get(context).library()
+    private val albumTags = context.getSharedPreferences("sable_albumtag", Context.MODE_PRIVATE)
+
+    /**
+     * MediaStore names an album after the song's folder when the file has no album tag. An album that is exactly its folder's
+     * name is checked against the file's own tag (once per file version), so untagged songs do not become one fake album
+     * that "Play album" would balance with one shared gain (MATH §17).
+     */
+    private fun hasAlbumTag(id: Long, uri: Uri, size: Long, modified: Long): Boolean {
+        val key = "$id:$size:$modified"
+        albumTags.getString(key, null)?.let { return it == "1" }
+        val has = runCatching {
+            MediaMetadataRetriever().use { r -> r.setDataSource(context, uri); !r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM).isNullOrBlank() }
+        }.getOrDefault(true)  // unreadable: leave MediaStore's answer alone
+        albumTags.edit().putString(key, if (has) "1" else "0").apply()
+        return has
+    }
 
     suspend fun syncMediaStore(): Int {
         val known = dao.allTracks().associateBy { it.mediaId }
@@ -35,15 +53,19 @@ class LibraryScanner(private val context: Context) {
                 val keepHash = prev?.takeIf { it.sizeBytes == size && it.dateModified == modified }?.contentHash
                 val trackNo = c.getString(7)?.substringBefore('/')?.toIntOrNull() ?: (c.getInt(8) % 1000)
                 val disc = c.getString(6)?.substringBefore('/')?.toIntOrNull() ?: (c.getInt(8) / 1000).coerceAtLeast(1)
+                val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                val relPath = c.getString(13) ?: ""
+                val msAlbum = c.getString(4) ?: ""
+                val album = if (msAlbum.isNotBlank() && msAlbum.equals(relPath.trimEnd('/').substringAfterLast('/'), ignoreCase = true) && !hasAlbumTag(id, uri, size, modified)) "" else msAlbum
                 out += TrackEntity(
                     mediaId = id,
-                    uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString(),
-                    relativePath = c.getString(13) ?: "",
+                    uri = uri.toString(),
+                    relativePath = relPath,
                     displayName = c.getString(14) ?: "",
                     title = c.getString(1) ?: "",
                     artist = c.getString(2) ?: "",
                     albumArtist = c.getString(3) ?: (c.getString(2) ?: ""),
-                    album = c.getString(4) ?: "",
+                    album = album,
                     albumId = c.getLong(5),
                     disc = disc,
                     track = trackNo,

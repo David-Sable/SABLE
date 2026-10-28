@@ -559,6 +559,15 @@ double tpEff(const LoudnessResult& r, const GainContext& c) {
   return r.truePeakDbtp.value_or(-200.0) + (c.decodeClipped ? kClipMargin : 0.0) + c.contourHeadroomDb;  // callers check TP
 }
 
+// The peak that limits the gain (§16.4). A measured true peak; or, when the loudness is defined but the peak is not (a
+// non-finite sample in the file), a full-scale peak (MATH-1.29: "no peak" used to mean "no cap", which is right only for
+// digital silence).
+std::optional<double> capPeak(const LoudnessResult& r, const GainContext& c) {
+  if (r.truePeakDbtp) return tpEff(r, c);
+  if (r.integratedLufs) return 0.0 + (c.decodeClipped ? kClipMargin : 0.0) + c.contourHeadroomDb;
+  return std::nullopt;
+}
+
 void applyCap(GainDecision& d, std::optional<double> tp, const GainContext& c) {
   // §16.4 peak integrity (+ limiter allowance)
   if (!tp) { d.capDb = std::numeric_limits<double>::infinity(); d.gainDb = d.intentDb; return; }
@@ -587,7 +596,7 @@ GainDecision decideTrackGain(const LoudnessResult& r, const TrackUnderstanding& 
   GainDecision d;
   if (!r.integratedLufs) {  // §16.6 silence
     d.intentDb = 0.0;
-    applyCap(d, r.truePeakDbtp ? std::optional<double>(tpEff(r, c)) : std::nullopt, c);
+    applyCap(d, capPeak(r, c), c);
     d.gainDb = std::min(0.0, d.capDb);
     d.rules.push_back({"UNDEFINED_LOUDNESS", 0.0});
     return d;
@@ -605,7 +614,7 @@ GainDecision decideTrackGain(const LoudnessResult& r, const TrackUnderstanding& 
     d.intentDb -= a;
     d.rules.push_back({"INTIMACY", -a});
   }
-  applyCap(d, r.truePeakDbtp ? std::optional<double>(tpEff(r, c)) : std::nullopt, c);
+  applyCap(d, capPeak(r, c), c);
   return d;
 }
 
@@ -618,7 +627,7 @@ GainDecision decideAlbumGain(const std::vector<const LoudnessResult*>& tr, const
   for (std::size_t i = 0; i < tr.size(); ++i) {
     const auto& r = *tr[i];
     const auto& u = *und[i];
-    if (r.truePeakDbtp) tpMax = std::max(tpMax.value_or(-1e300), tpEff(r, c));
+    if (const auto p = capPeak(r, c)) tpMax = std::max(tpMax.value_or(-1e300), *p);
     if (!r.integratedLufs || r.shortFile) continue;  // §17.2 members
     pool.insert(pool.end(), u.anchorBlockPower.begin(), u.anchorBlockPower.end());
     const auto uple = usablePle(u);

@@ -159,9 +159,14 @@ std::string analyzeSource(AudioSource& src) {
 
 std::string jitSource(AudioSource& src, double ceilingDbtp) {  // MATH §22.2 excerpts
   const int ch = src.channels();
-  const std::uint64_t fs = static_cast<std::uint64_t>(src.sampleRate()), total = src.totalFrames();
+  const std::uint64_t fs = static_cast<std::uint64_t>(src.sampleRate());
+  std::uint64_t total = src.totalFrames();
   JitPipeline j(src.sampleRate(), ch, 0);
   std::vector<float> buf(kChunk * static_cast<std::size_t>(ch));
+  if (total == 0) {  // length unknown (a streamed FLAC has total_samples 0): count it, or the "middle" excerpts all land at the start (MATH-1.29)
+    src.seek(0);
+    for (std::size_t n; (n = src.read(buf.data(), kChunk)) > 0;) total += n;
+  }
   auto excerpt = [&](std::uint64_t start, std::uint64_t len, bool middle) {
     if (len == 0 || (total > 0 && start >= total)) return;
     if (total > 0 && start + len > total) len = total - start;

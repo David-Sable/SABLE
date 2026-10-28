@@ -85,6 +85,9 @@ class GainController(
     private var contourVersion = 0L
     private var contourHeadroom = 0.0
 
+    /** The service is stopping: the volume listeners go (see [ListenerLearning.stop]). */
+    fun stop() = learning.stop()
+
     fun start() {
         player.addListener(this)
         updateRoute()

@@ -62,7 +62,8 @@ if(SABLE_BUILD_TESTS)
     tests/test_perceptual.cpp
     tests/test_intent.cpp
     tests/test_plan.cpp
-    tests/test_contour.cpp)
+    tests/test_contour.cpp
+    tests/test_jit_source.cpp)
   target_include_directories(sable_tests PRIVATE third_party/doctest tests)
   target_link_libraries(sable_tests PRIVATE sable_engine)
   target_include_directories(sable_tests PRIVATE src)

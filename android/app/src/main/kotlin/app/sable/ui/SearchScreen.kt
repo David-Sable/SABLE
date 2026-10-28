@@ -96,7 +96,7 @@ fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     // Tapping a song plays it and the songs listed after it, each in its own world (as in the Songs tab).
                     items(results.songs.size, key = { "s-" + results.songs[it].mediaId }) { i ->
                         val r = results.songs[i]
-                        SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}",
+                        SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r),
                             { keyboard?.hide(); state.playSongWorld(results.songs, i) }, { keyboard?.hide(); state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
                     }
                 }

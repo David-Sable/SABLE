@@ -186,6 +186,7 @@ class PlaybackService : MediaSessionService() {
         current = null
         SableWidget.stopped(this)
         saveResume()
+        controller.stop()
         SleepTimer.cancel()
         session.release()
         player.release()

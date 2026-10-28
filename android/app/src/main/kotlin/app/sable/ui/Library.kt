@@ -174,7 +174,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     }
                     items(songs.size, key = { songs[it].mediaId }) { i ->
                         val r = songs[i]
-                        SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+                        SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
                     }
                 }
             }
@@ -283,7 +283,7 @@ fun FolderScreen(state: AppState, rows: List<LibraryRow>, path: String, bottomPa
         }
         items(songs.size, key = { songs[it].mediaId }) { i ->
             val r = songs[i]
-            SongRow(r, null, state.currentTrackId == r.mediaId, "${clean(r.artist).ifBlank { "Unknown artist" }} · ${clean(r.album)}", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+            SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
         }
     }
 }

@@ -246,11 +246,12 @@ std::string planQueueJson(const std::string& input) {
   J in;
   if (!Parser(input).parse(in) || in.t != J::T::Obj) return "{\"error\":\"bad input\"}";
   GainContext ctx;
-  ctx.targetLufs = in.num("targetLufs", -14.0);
+  // MATH-1.29: inputs outside any sensible range are bounded (the app sends -14 / -19, ceilings in [-3, -0.5]).
+  ctx.targetLufs = std::clamp(in.num("targetLufs", -14.0), -40.0, -5.0);
   ctx.intimacyLu = in.num("intimacyLu", 1.0);
-  ctx.ceilingDbtp = in.num("ceilingDbtp", -1.0);
+  ctx.ceilingDbtp = std::clamp(in.num("ceilingDbtp", -1.0), -10.0, 0.0);
   ctx.limiter = in.flag("limiter");
-  ctx.contourHeadroomDb = std::max(0.0, in.num("contourHeadroomDb", 0.0));  // §24.4, Quiet contour on
+  ctx.contourHeadroomDb = std::clamp(in.num("contourHeadroomDb", 0.0), 0.0, 12.0);  // §24.4, Quiet contour on (MATH-1.29: at most 12 dB)
   const double nowDays = in.num("nowDays", 0.0);
   const double outputCal = std::clamp(in.num("outputCalDb", 0.0), -3.0, 3.0);  // §20.2
   const std::string albumMode = in.str("albumMode");                            // "auto" | "track" | "album"
@@ -333,7 +334,8 @@ std::string planQueueJson(const std::string& input) {
       } else if (const J* j = x.get("jit"); j && j->t == J::T::Obj && j->num("jitLufs")) {  // §22.2
         it.source = Item::Source::Jit;
         const double g = ctx.targetLufs - *j->num("jitLufs");
-        if (const auto tp = j->num("jitTpDbtp")) it.capDb = ctx.ceilingDbtp - (*tp + kJitTpMargin);
+        // MATH-1.29: a quick estimate without a peak assumes a full-scale one rather than no cap.
+        it.capDb = ctx.ceilingDbtp - (j->num("jitTpDbtp").value_or(0.0) + kJitTpMargin);
         it.baseDb = std::min(g, it.capDb);
         it.rules.push_back({"JIT", it.baseDb});
         if (it.capDb < g) it.rules.push_back({"PEAK_CAP", it.capDb - g});

@@ -72,7 +72,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text("WHY", style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m))
             Text(titleOf(row), style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.xs))
-            Text("${clean(row.artist)} · ${clean(row.album)}", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(listOf(clean(row.artist), clean(row.album)).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(Space.xl))
             if (json == null) {
                 Text(

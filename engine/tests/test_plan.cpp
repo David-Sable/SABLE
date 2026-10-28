@@ -173,6 +173,10 @@ TEST_CASE("plan: contour headroom lowers the cap; learned offsets decay and stay
   std::string in = ctx("{\"analysis\":" + capped + "}");
   in.insert(1, "\"contourHeadroomDb\":2.6,");
   CHECK(field(sable::planQueueJson(in), "gainDb") == doctest::Approx(1.0 - 2.6).epsilon(1e-12));
+  // MATH-1.29: the headroom is bounded (an input of 1e30 dB once produced a gain of -3.4e38 dB in the fuzz run).
+  std::string huge = ctx("{\"analysis\":" + capped + "}");
+  huge.insert(1, "\"contourHeadroomDb\":1e30,");
+  CHECK(field(sable::planQueueJson(huge), "gainDb") == doctest::Approx(1.0 - 12.0).epsilon(1e-12));
 
   const std::string mid = analysis(-14, -14, -14, -20, -14, -14);  // g 0, cap +19
   // Track offset -1.6 set 30 days ago -> -0.8 now; artist -1 (1 day old) ignored until 2 tracks have taught it.
@@ -225,6 +229,37 @@ TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)"
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3,\"prevDeltaDb\":-3,\"nowDays\":0}"), "omega") == 1.0);
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);
   CHECK(sable::learnUpdateJson("{}") == "{\"error\":\"bad input\"}");
+}
+
+TEST_CASE("plan: absurd targets and ceilings are bounded (MATH-1.29)") {
+  const std::string quiet = analysis(-26, -26, -26, -12, -26, -26);  // intent +12 dB at -14, true peak -12 dBTP
+  auto gain = [&](const std::string& head) {
+    std::string in = ctx("{\"analysis\":" + quiet + "}");
+    in.insert(1, head);
+    return field(sable::planQueueJson(in), "gainDb");
+  };
+  CHECK(gain("\"ceilingDbtp\":-1e300,") == doctest::Approx(-10.0 + 12.0));  // ceiling bounded to -10 dBTP: cap +2
+  CHECK(gain("\"ceilingDbtp\":1e300,") <= 12.0 + 1e-9);  // ceiling bounded to 0 dBTP: cap +12, intent +12
+  CHECK(std::abs(gain("\"targetLufs\":-1e300,")) < 100.0);
+  CHECK(std::abs(gain("\"targetLufs\":1e300,")) < 100.0);
+}
+
+TEST_CASE("plan: an unknown true peak caps at full scale, not at nothing (MATH-1.29, §16.4)") {
+  // A quiet song (intent +12 dB) whose peak could not be measured (a non-finite sample): before 1.29 the cap was +inf.
+  std::string quiet = analysis(-26, -26, -26, -12, -26, -26);
+  CHECK(field(sable::planQueueJson(ctx("{\"analysis\":" + quiet + "}")), "gainDb") == doctest::Approx(11.0));  // measured -12 dBTP
+  std::string noTp = quiet;
+  const std::size_t p = noTp.find("\"truePeakDbtp\":");
+  REQUIRE(p != std::string::npos);
+  noTp.replace(p, noTp.find(',', p) - p, "\"truePeakDbtp\":null");
+  const std::string out = sable::planQueueJson(ctx("{\"analysis\":" + noTp + "}"));
+  CHECK(field(out, "gainDb") == doctest::Approx(-1.0));  // ceiling -1 dBTP minus a 0 dBTP peak
+  CHECK(field(out, "capDb") == doctest::Approx(-1.0));
+  // A quick estimate without a peak: ceiling -1 minus (0 + 1 dB margin).
+  CHECK(field(sable::planQueueJson(ctx("{\"jit\":{\"jitLufs\":-26}}")), "gainDb") == doctest::Approx(-2.0));
+  // Digital silence still has nothing to protect.
+  const std::string silent = "{\"integratedLufs\":null,\"truePeakDbtp\":null,\"shortFile\":false,\"decodeClipped\":false}";
+  CHECK(field(sable::planQueueJson(ctx("{\"analysis\":" + silent + "}")), "gainDb") == doctest::Approx(0.0));
 }
 
 TEST_CASE("learn: mutes, big jumps and presses explained by the section (MATH-1.27)") {
