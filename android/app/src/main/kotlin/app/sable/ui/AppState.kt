@@ -150,10 +150,24 @@ class AppState {
 fun albumKey(r: LibraryRow) = if (r.album.isBlank()) "single|${r.mediaId}" else "${r.albumId}|${r.albumArtist}"
 /** MediaStore writes "<unknown>" for missing tags. */
 fun clean(tag: String) = if (tag == "<unknown>") "" else tag
+/**
+ * A file with no tags at all is named like "Tinashe - Brainrot [Official Audio]": read Artist and Title from the name for
+ * display only (null when the song has an artist tag, or the name is not "Artist - Title"). Nothing stored or learned changes.
+ */
+fun nameTags(r: LibraryRow): Pair<String, String>? {
+    if (clean(r.artist).isNotBlank() || clean(r.albumArtist).isNotBlank()) return null
+    val stem = r.displayName.substringBeforeLast('.', r.displayName).trim()
+    if (r.title.isNotBlank() && r.title.trim() != stem) return null  // a real title tag
+    val parts = stem.replace(Regex("""\s*[\[(][^\])]*[\])]\s*$"""), "").split(" - ", limit = 2)
+    if (parts.size != 2) return null
+    val artist = parts[0].trim()
+    val title = parts[1].trim()
+    return if (artist.isEmpty() || title.isEmpty()) null else artist to title
+}
 /** "Artist · Album", without a dangling dot when the song has no album. */
-fun songSubtitle(r: LibraryRow) = listOf(clean(r.artist).ifBlank { "Unknown artist" }, clean(r.album)).filter { it.isNotBlank() }.joinToString(" · ")
-fun artistOf(r: LibraryRow) = clean(r.albumArtist).ifBlank { clean(r.artist) }.ifBlank { "Unknown artist" }
-fun titleOf(r: LibraryRow) = r.title.ifBlank { r.displayName }
+fun songSubtitle(r: LibraryRow) = listOf(clean(r.artist).ifBlank { nameTags(r)?.first ?: "Unknown artist" }, clean(r.album)).filter { it.isNotBlank() }.joinToString(" · ")
+fun artistOf(r: LibraryRow) = clean(r.albumArtist).ifBlank { clean(r.artist) }.ifBlank { nameTags(r)?.first ?: "Unknown artist" }
+fun titleOf(r: LibraryRow) = nameTags(r)?.second ?: r.title.ifBlank { r.displayName }
 fun mmss(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)
