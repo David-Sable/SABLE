@@ -14,6 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this current)
+- **0.19.1 (cloud, 2026-10-28): emoji titles fix pushed, unverified on the phone** (see the log). Check it first next PC session.
 - **0.19.0 is on David's phone (USB, 2026-10-27 night; the local build equals the release build).** New: learning needs a repeat (MATH-1.30, see the log): a first press applies at most 1 dB until the same direction repeats 12 h or more later; an artist's offset needs events on two different days. Verified live on the JBL (a test turn-down taught -1.92, applied -1.00; test lessons purged). **Still to hear:** David's feel for it over a few days; his tonight's Tell Me What I Don't Know and Lost (+2.00 each, JBL, from riding the volume) are pre-1.30 lessons and still count in full: offer to forget them.
 - **Animation (checked with screen recordings, 2026-10-27):** open and close of Now Playing run at ~90 fps. Both dip towards black in the middle (a cross-fade of two see-through screens); David likes it (it matches every other screen), so it stays. Ideas not built: the cover growing out of the mini player, a slight dim of the screen behind, controls arriving a beat after the cover.
 - **Car stutter: RESOLVED, not Sable (2026-10-27).** David heard the same skips from YouTube over the same car Bluetooth link (phone in the car, wireless adb connected), so it is the car's Bluetooth (SBC to "CAR MULTIMEDIA"), not our playback. Sable and the phone were clean in every layer we can see (see the log entries). Nothing to fix in Sable. Ideas for David if it bothers him: Wi-Fi off while driving, phone with a clear line to the stereo, re-pair the car, or a USB cable for wired Android Auto (bypasses Bluetooth; untested with Sable).
@@ -37,6 +38,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first)
+
+### 2026-10-28 (cloud) 0.19.1: emoji titles
+- David saw JPEGMAFIA's emoji-titled songs as "????". Cause (from the code and Android's known behaviour; not yet seen on the phone): MediaStore replaces emoji in titles/artists/albums with "?". `LibraryScanner` now reads the file's own tag (MediaMetadataRetriever, once per file version, cached) whenever a MediaStore text holds a "?" and uses it if it differs. **Not verified on the phone** (no phone in the cloud session): next PC session, check that the "????" songs now show their emoji (a rescan runs on app start) and that Compose renders them.  
 
 ### 2026-10-27 (night) Advanced off/on check
 - David asked that Advanced off really means Sable's own choices and that turning it on restores his fine-tuning. Read the code: every playback path uses `Settings.effective()` (defaults for album mode, hold-under, contour, ceilings and calibration when off; only Normal/Quiet stays), the stored values are never cleared, and any settings change replans the queue (`GainController` collects `PlaybackPrefs.settings`). Added `AdvancedSettingsTest` (3 cases, pass). Not toggled live on the phone (no debug command; it would change his settings).

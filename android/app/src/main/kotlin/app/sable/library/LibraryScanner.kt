@@ -16,6 +16,24 @@ import app.sable.data.TrackEntity
 class LibraryScanner(private val context: Context) {
     private val dao = SableDatabase.get(context).library()
     private val albumTags = context.getSharedPreferences("sable_albumtag", Context.MODE_PRIVATE)
+    private val textTags = context.getSharedPreferences("sable_texttag", Context.MODE_PRIVATE)
+
+    /**
+     * MediaStore turns characters outside the Basic Multilingual Plane (emoji) into "?" in titles, artists and albums, so a
+     * song titled with an emoji shows as "????". When a MediaStore text holds a "?" (or the replacement character), the
+     * file's own tag is read once per file version and used if it is different and not blank.
+     */
+    private fun fileText(id: Long, uri: Uri, size: Long, modified: Long, key: Int, ms: String): String {
+        if (ms.indexOf('?') < 0 && ms.indexOf('\uFFFD') < 0) return ms
+        val k = "$id:$size:$modified:$key"
+        textTags.getString(k, null)?.let { return it.ifEmpty { ms } }
+        val tag = runCatching {
+            MediaMetadataRetriever().use { r -> r.setDataSource(context, uri); r.extractMetadata(key) }
+        }.getOrNull()
+        val use = tag?.takeIf { it.isNotBlank() && it != ms && it.indexOf('\uFFFD') < 0 } ?: ""
+        textTags.edit().putString(k, use).apply()
+        return use.ifEmpty { ms }
+    }
 
     /**
      * MediaStore names an album after the song's folder when the file has no album tag. An album that is exactly its folder's
@@ -62,10 +80,10 @@ class LibraryScanner(private val context: Context) {
                     uri = uri.toString(),
                     relativePath = relPath,
                     displayName = c.getString(14) ?: "",
-                    title = c.getString(1) ?: "",
-                    artist = c.getString(2) ?: "",
-                    albumArtist = c.getString(3) ?: (c.getString(2) ?: ""),
-                    album = album,
+                    title = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_TITLE, c.getString(1) ?: ""),
+                    artist = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ARTIST, c.getString(2) ?: ""),
+                    albumArtist = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST, c.getString(3) ?: (c.getString(2) ?: "")),
+                    album = fileText(id, uri, size, modified, MediaMetadataRetriever.METADATA_KEY_ALBUM, album),
                     albumId = c.getLong(5),
                     disc = disc,
                     track = trackNo,
