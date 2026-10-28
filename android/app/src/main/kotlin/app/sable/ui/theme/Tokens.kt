@@ -79,6 +79,11 @@ object Motion {
     const val MEDIUM = 300
     fun <T> slow() = tween<T>(SLOW, easing = easing)
     fun <T> medium() = tween<T>(MEDIUM, easing = easing)
+    /** Now Playing's sheet and the cover's flight: durations in ms (x the live tuning factor), one easing so they move as one. */
+    const val SHEET_IN = 520
+    const val SHEET_OUT = 380
+    fun <T> sheetIn(m: Float) = tween<T>((SHEET_IN * m).toInt().coerceAtLeast(80), easing = easing)
+    fun <T> sheetOut(m: Float) = tween<T>((SHEET_OUT * m).toInt().coerceAtLeast(80), easing = easing)
 }
 
 @Composable
@@ -107,6 +112,34 @@ private val grainTile: ImageBitmap by lazy {
     }
     val bmp = android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888)
     bmp.asImageBitmap()
+}
+
+/** The same grain already blended into the base colour: one opaque tile, so a full-screen surface costs one pass, not two. */
+private val grainOnBaseTile: ImageBitmap by lazy {
+    val n = 96
+    val px = IntArray(n * n)
+    val r = Random(1770)
+    val b = SableColors.base
+    for (i in px.indices) {
+        val a = r.nextInt(256) / 255f * 0.035f          // as drawn by grain(): white at this alpha over the base
+        fun ch(c: Float) = ((c * (1f - a) + a) * 255f + 0.5f).toInt().coerceIn(0, 255)
+        px[i] = (0xFF shl 24) or (ch(b.red) shl 16) or (ch(b.green) shl 8) or ch(b.blue)
+    }
+    android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+}
+
+/**
+ * Now Playing's surface: the base colour with the grain, in one pass, with its top corners rounded by [corner] (px, read at draw
+ * time so it can follow the sheet). Only this background is rounded, not a clip over the whole sheet (a clip that large is slow
+ * to draw); nothing but the background reaches the corners.
+ */
+fun Modifier.sheetSurface(corner: () -> Float): Modifier = drawWithCache {
+    val brush = ShaderBrush(ImageShader(grainOnBaseTile, TileMode.Repeated, TileMode.Repeated))
+    onDrawBehind {
+        val r = corner()
+        if (r > 0.5f) drawRoundRect(brush, size = androidx.compose.ui.geometry.Size(size.width, size.height + r), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r))
+        else drawRect(brush)
+    }
 }
 
 fun Modifier.grain(alpha: Float = 0.035f): Modifier = drawWithCache {

@@ -45,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.graphicsLayer
@@ -85,21 +88,36 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         // frame is kept as a picture and drawn beneath the sheet, and the real screen takes over at the same frame the sheet goes.
         val layer = rememberGraphicsLayer()
         val sheetUp = state.route is Route.NowPlaying
-        LaunchedEffect(sheetUp) { if (!sheetUp) { kotlinx.coroutines.delay(800); state.coverFlight = true } }  // a swipe-down close switched the flight off; the next opening flies
         val recordedRoute = remember { arrayOfNulls<Route>(1) }
         var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
         LaunchedEffect(sheetUp) {
             if (!sheetUp) { frozen = null; return@LaunchedEffect }
             val beneath = state.back.getOrNull(state.back.lastIndex - 1)
-            frozen = if (recordedRoute[0] == beneath) runCatching { layer.toImageBitmap() }.getOrNull() else null
+            if (state.debugCaptureDelayMs > 0) kotlinx.coroutines.delay(state.debugCaptureDelayMs)
+            frozen = if (!state.debugNoCapture && recordedRoute[0] == beneath) runCatching { layer.toImageBitmap() }.getOrNull() else null
         }
         Box(Modifier.fillMaxSize().drawWithContent {
             if (state.route !is Route.NowPlaying) {
                 recordedRoute[0] = state.route
-                layer.record { this@drawWithContent.drawContent() }
-                drawLayer(layer)
+                if (state.debugNoRecord) drawContent() else {
+                    layer.record { this@drawWithContent.drawContent() }
+                    drawLayer(layer)
+                }
             } else {
-                frozen?.let { drawImage(it) }
+                val p = if (state.animDepth) state.sheetP else 0f
+                // The screen behind the sheet steps back (a little smaller and dimmer, in step with the sheet). While the live screen is still
+                // composed it does that itself; the picture is only drawn once the live one is gone (one full-screen pass less per frame).
+                // Only the strip the sheet has not covered yet is drawn: behind a sheet that fills the screen it costs nothing.
+                val bare = (1f - state.sheetP) * size.height + SHEET_CORNER_MARGIN.toPx()
+                if (state.liveBeneath == 0 && bare > 0f && state.sheetP < 0.999f) frozen?.let { img ->
+                    val k = 1f - BACK_SHRINK * p
+                    clipRect(0f, 0f, size.width, bare.coerceAtMost(size.height)) {
+                        withTransform({ scale(k, k, androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)) }) {
+                            drawImage(img)
+                            if (p > 0f) drawRect(androidx.compose.ui.graphics.Color.Black, alpha = BACK_DIM * p)
+                        }
+                    }
+                }
                 drawContent()
             }
         }) {
@@ -112,9 +130,11 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 // sheet that slides up from the bottom and slides back down (also after a swipe, from where the finger left it).
                 val leaving = initialState !in state.back  // going back: the screen we are on is leaving for good
                 // Other screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
-                val enter = if (targetState is Route.NowPlaying) slideInVertically(Motion.slow()) { it }
+                val enter = if (targetState is Route.NowPlaying && state.animGrow) EnterTransition.None
+                    else if (targetState is Route.NowPlaying) slideInVertically(Motion.sheetIn(state.animDur)) { it }
                     else if (leaving) EnterTransition.None else slideInVertically(Motion.medium()) { it / 50 }
-                val exit = if (leaving && initialState is Route.NowPlaying) slideOutVertically(Motion.medium()) { it }
+                val exit = if (leaving && initialState is Route.NowPlaying && state.animGrow) ExitTransition.KeepUntilTransitionsFinished
+                    else if (leaving && initialState is Route.NowPlaying) slideOutVertically(Motion.sheetOut(state.animDur)) { it }
                     else if (leaving) slideOutVertically(Motion.medium()) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
                 val t = enter togetherWith exit
                 t.targetContentZIndex = if (initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
@@ -123,6 +143,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             label = "route",
         ) { r ->
             val contentScope: androidx.compose.animation.AnimatedVisibilityScope = this
+            if (r !is Route.NowPlaying) androidx.compose.runtime.DisposableEffect(Unit) { state.liveBeneath++; onDispose { state.liveBeneath-- } }  // a live screen under the sheet?
             val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
             val a by transition.animateFloat(
                 transitionSpec = { Motion.medium() }, label = "screen",
@@ -133,7 +154,11 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                     EnterExitState.PostExit -> if (r is Route.NowPlaying || r in state.back) 1f else 0f  // covered: stays; left for good: fades away
                 }
             }
-            Box(Modifier.graphicsLayer { alpha = a }.then(if (r is Route.NowPlaying) Modifier else Modifier.background(SableColors.base))) {  // Now Playing paints its own, so the background moves with its sheet
+            val grown by transition.animateFloat(
+                transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "grow",
+            ) { if (it == EnterExitState.Visible) 1f else 0f }
+            val grow = r is Route.NowPlaying && state.animGrow
+            Box(Modifier.graphicsLayer { alpha = a }.then(if (grow) Modifier.growFromBar { grown } else Modifier).then(if (r is Route.NowPlaying) Modifier else Modifier.background(SableColors.base).stepBack(state))) {  // Now Playing paints its own, so the background moves with its sheet
             saved.SaveableStateProvider(r.toString()) {
             when (r) {
                 Route.Library -> LibraryScreen(state, rows, pad)
@@ -151,13 +176,52 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         }
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter),
-            enter = slideInVertically(Motion.slow()) { it } + fadeIn(Motion.slow()), exit = slideOutVertically(Motion.medium()) { it } + fadeOut(Motion.medium()),
+            enter = slideInVertically(Motion.sheetIn(state.animDur)) { it } + fadeIn(Motion.sheetIn(state.animDur)), exit = slideOutVertically(Motion.sheetOut(state.animDur)) { it } + fadeOut(Motion.sheetOut(state.animDur)),
         ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
         state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
         state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
     }
     }
 }
+
+private const val BACK_SHRINK = 0.06f
+private const val BACK_DIM = 0.5f
+private val SHEET_CORNER_MARGIN = 32.dp  // a little more than the sheet's rounded corner
+
+/** The screen under Now Playing while it opens: it steps back (smaller, rounder, dimmer) as the sheet rises, as the frozen copy does. */
+/** The sheet opens up from the mini player's bar: its edges move out to the screen's, the words stay where they are. */
+private fun Modifier.growFromBar(p: () -> Float): Modifier = graphicsLayer {
+    val f = p().coerceIn(0f, 1f)
+    val bar = 130.dp.toPx()  // the mini player's height plus the bottom inset
+    val inset = (1f - f) * 12.dp.toPx()
+    val top = (1f - f) * (size.height - bar)
+    val r = (1f - f) * 20.dp.toPx() + 0.01f
+    clip = true
+    shape = object : androidx.compose.ui.graphics.Shape {
+        override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density) =
+            androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(inset, top, size.width - inset, size.height - (1f - f) * 0f, androidx.compose.ui.geometry.CornerRadius(r)))
+    }
+}
+
+private fun Modifier.stepBack(state: AppState): Modifier = this
+    .graphicsLayer {
+        val p = if (state.animDepth) state.sheetP else 0f
+        if (p > 0f) {
+            val k = 1f - BACK_SHRINK * p
+            scaleX = k; scaleY = k
+        }
+    }
+    .drawWithContent {
+        val p = if (state.animDepth) state.sheetP else 0f
+        if (p > 0f) {
+            // Only what the sheet has not covered yet (it rises from the bottom): the rest is hidden, so it is not drawn. Drawn
+            // inside the shrunk layer, so the sheet's top edge on screen is converted to this layer's own coordinates.
+            val k = 1f - BACK_SHRINK * p
+            val bareScreen = (1f - state.sheetP) * size.height + SHEET_CORNER_MARGIN.toPx()
+            val bottom = ((bareScreen - size.height / 2f) / k + size.height / 2f).coerceIn(0f, size.height)
+            clipRect(0f, 0f, size.width, bottom) { this@drawWithContent.drawContent(); drawRect(androidx.compose.ui.graphics.Color.Black, alpha = BACK_DIM * p) }
+        } else drawContent()
+    }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
 const val MATH_DOC_VERSION = "MATH-1.31"

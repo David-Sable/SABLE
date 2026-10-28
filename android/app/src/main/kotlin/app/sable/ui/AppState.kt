@@ -39,8 +39,21 @@ class AppState {
     private val pending = ArrayList<(MediaController) -> Unit>()
 
     var playing by mutableStateOf(false)
-    /** The cover flies between the mini player and Now Playing; off for a swipe-down close, which already moves the sheet. */
-    var coverFlight by mutableStateOf(true)
+    // Debug switches for measuring the Now Playing animation piece by piece (`--es cmd animflag`); all off in normal use.
+    var debugNoFlight by mutableStateOf(false)
+    var debugNoCapture by mutableStateOf(false)
+    var debugNoRecord by mutableStateOf(false)
+    // Now Playing's sheet, live-tunable (`--es cmd animflag`): how far it is up (0 away .. 1 open; read in draw/graphics lambdas only),
+    // the speed factor of the sheet and the cover's flight (1 = as designed, 2 = twice as slow), and the pieces of the choreography.
+    var sheetP by androidx.compose.runtime.mutableFloatStateOf(0f)
+    var animDur by androidx.compose.runtime.mutableFloatStateOf(1.25f)
+    var animDepth by mutableStateOf(true)      // the screen behind steps back (smaller, dimmer) while the sheet is up
+    var animCorners by mutableStateOf(true)    // the sheet's top corners are round until it fills the screen
+    var animStagger by mutableStateOf(false)    // the words and controls arrive after the cover, following the sheet
+    var liveBeneath by mutableIntStateOf(0)    // screens other than Now Playing composed right now (0 = the frozen picture must stand in)
+    var animGrow by mutableStateOf(false)      // Now Playing grows out of the mini player's bar (its edges open up) instead of sliding up
+    var animSpring by mutableStateOf(false)    // the cover's flight settles on a spring instead of a timed curve
+    var debugCaptureDelayMs by mutableStateOf(0L)
     var currentQueueId by mutableStateOf<String?>(null)
     val currentTrackId: Long? get() = currentQueueId?.let(QueueId::trackId)
     var durationMs by mutableLongStateOf(0L)

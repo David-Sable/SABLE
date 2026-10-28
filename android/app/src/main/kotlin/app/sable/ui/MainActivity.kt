@@ -212,6 +212,21 @@ class MainActivity : ComponentActivity() {
                     Log.i(TAG, "purged $n entries")
                 }
                 "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
+                "animflag" -> {  // measuring the Now Playing animation: --es name noflight|nocapture|norecord|capdelay --ei value 0|1 (capdelay: ms)
+                    val v = intent.getIntExtra("value", 0)
+                    when (intent.getStringExtra("name")) {
+                        "noflight" -> state.debugNoFlight = v != 0
+                        "nocapture" -> state.debugNoCapture = v != 0
+                        "norecord" -> state.debugNoRecord = v != 0
+                        "capdelay" -> state.debugCaptureDelayMs = v.toLong()
+                        "dur" -> state.animDur = v / 100f          // percent: 100 as designed, 200 twice as slow
+                        "depth" -> state.animDepth = v != 0
+                        "corners" -> state.animCorners = v != 0
+                        "stagger" -> state.animStagger = v != 0
+                        "spring" -> state.animSpring = v != 0
+                        "grow" -> state.animGrow = v != 0
+                    }
+                }
                 "contour" -> PlaybackPrefs.update(applicationContext) { it.copy(contour = intent.getStringExtra("value") == "on") }
                 "mode" -> PlaybackPrefs.update(applicationContext) {
                     it.copy(mode = if (intent.getStringExtra("value") == "quiet") PlaybackPrefs.Mode.QUIET else PlaybackPrefs.Mode.STANDARD)

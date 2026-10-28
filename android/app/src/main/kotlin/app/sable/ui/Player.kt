@@ -41,6 +41,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +59,7 @@ import app.sable.ui.theme.SableColors
 import app.sable.ui.theme.SableType
 import app.sable.ui.theme.Space
 import app.sable.ui.theme.grain
+import app.sable.ui.theme.sheetSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -155,12 +159,18 @@ fun songSwipe(state: AppState): Modifier {
  * it with (previews, tests) and while [enabled] is false (after a swipe-down, which already moves the sheet).
  */
 @Composable
-fun Modifier.coverShared(shared: androidx.compose.animation.SharedTransitionScope?, visibility: androidx.compose.animation.AnimatedVisibilityScope?, enabled: Boolean): Modifier =
+fun Modifier.coverShared(
+    shared: androidx.compose.animation.SharedTransitionScope?, visibility: androidx.compose.animation.AnimatedVisibilityScope?, enabled: Boolean,
+    durationFactor: Float = 1f, spring: Boolean = false,
+): Modifier =
     if (shared == null || visibility == null || !enabled) this
     else with(shared) {
         this@coverShared.sharedElement(
             rememberSharedContentState("cover"), visibility,
-            boundsTransform = { _, _ -> androidx.compose.animation.core.tween(Motion.SLOW, easing = Motion.easing) },
+            boundsTransform = { _, _ ->
+                if (spring) androidx.compose.animation.core.spring(dampingRatio = 0.88f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow / durationFactor.coerceAtLeast(0.2f))
+                else Motion.sheetIn(durationFactor)
+            },
         )
     }
 
@@ -179,7 +189,7 @@ fun MiniPlayer(
         Row(Modifier.padding(horizontal = Space.l, vertical = Space.s), verticalAlignment = Alignment.CenterVertically) {
             // Cover and title swipe sideways to change songs; a tap anywhere still opens Now Playing.
             Row(Modifier.weight(1f).then(songSwipe(state)), verticalAlignment = Alignment.CenterVertically) {
-            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverShared(shared, visibility, state.coverFlight), px = 128)
+            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
                 Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(row?.let { clean(it.artist) } ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -213,15 +223,15 @@ fun NowPlayingScreen(
     // Swipe down to close: the screen follows the finger, then either slides away or settles back.
     val dragY = remember { Animatable(0f) }
     val closeAt = with(LocalDensity.current) { 140.dp.toPx() }
+    // The sheet follows the finger by its layout position (not a draw-only translation), so the cover knows where it is when the
+    // finger lets go and flies from there into the mini player (a shared element measures layout bounds).
     val swipe = Modifier
-        .graphicsLayer {
-            translationY = dragY.value
-        }
+        .offset { androidx.compose.ui.unit.IntOffset(0, dragY.value.roundToInt()) }
         .draggable(
             orientation = Orientation.Vertical,
             state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
             onDragStopped = { velocity ->
-                if (dragY.value > closeAt || velocity > 2500f) { state.coverFlight = false; state.pop() }
+                if (dragY.value > closeAt || velocity > 2500f) state.pop()
                 else dragY.animateTo(0f, settle, initialVelocity = velocity)
             },
         )
@@ -246,9 +256,23 @@ fun NowPlayingScreen(
         }
         return
     }
-    Column(Modifier.fillMaxSize().then(swipe).background(SableColors.base).grain()) {
+    // Where the sheet is (0 away .. 1 open), from its real place on screen, drag and slide included: the screen behind, the corners
+    // and the arrival of the words and controls all follow it, so they stay in step with the finger as well as with the animation.
+    val screenH = with(LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { state.sheetP = 0f } }
+    val corner = with(LocalDensity.current) { 28.dp.toPx() }
+    val rise = with(LocalDensity.current) { 18.dp.toPx() }
+    // 0 until the sheet is `from` of the way up, then 1 by the time it is open: later pieces arrive after the cover.
+    fun arrive(from: Float): Float = if (!state.animStagger) 1f else ((state.sheetP - from) / (1f - from)).coerceIn(0f, 1f)
+    Column(
+        Modifier.fillMaxSize().then(swipe)
+            .onPlaced { state.sheetP = (1f - it.positionInRoot().y / screenH).coerceIn(0f, 1f) }
+            .sheetSurface { if (state.animCorners) corner * (1f - state.sheetP) else 0f },
+    ) {
+        Box(Modifier.graphicsLayer { alpha = arrive(0.15f) }) {
         TopBar("NOW PLAYING", { state.pop() }) {
             IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
+        }
         }
         sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
         if (sleepOpen) SleepSheet { sleepOpen = false }
@@ -299,20 +323,24 @@ fun NowPlayingScreen(
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverShared(shared, visibility, state.coverFlight).then(artSwipe).scale(pressScale), px = 1024)
-                    Column(Modifier.weight(0.7f).padding(start = Space.m), verticalArrangement = Arrangement.Center, content = info)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring).then(artSwipe).scale(pressScale), px = 1024)
+                    Column(
+                        Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise },
+                        verticalArrangement = Arrangement.Center, content = info,
+                    )
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverShared(shared, visibility, state.coverFlight).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring).then(artSwipe).scale(pressScale), px = 1024)
                     Spacer(Modifier.height(gap))
-                    info()
+                    Column(Modifier.graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise }) { info() }  // arrives after the cover
                 }
             }
         }
         // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
         Row(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
+            Modifier.fillMaxWidth().graphicsLayer { val a = arrive(0.5f); alpha = a; translationY = (1f - a) * rise }
+                .navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
