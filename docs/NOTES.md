@@ -37,6 +37,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-27 (night) Advanced off/on check
+- David asked that Advanced off really means Sable's own choices and that turning it on restores his fine-tuning. Read the code: every playback path uses `Settings.effective()` (defaults for album mode, hold-under, contour, ceilings and calibration when off; only Normal/Quiet stays), the stored values are never cleared, and any settings change replans the queue (`GainController` collects `PlaybackPrefs.settings`). Added `AdvancedSettingsTest` (3 cases, pass). Not toggled live on the phone (no debug command; it would change his settings).
+
 ### 2026-10-27 (night) 0.19.0: one press is a hint (MATH-1.30); JBL and animation checks
 - David on the JBL: "sometimes I like a section really loud and then randomly I like it low". His session showed two songs turned up 8.5 dB each (volume back from -8.5 to max after turning down for loud songs) taught +2.00 each and the artist +1.16. Rule now: a song's first lesson applies at most 1 dB until the same direction repeats at least 12 h later (opposite direction cancels, no confirm); an artist's offset applies only after its events span two different days. Pre-1.30 state is trusted. `learnUpdateJson` returns `trackFirstDays`, `trackConfirmed`, `artistFirstDays`; the planner reads `trackConfirmed`, `artistFirstDays`. Why sheet shows "A first hint" and "Waits for another day". Engine tests 59 cases / 2811 assertions pass.
 - Verified live (JBL, Quiet): a test turn-down of "ghostin" taught -1.92 (stored hint), the next play showed `learned -1.00`; purged with `purgeplace` (only the last hour). Also `phone_bt_vs_pc.py`: 36 of 36 songs identical to the PC on the Bluetooth route (Quiet, -2.0 dBTP, contour 2.6 dB).
