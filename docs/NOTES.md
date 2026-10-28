@@ -36,6 +36,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-27 (late) 0.18.4: status bar icons in light mode
+- David noticed that with the phone in Light mode only the battery percentage showed on the album screen. Cause: `enableEdgeToEdge()` picks dark icons in Light mode, but the app is always true black. Fix: both bars use `SystemBarStyle.dark(TRANSPARENT)` (light icons always) in `MainActivity.onCreate`.
+- Checked on the phone in both modes (screenshots): clock, signal, battery all visible. Phone left in Dark mode as David had it.
+
 ### 2026-10-27 (PC and phone, night) The big blind-spot pass (0.18.3, MATH-1.29)
 - David asked for one big hunt, with the phone on the speaker and his permission to clear the test lessons after. Method and scripts are in `docs/TESTING.md` and `tools/validation/`. Engine: 58 unit cases; planner fuzz (7,000+ cases, malformed/extreme/NaN inputs); 12 audio-corruption files through the analyzer; properties on 300 real queues; all 34 albums as Play album. Phone: 54 real songs, 14 natural transitions, flow sets of 29 albums, generated known-loudness audio, 15 odd files, 13 volume-button scenarios, a 56-event key storm, Normal/Quiet toggling, sleep timer, deleted/corrupt files, screen-off press, repeat-one, memory.
 - **Identical on the phone and the PC:** gains of 54/54 real songs (0.01 dB), 14/14 natural transitions (8 with a seam adjustment), flow tracks of all 29 real albums, the generated album (Play album -2.14 dB Normal / -7.14 dB Quiet, FLOW when tapped), the 90 min 8 kHz file analysed in 77 s (PC 76 s), the native FLAC decoder against the WAV path on 17 odd files incl. a truncated one. Normal/Quiet toggling is exactly -4.92 / -9.92 dB. No crash, ANR or error in the key storm; memory flat.
