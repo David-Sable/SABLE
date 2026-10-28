@@ -40,6 +40,16 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-28 (PC) The Life of Pablo through the engine (no phone)
+- David bought Kanye West - The Life Of Pablo (20 FLAC, 16-bit/44.1k stereo); copied to ~/dev/sable-corpus/phone-extra/Kanye-TLOP (never committed). Results in %TEMP%/aud/tlop.jsonl.
+- **Engine reads it identically:** `--decide` on the decoded WAV and `--decide-native` (the engine's own FLAC path) give the same gain on all 20. No decode clipping, short-file or anchor-fallback flags.
+- **Levels:** -5.1 to -11.9 LUFS integrated, true peaks -0.3 to +2.3 dBTP (30 Hours); Normal gains -0.8 to -9.4 dB; song world delivers -12.4 to -15.1 LUFS at the anchor (the three short pieces I Love Kanye 45 s, Frank's Track 38 s and Siiiiiiiiilver Surffffeeeer 57 s sit highest, -12.4 to -13.3, the perceptual estimate lifting them; Wolves -12.5). Play album: one gain -6.7 dB, delivered -11.7 (No More Parties In LA) to -18.6 (the Siiiiiiiiilver interlude): the album's own contrast, as designed.
+- **JIT quick estimate vs full:** within -2.0 to +0.4 dB (always on the quiet side but Waves and Feedback); worst Siiiiiiiiilver Surffffeeeer in Quiet (-3.5 dB): only heard until the full analysis lands (a few seconds).
+- **Property checks** (`props_planner.py` on this album only, 400 queues, 90 % album runs): no violations.
+- **Learning:** Ultralight Beam opens 16 s at -18.7 LUFS (first 3 s about -24) against an anchor of -7.5: a press up in the intro is ignored by the section rule (MATH-1.27), a press down counts.
+- **Known limit confirmed, not changed:** no pair on this segued album flows (MATH §17.3): 14 of 20 tracks have a fade-out or more than 0.5 s of silence anywhere (the rule counts a pause in the middle too: Wolves has one at 4:07, Pt. 2 has 0.69 s), and Father Stretch My Hands -> Pt. 2 misses by 0.19 s. So tapping a song gives each track its own gain; seams are smoothed by only 0.5 dB. Idea (needs David and a MATH version): record leading/trailing silence separately in the analysis (a rescan, ~40 min) so segued tracks flow.
+- Not tested: the phone (David is listening elsewhere): next time play the album on the phone in both worlds and compare the log gains to this table.
+
 ### 2026-10-28 (PC, night) 0.21.0: the cover grows out of the mini player
 - Compose `SharedTransitionLayout` around the app root (`SableApp`); `Modifier.coverShared(...)` (Player.kt) puts the same shared element key on the mini player's 44 dp cover and on Now Playing's cover (both layouts); the mini's `AnimatedVisibility` and the route's `AnimatedContent` give the two visibility scopes. `AppState.coverFlight` is switched off by a swipe-down close (the sheet already moves with the finger; a flight would jump from the undragged position) and back on 800 ms after the sheet is gone. With no mini player (first play from a list) there is nothing to share with and the cover just appears with the sheet.
 - Verified by recording on the phone (0.5x animator scale): open = the thumbnail grows to the full cover while the sheet rises; arrow close = the cover shrinks back into the bar while the sheet sinks; swipe close = as before. gfxinfo over 3 open/close cycles: 163 frames, 4.3 % janky, p90 19 ms, 0 missed vsync (similar to the burst gaps before the change).
