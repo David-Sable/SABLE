@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd forgetsong|forgetartist --es match "<title part>|<artist>"   (every place; logs what went)
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd scoreboard [--ei weeks N]   (is learning working? per place and week, tag SablePlay "SCOREBOARD"; survives forget)
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd next | prev | pause | play | seek --el ms N
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd mode --es value quiet|standard
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd open --es screen nowplaying|queue|settings|library|why
@@ -211,6 +212,9 @@ class MainActivity : ComponentActivity() {
                         .purgeRecent(intent.getStringExtra("place") ?: "speaker", intent.getIntExtra("hours", 3).toDouble())
                     Log.i(TAG, "purged $n entries")
                 }
+                "scoreboard" -> app.sable.playback.LearningScoreboard(
+                    app.sable.playback.PrefsCounterStore(applicationContext.getSharedPreferences(app.sable.playback.LearningScoreboard.PREFS, android.content.Context.MODE_PRIVATE)),
+                ).report(intent.getIntExtra("weeks", 8)).forEach { Log.i("SablePlay", it) }
                 "forget" -> app.sable.playback.ListenerLearning(applicationContext, android.os.Handler(mainLooper)).resetAll().also { Log.i(TAG, "learning reset") }
                 "animflag" -> {  // measuring the Now Playing animation: --es name noflight|nocapture|norecord|capdelay --ei value 0|1 (capdelay: ms)
                     val v = intent.getIntExtra("value", 0)

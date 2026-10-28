@@ -150,14 +150,23 @@ class GainController(
         // A gapless next song reaches the sink before it is the player's current item: it starts at 0.
         val pos = if (player.currentMediaItem?.mediaId == id) player.currentPosition else 0L
         val source = lastPlan[id]?.optString("source")
-        val off = when {
-            id in resumedIds -> "picked up where you left off"
-            pos > LEARN_START_MS -> "started at ${pos / 1000} s"
-            source != "full" -> "playing with the ${source ?: "provisional"} gain"
+        val offKind = when {
+            id in resumedIds -> "resumed"
+            pos > LEARN_START_MS -> "midsong"
+            source != "full" -> "provisional"
+            else -> null
+        }
+        val off = when (offKind) {
+            "resumed" -> "picked up where you left off"
+            "midsong" -> "started at ${pos / 1000} s"
+            "provisional" -> "playing with the ${source ?: "provisional"} gain"
             else -> null
         }
         learning.onItemStart(t.takeIf { off == null })
-        if (off != null && t != null) PlaybackDiag.log("LEARN off for ${t.displayName}: $off")
+        if (off != null && t != null) {
+            PlaybackDiag.log("LEARN off for ${t.displayName}: $off")
+            learning.onWindowOff(offKind ?: "provisional")  // the scoreboard counts plays that could not teach
+        }
     }
 
     /** MATH-1.31: how much louder the playing song could still go before its peak cap holds it (dB), from the plan that started it. */

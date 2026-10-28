@@ -24,6 +24,11 @@ import kotlin.math.roundToInt
 class ListenerLearning(private val context: Context, private val main: Handler) {
     private val prefs = context.getSharedPreferences("sable_learning", Context.MODE_PRIVATE)
     private val audio = context.getSystemService(AudioManager::class.java)
+    private val board = LearningScoreboard(PrefsCounterStore(context.getSharedPreferences(LearningScoreboard.PREFS, Context.MODE_PRIVATE)))
+
+    /** The scoreboard's lines (debug command `scoreboard`). Counting never touches a gain and never throws into playback: every call below is guarded. */
+    fun scoreboardReport(): List<String> = board.report()
+    private fun tally(block: () -> Unit) { runCatching(block) }
 
     data class Offsets(
         val trackDb: Double, val trackDays: Double, val artistDb: Double, val artistDays: Double, val artistTracks: Int,
@@ -141,6 +146,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private var routeChangedAt = -1_000_000L
     private var startIndex = 0
     private var firstPressPosMs = -1L  // playback position at the window's first press (§19.1, MATH-1.27)
+    private var knownAtStart = false   // the song already had a lesson at this place when the window opened (scoreboard)
+    private var lastPlayKey: String? = null
+    private var lastPlayAt = 0L
+    private var lastOutsideAt = -1_000_000L
     private var pressedWhilePaused = false
     private var sawMute = false
     private val close = Runnable { closeWindow() }
@@ -232,14 +241,25 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         sawMute = false
         main.postDelayed(close, WINDOW_MS)
         main.postDelayed(poll, POLL_MS)
+        tally {
+            knownAtStart = offsets(t, place).trackTaught
+            val key = trackKey(t)
+            // Two events can open a window for one play (a repeat reported twice): count it once.
+            if (!(key == lastPlayKey && startAt - lastPlayAt < SAME_PLAY_MS)) board.played(place.id, place.label, knownAtStart)
+            lastPlayKey = key
+            lastPlayAt = startAt
+        }
     }
+
+    /** A play that cannot teach (put back where it was left, started mid-song, provisional gain): "resumed", "midsong" or "provisional". */
+    fun onWindowOff(kind: String) = tally { currentPlace().let { board.off(it.id, it.label, kind) } }
 
     private fun onVolumeMaybeChanged() {
         val idx = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         if (idx == lastIndex) return
         lastIndex = idx
         val now = SystemClock.elapsedRealtime()
-        if (track == null || now - startAt > WINDOW_MS) return
+        if (track == null || now - startAt > WINDOW_MS) { outsideTouch(now); return }
         Log.i(TAG, "volume index $idx at ${(now - startAt) / 1000.0} s")
         val (playing, posMs) = playback()
         if (lastChangeAt == 0L) firstPressPosMs = posMs
@@ -250,6 +270,14 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         main.postDelayed(close, maxOf(startAt + WINDOW_MS, now + UNDO_MS) - now)
     }
 
+    /** A volume change while no window is open: one touch is a run of presses less than 5 s apart; a change right after a new output is the output's own level. */
+    private fun outsideTouch(now: Long) {
+        val gap = now - lastOutsideAt
+        lastOutsideAt = now
+        if (gap < OUTSIDE_GAP_MS || now - routeChangedAt < ROUTE_QUIET_MS) return
+        tally { currentPlace().let { board.outside(it.id, it.label) } }
+    }
+
     private fun closeWindow() {
         main.removeCallbacks(close)
         main.removeCallbacks(poll)
@@ -258,9 +286,10 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         if (lastChangeAt == 0L) return
         val delta = volumeDb() - startDb  // presses in one window accumulate; an undone press nets to ~0
         note("LEARN window ${t.displayName} at ${place.label}: volume %.2f -> %.2f dB".format(startDb, startDb + delta))
-        if (abs(delta) < MIN_EVENT_DB) return
-        if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { note("LEARN ignored (output changed) ${t.displayName}"); return }
-        if (pressedWhilePaused) { note("LEARN ignored (paused) ${t.displayName}"); return }
+        if (abs(delta) < MIN_EVENT_DB) { tally { board.undone(place.id, place.label) }; return }
+        tally { board.moved(place.id, place.label, knownAtStart, up = delta > 0) }
+        if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { tally { board.outcome(place.id, place.label, "ign_route") }; note("LEARN ignored (output changed) ${t.displayName}"); return }
+        if (pressedWhilePaused) { tally { board.outcome(place.id, place.label, "ign_paused") }; note("LEARN ignored (paused) ${t.displayName}"); return }
         commit(t, delta, place)
     }
 
@@ -289,8 +318,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             heard?.let { input.put("heardLufs", it).put("anchorLufs", sh.anchorLufs) }
         }
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
-        if (out.has("error")) return
+        if (out.has("error")) { tally { board.outcome(p.id, p.label, "ign_other") }; return }
         if (out.has("ignored")) {
+            tally { board.outcome(p.id, p.label, "ign_" + out.getString("ignored")) }
             if (out.getString("ignored") == "jump") prefs.edit().putString("${p.id}|jumpDays", now.toString()).putString("${p.id}|jumpEndDb", (startDb + delta).toString()).apply()
             note("LEARN ignored (${out.getString("ignored")}) ${t.displayName}: volume %+.1f dB".format(delta) +
                 (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: "") + (room?.let { ", room under the cap %.1f dB".format(it) } ?: ""))
@@ -308,6 +338,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")}, counted %+.1f dB -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")) + (room?.let { ", room %.1f dB".format(it) } ?: ""))
+        tally { board.outcome(p.id, p.label, LearningScoreboard.TAUGHT) }
         onLearned(t)
     }
 
@@ -349,6 +380,8 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         const val UNDO_MS = 3_000L        // a press undone within 3 s cancels
         const val ROUTE_QUIET_MS = 10_000L
         const val POLL_MS = 250L
+        const val SAME_PLAY_MS = 2_000L   // scoreboard: a second window for the same song this soon is the same play
+        const val OUTSIDE_GAP_MS = 5_000L // scoreboard: presses closer than this are one touch
         const val MIN_EVENT_DB = 0.5      // below one volume step's worth: not a deliberate correction
         fun nowDays() = System.currentTimeMillis() / 86_400_000.0
 
