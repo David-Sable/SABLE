@@ -44,7 +44,7 @@ fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
                 Pill("Play next", selected = true) { state.playNext(r); onDismiss() }
                 Pill("Add to queue", selected = false) { state.addToQueue(r); onDismiss() }
-                Pill("Go to album", selected = false) { onDismiss(); state.go(Route.Album(albumKey(r))) }
+                if (r.album.isNotBlank()) Pill("Go to album", selected = false) { onDismiss(); state.go(Route.Album(albumKey(r))) }
                 Pill("Why", selected = false) { onDismiss(); state.whyTrack = r.mediaId }
             }
             Text("Added songs play in their own world, balanced on their own.", style = SableType.caption, color = SableColors.textTertiary,

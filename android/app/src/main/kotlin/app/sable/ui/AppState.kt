@@ -131,7 +131,8 @@ class AppState {
     }
 }
 
-fun albumKey(r: LibraryRow) = "${r.albumId}|${r.albumArtist}"
+/** A song with no album tag is a single, its own entry: MediaStore files all such songs of a folder under one fake album, which would be shown (and played) as a record that does not exist. */
+fun albumKey(r: LibraryRow) = if (r.album.isBlank()) "single|${r.mediaId}" else "${r.albumId}|${r.albumArtist}"
 /** MediaStore writes "<unknown>" for missing tags. */
 fun clean(tag: String) = if (tag == "<unknown>") "" else tag
 /** "Artist · Album", without a dangling dot when the song has no album. */

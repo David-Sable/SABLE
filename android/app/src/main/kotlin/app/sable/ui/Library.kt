@@ -48,11 +48,12 @@ import app.sable.ui.theme.Space
 data class AlbumGroup(val key: String, val title: String, val artist: String, val tracks: List<LibraryRow>) {
     val albumId get() = tracks.first().albumId
     val coverUri get() = tracks.first().uri
+    val single get() = key.startsWith("single|")
 }
 
 fun albumsOf(rows: List<LibraryRow>): List<AlbumGroup> = rows.groupBy(::albumKey).map { (k, t) ->
     val sorted = t.sortedWith(compareBy({ it.disc }, { it.track }, { titleOf(it).lowercase() }))
-    AlbumGroup(k, clean(t.first().album).ifBlank { "Unknown album" }, artistOf(t.first()), sorted)
+    AlbumGroup(k, if (k.startsWith("single|")) titleOf(t.first()) else clean(t.first().album).ifBlank { "Unknown album" }, artistOf(t.first()), sorted)
 }.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
 
 // ---------------- Shared pieces ----------------
@@ -202,7 +203,7 @@ private fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
-        Text(a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(if (a.single) "${a.artist} · Single" else a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -226,16 +227,16 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
                 AlbumArt(album.albumId, album.coverUri, album.title, 300.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 1024)
                 Text(album.title, style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(top = Space.xl))
                 Text(album.artist, style = SableType.headline, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.xs))
-                Text("${album.tracks.size} songs · ${mmss(album.tracks.sumOf { it.durationMs })}", style = SableType.caption, color = SableColors.textTertiary,
+                Text(if (album.single) "Single · ${mmss(album.tracks.sumOf { it.durationMs })}" else "${album.tracks.size} songs · ${mmss(album.tracks.sumOf { it.durationMs })}", style = SableType.caption, color = SableColors.textTertiary,
                     modifier = Modifier.padding(top = Space.xs))
                 Row(Modifier.padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                    Pill("Play album", selected = true) { state.playAlbum(album.tracks); state.go(Route.NowPlaying) }
-                    Pill("Shuffle songs", selected = false) {
+                    Pill(if (album.single) "Play" else "Play album", selected = true) { if (album.single) state.playSongWorld(album.tracks, 0) else state.playAlbum(album.tracks); state.go(Route.NowPlaying) }
+                    if (!album.single) Pill("Shuffle songs", selected = false) {
                         val shuffled = album.tracks.shuffled()
                         state.playSongWorld(shuffled, 0); state.go(Route.NowPlaying)
                     }
                 }
-                Text(
+                if (!album.single) Text(
                     "Play album keeps the artist's contrast between songs: one gain for the whole album. Tap a song to balance it, and what follows, each in its own world.",
                     style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m, bottom = Space.s),
                 )

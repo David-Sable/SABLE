@@ -39,7 +39,7 @@ import app.sable.ui.theme.Space
 
 @Composable
 fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
-    val index = remember(rows) { SearchIndex(rows, albumsOf(rows)) }
+    val index = remember(rows) { SearchIndex(rows, albumsOf(rows).filter { !it.single }) }
     val query = state.searchQuery
     val results = remember(index, query) { index.search(query) }
     val focus = remember { FocusRequester() }
