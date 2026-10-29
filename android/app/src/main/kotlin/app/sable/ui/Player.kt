@@ -375,7 +375,7 @@ private fun MoodCaption(state: AppState, mood: SongMood) {
             delay(500 - state.position() % 500 + 5)
         }
     }
-    Text(mood.caption(i), style = SableType.caption, color = mood.tint(i).copy(alpha = 0.9f))
+    Text(mood.caption(i), style = SableType.caption, color = if (SableColors.light) SableColors.textSecondary else mood.tint(i).copy(alpha = 0.9f))  // the ivory tint is unreadable on paper
 }
 
 @Composable
