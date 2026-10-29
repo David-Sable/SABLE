@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
@@ -71,13 +72,22 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             drawLine(c, Offset(w * 0.75f, h * 0.25f), Offset(w * 0.25f, h * 0.75f), sw, StrokeCap.Round)
         }
         Glyph.REPEAT, Glyph.REPEAT_ONE -> {  // a loop with an arrow at the end of each run (top right, bottom left); REPEAT_ONE adds a 1 in the middle
-            drawRoundRect(c, Offset(w * 0.14f, h * 0.26f), Size(w * 0.72f, h * 0.48f), CornerRadius(w * 0.14f), style = stroke)
-            val a = w * 0.09f
-            drawPath(Path().apply { moveTo(w * 0.62f - a, h * 0.26f - a); lineTo(w * 0.62f, h * 0.26f); lineTo(w * 0.62f - a, h * 0.26f + a) }, c, style = stroke)
-            drawPath(Path().apply { moveTo(w * 0.38f + a, h * 0.74f - a); lineTo(w * 0.38f, h * 0.74f); lineTo(w * 0.38f + a, h * 0.74f + a) }, c, style = stroke)
-            if (g == Glyph.REPEAT_ONE) {  // a plain "1": straight stem with a short flag, clear of the loop and the arrowheads
-                drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.5f, h * 0.60f), sw, StrokeCap.Round)
-                drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.44f, h * 0.45f), sw, StrokeCap.Round)
+            // two open runs, each ending in an arrowhead at a corner (top right, bottom left)
+            val l = w * 0.07f; val r = w * 0.93f; val t = h * 0.20f; val b = h * 0.80f; val k = w * 0.15f
+            val join = StrokeJoin.Round
+            val s = Stroke(width = sw, cap = StrokeCap.Round, join = join)
+            drawPath(Path().apply {
+                moveTo(l, b - k); lineTo(l, t + k); quadraticTo(l, t, l + k, t); lineTo(r - k, t)
+            }, c, style = s)
+            drawPath(Path().apply {
+                moveTo(r, t + k); lineTo(r, b - k); quadraticTo(r, b, r - k, b); lineTo(l + k, b)
+            }, c, style = s)
+            val a = w * 0.11f
+            drawPath(Path().apply { moveTo(r - k - a, t - a); lineTo(r - k + a * 0.4f, t); lineTo(r - k - a, t + a) }, c, style = s)
+            drawPath(Path().apply { moveTo(l + k + a, b - a); lineTo(l + k - a * 0.4f, b); lineTo(l + k + a, b + a) }, c, style = s)
+            if (g == Glyph.REPEAT_ONE) {  // a plain "1" in the middle of the loop: tall stem with a short flag
+                drawLine(c, Offset(w * 0.52f, h * 0.35f), Offset(w * 0.52f, h * 0.65f), sw, StrokeCap.Round)
+                drawLine(c, Offset(w * 0.52f, h * 0.35f), Offset(w * 0.43f, h * 0.42f), sw, StrokeCap.Round)
             }
         }
         Glyph.SETTINGS ->for ((y, x) in listOf(0.28f to 0.65f, 0.5f to 0.35f, 0.72f to 0.58f)) {
