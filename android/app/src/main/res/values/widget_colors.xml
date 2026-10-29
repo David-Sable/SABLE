@@ -8,4 +8,7 @@
     <color name="w_accent">#FF2B2B2B</color>
     <color name="w_on_accent">#FFF2F2F2</color>
     <color name="w_art">#FFEBEBEB</color>
+    <!-- Text on a cover under the dark shade (2x2): the same in light and dark. -->
+    <color name="w_on_art">#FFF5F1EA</color>
+    <color name="w_on_art2">#CCF5F1EA</color>
 </resources>

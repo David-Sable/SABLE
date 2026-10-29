@@ -133,9 +133,10 @@ class PlaybackService : MediaSessionService() {
             if (item == null) { SableWidget.show(this@PlaybackService, null); return@launch }
             val m = item.mediaMetadata
             val t = QueueId.trackId(item.mediaId)?.let { SableDatabase.get(this@PlaybackService).library().track(it) }
-            val art = t?.let { runCatching { app.sable.ui.ArtCache.load(this@PlaybackService, it.albumId, it.uri, 192) }.getOrNull() }
+            // 320 px: sharp at the 4x2 cover (~120 dp at 2.8x) and small enough for the widget's binder limit.
+            val art = t?.let { runCatching { app.sable.ui.ArtCache.load(this@PlaybackService, it.albumId, it.uri, 320) }.getOrNull() }
             SableWidget.show(this@PlaybackService, SableWidget.State(
-                m.title?.toString().orEmpty(), m.artist?.toString().orEmpty(), playing,
+                m.title?.toString().orEmpty(), m.artist?.toString().orEmpty(), m.albumTitle?.toString().orEmpty(), playing,
                 art?.asAndroidBitmap(),
             ))
         }

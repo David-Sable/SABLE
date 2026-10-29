@@ -7,7 +7,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.os.Bundle
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.widget.RemoteViews
@@ -32,10 +34,15 @@ class SableWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         // Placed (or the launcher asked): show the last state, or the idle card until something plays.
-        manager.updateAppWidget(ids, views(context, last))
+        for (id in ids) manager.updateAppWidget(id, views(context, last, manager, id))
     }
 
-    data class State(val title: String, val artist: String, val playing: Boolean, val art: Bitmap?)
+    /** Resized: lay it out again for the new size (the cover follows the card's height). */
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        manager.updateAppWidget(id, views(context, last, manager, id))
+    }
+
+    data class State(val title: String, val artist: String, val album: String, val playing: Boolean, val art: Bitmap?)
 
     companion object {
         @Volatile private var last: State? = null
@@ -50,18 +57,56 @@ class SableWidget : AppWidgetProvider() {
             last = state
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, SableWidget::class.java))
-            if (ids.isNotEmpty()) manager.updateAppWidget(ids, views(context, state))
+            for (id in ids) manager.updateAppWidget(id, views(context, state, manager, id))
         }
 
-        /** One row tall (4x1) gets the compact layout, two rows the roomy one (title on two lines, controls underneath). */
-        private fun views(context: Context, s: State?) = RemoteViews(mapOf(
-            SizeF(250f, 56f) to layout(context, s, R.layout.widget_player),
-            SizeF(250f, 110f) to layout(context, s, R.layout.widget_player_large),
-        ))
+        /**
+         * One layout per size the launcher may show (portrait and landscape), chosen and sized for that size:
+         * under 100 dp tall the one-row card; narrow (2x2) the full-bleed cover; under 170 dp the cover beside the text
+         * with the controls under the text; taller, the cover and text on top and the controls across the bottom.
+         */
+        private fun views(context: Context, s: State?, manager: AppWidgetManager, id: Int): RemoteViews {
+            val sizes = manager.getAppWidgetOptions(id)
+                .getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
+                ?.takeIf { it.isNotEmpty() } ?: listOf(SizeF(250f, 56f), SizeF(250f, 110f), SizeF(250f, 180f), SizeF(150f, 150f))
+            return RemoteViews(sizes.associateWith { layout(context, s, it) })
+        }
+
+        private fun layout(context: Context, s: State?, size: SizeF): RemoteViews {
+            val w = size.width
+            val h = size.height
+            val layoutId = when {
+                h < 100f -> R.layout.widget_player
+                w < 260f -> R.layout.widget_player_square
+                h < 170f -> R.layout.widget_player_large
+                else -> R.layout.widget_player_tall
+            }
+            return layout(context, s, layoutId).apply {
+                // The cover as big as the card allows: the card's height less padding (and the control row when it sits below).
+                val cover = when (layoutId) {
+                    R.layout.widget_player_large -> h - 28f
+                    R.layout.widget_player_tall -> minOf(h - 32f - 68f, w * 0.42f)
+                    else -> 0f
+                }
+                if (cover > 0f) {
+                    setViewLayoutWidth(R.id.widget_art_box, cover, TypedValue.COMPLEX_UNIT_DIP)
+                    setViewLayoutHeight(R.id.widget_art_box, cover, TypedValue.COMPLEX_UNIT_DIP)
+                }
+                if (layoutId == R.layout.widget_player_square) {
+                    // On a cover the text sits on the dark shade; without one, the shade goes and the text takes the theme's colours.
+                    val onArt = s?.art != null
+                    setViewVisibility(R.id.widget_shade, if (onArt) View.VISIBLE else View.GONE)
+                    setColorStateList(R.id.widget_title, "setTextColor", if (onArt) R.color.w_on_art else R.color.w_text)
+                    setColorStateList(R.id.widget_artist, "setTextColor", if (onArt) R.color.w_on_art2 else R.color.w_text2)
+                }
+            }
+        }
 
         private fun layout(context: Context, s: State?, layoutId: Int) = RemoteViews(context.packageName, layoutId).apply {
             setTextViewText(R.id.widget_title, s?.title ?: context.getString(R.string.widget_idle_title))
             setTextViewText(R.id.widget_artist, s?.artist ?: context.getString(R.string.widget_idle_artist))
+            setTextViewText(R.id.widget_album, s?.album.orEmpty())
+            setViewVisibility(R.id.widget_album, if (s?.album.isNullOrBlank()) View.GONE else View.VISIBLE)
             // No cover (idle, or a song without art): the lion on the quiet tile, tinted by the theme (the cover view stays empty).
             if (s?.art != null) setImageViewBitmap(R.id.widget_art, s.art) else setImageViewBitmap(R.id.widget_art, null)
             setViewVisibility(R.id.widget_lion, if (s?.art != null) View.GONE else View.VISIBLE)
