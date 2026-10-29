@@ -92,8 +92,14 @@ object Motion {
     /** Now Playing's sheet and the cover's flight: durations in ms (x the live tuning factor), one easing so they move as one. */
     const val SHEET_IN = 520
     const val SHEET_OUT = 380
-    fun <T> sheetIn(m: Float) = tween<T>((SHEET_IN * m).toInt().coerceAtLeast(80), easing = easing)
-    fun <T> sheetOut(m: Float) = tween<T>((SHEET_OUT * m).toInt().coerceAtLeast(80), easing = easing)
+    /** Arriving: moves at once (15% of the way in the first 5% of the time) and lands with a shorter tail than the shared easing,
+     *  whose slow start hid the sheet behind the fading mini player for the first frames (David, 2026-10-29). */
+    val enterEasing = CubicBezierEasing(0.1f, 0.3f, 0.3f, 1f)
+    fun <T> sheetIn(m: Float) = tween<T>((SHEET_IN * m).toInt().coerceAtLeast(80), easing = enterEasing)
+    /** Leaving starts at speed (a flick is already moving) and settles: the shared easing starts from rest, so after a fast
+     *  swipe down the sheet stopped for a few frames before it went (David, 2026-10-29). */
+    val exitEasing = CubicBezierEasing(0f, 0f, 0.2f, 1f)
+    fun <T> sheetOut(m: Float) = tween<T>((SHEET_OUT * m).toInt().coerceAtLeast(80), easing = exitEasing)
 }
 
 @Composable

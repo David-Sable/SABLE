@@ -36,6 +36,8 @@ class AppState {
     var playlistTrack by mutableStateOf<Long?>(null)
     /** The sleep timer sheet (opened from Now Playing, drawn over everything by SableApp). */
     var sleepSheet by mutableStateOf(false)
+    /** Now Playing is being drawn once, invisibly, to have its pictures ready before its first opening (SableApp). */
+    var npPrewarm by mutableStateOf(false)
     var whyTrack by mutableStateOf<Long?>(null)
     var searchQuery by mutableStateOf("")  // kept while browsing from a result and back
     var menuTrack by mutableStateOf<Long?>(null)  // the long-pressed song (SongMenu)
@@ -45,9 +47,9 @@ class AppState {
 
     var playing by mutableStateOf(false)
     // Debug switches for measuring the Now Playing animation piece by piece (`--es cmd animflag`); all off in normal use.
-    // The cover rides inside the sheet: flying it on its own path to and from the mini player read as a second cover behind the
-    // sheet and settled after the sheet had stopped (David, 2026-10-29, at 1x). `animflag noflight 0` brings the flight back.
-    var debugNoFlight by mutableStateOf(true)
+    // The cover flies from the mini player into Now Playing and back into the corner: the default and only motion (David, 2026-10-29:
+    // "that was premium feeling"). `animflag noflight 1` turns it off for measuring.
+    var debugNoFlight by mutableStateOf(false)
     var debugNoCapture by mutableStateOf(false)
     var debugNoRecord by mutableStateOf(false)
     // Now Playing's sheet, live-tunable (`--es cmd animflag`): how far it is up (0 away .. 1 open; read in draw/graphics lambdas only),

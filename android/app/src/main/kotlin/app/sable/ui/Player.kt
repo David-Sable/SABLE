@@ -185,9 +185,12 @@ fun Modifier.coverShared(
     else with(shared) {
         this@coverShared.sharedElement(
             rememberSharedContentState("cover"), visibility,
+            // Opening and closing use the sheet's own timing, so the cover lands in the corner as the sheet leaves (on the opening
+            // timing it outlived the sheet and floated alone over the page).
             boundsTransform = { _, _ ->
                 if (spring) androidx.compose.animation.core.spring(dampingRatio = 0.88f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow / durationFactor.coerceAtLeast(0.2f))
-                else Motion.sheetIn(durationFactor)
+                else if (visibility.transition.targetState == androidx.compose.animation.EnterExitState.Visible) Motion.sheetIn(durationFactor)
+                else Motion.sheetOut(durationFactor)
             },
         )
     }
@@ -285,13 +288,12 @@ fun NowPlayingScreen(
     // Where the sheet is (0 away .. 1 open), from its real place on screen, drag and slide included: the screen behind, the corners
     // and the arrival of the words and controls all follow it, so they stay in step with the finger as well as with the animation.
     val screenH = with(LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
-    // The sheet is kept while closed (SableApp): once it is out of sight, forget the swipe and any open sheet of its own.
+    // The sheet is kept while closed (SableApp). A swipe's offset is cleared when it opens again (it starts below the screen, so
+    // nothing jumps): clearing it as soon as the sheet's top left the screen pulled the sheet back into view mid-slide, where it
+    // showed as a faded copy sliding out a second time (David, 2026-10-29).
     LaunchedEffect(Unit) {
         snapshotFlow { onScreen.value }.collectLatest { open ->
-            if (open) return@collectLatest
-            state.sleepSheet = false
-            snapshotFlow { state.sheetP }.first { it <= 0.001f }
-            dragY.snapTo(0f)
+            if (open) dragY.snapTo(0f) else state.sleepSheet = false
         }
     }
     val corner = with(LocalDensity.current) { 28.dp.toPx() }
@@ -300,7 +302,7 @@ fun NowPlayingScreen(
     fun arrive(from: Float): Float = if (!state.animStagger) 1f else ((state.sheetP - from) / (1f - from)).coerceIn(0f, 1f)
     Column(
         Modifier.fillMaxSize().then(swipe)
-            .onPlaced { state.sheetP = (1f - it.positionInRoot().y / screenH).coerceIn(0f, 1f) }
+            .onPlaced { if (!state.npPrewarm) state.sheetP = (1f - it.positionInRoot().y / screenH).coerceIn(0f, 1f) }
             .sheetSurface { if (state.animCorners) corner * (1f - state.sheetP) else 0f },
     ) {
         Box(Modifier.graphicsLayer { alpha = arrive(0.15f) }) {

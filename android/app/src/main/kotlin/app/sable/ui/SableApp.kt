@@ -9,6 +9,8 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.layout.layout
 import kotlin.math.roundToInt
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
@@ -159,10 +161,19 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         val sheet by npTransition.animateFloat(
             transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "sheet",
         ) { if (it == EnterExitState.Visible) 1f else 0f }
+        // The first opening after a start (or a new song) drew the sheet for the first time: its cover upload and first draw stalled
+        // about five frames while the mini player's cover had already gone. So it is drawn once, invisibly, as soon as a song is there.
+        LaunchedEffect(current?.mediaId) {
+            if (current == null || npOpen) return@LaunchedEffect
+            state.npPrewarm = true
+            repeat(3) { withFrameNanos { } }
+            state.npPrewarm = false
+        }
         if (current != null) Box(
-            Modifier.fillMaxSize()
-                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { p.place(0, ((1f - sheet) * p.height).roundToInt()) } }
-                .drawWithContent { if (sheet > 0f) drawContent() },
+            Modifier.fillMaxSize().zIndex(2f)  // over the mini player: the sheet rises out of it instead of behind it
+                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { p.place(0, if (state.npPrewarm && !npOpen) 0 else ((1f - sheet) * p.height).roundToInt()) } }
+                .graphicsLayer { alpha = if (state.npPrewarm && !npOpen) 0.004f else 1f }
+                .drawWithContent { if (sheet > 0f || state.npPrewarm) drawContent() },
         ) {
             saved.SaveableStateProvider(Route.NowPlaying.toString()) {
                 val onScreen = rememberUpdatedState(npOpen)
@@ -171,23 +182,24 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 }
             }
         }
-        AnimatedContent(aboveRoute, transitionSpec = spec, label = "above") { r -> screen(r, false) }
+        AnimatedContent(aboveRoute, transitionSpec = spec, label = "above", modifier = Modifier.zIndex(3f)) { r -> screen(r, false) }
         AnimatedVisibility(
-            showMini, Modifier.align(Alignment.BottomCenter),
+            showMini, Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f),  // under the sheet, over screens opened from it
             // A plain fade: sliding up while the sheet slides down put two things moving against each other at the bottom of the screen.
             enter = fadeIn(Motion.sheetIn(state.animDur)), exit = fadeOut(Motion.sheetOut(state.animDur)),
         ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
-        state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
-        state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
-        state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
-        if (state.sleepSheet) SleepSheet { state.sleepSheet = false }
+        Box(Modifier.zIndex(5f)) {  // the sheets cover everything, Now Playing included
+            state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
+            state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
+            state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
+            if (state.sleepSheet) SleepSheet { state.sleepSheet = false }
+        }
     }
     }
 }
 
 private const val BACK_SHRINK = 0f  // the screen behind only dims: shrinking it as the sheet rose read as bouncing (David, 2026-10-29)
 private const val BACK_DIM = 0.5f
-private val SHEET_CORNER_MARGIN = 32.dp  // a little more than the sheet's rounded corner
 
 /** The screen under Now Playing while it opens: it steps back (smaller and dimmer) as the sheet rises. */
 private fun Modifier.stepBack(state: AppState): Modifier = this
@@ -200,14 +212,11 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
     .drawWithContent {
         val p = if (state.animDepth) state.sheetP else 0f
-        if (p > 0f) {
-            // Only what the sheet has not covered yet (it rises from the bottom): the rest is hidden, so it is not drawn. Drawn
-            // inside the shrunk layer, so the sheet's top edge on screen is converted to this layer's own coordinates.
-            val k = 1f - BACK_SHRINK * p
-            val bareScreen = (1f - state.sheetP) * size.height + SHEET_CORNER_MARGIN.toPx()
-            val bottom = ((bareScreen - size.height / 2f) / k + size.height / 2f).coerceIn(0f, size.height)
-            clipRect(0f, 0f, size.width, bottom) { this@drawWithContent.drawContent(); drawRect(androidx.compose.ui.graphics.Color.Black, alpha = BACK_DIM * p) }
-        } else drawContent()
+        // Fully under the sheet: not drawn at all. While the sheet moves the whole screen is drawn: clipping it to the strip above the
+        // sheet left a black band under a fast swipe, because the sheet's position arrives a frame after it moved (David, 2026-10-29).
+        if (state.sheetP >= 0.999f) return@drawWithContent
+        drawContent()
+        if (p > 0f) drawRect(androidx.compose.ui.graphics.Color.Black, alpha = BACK_DIM * p)
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
