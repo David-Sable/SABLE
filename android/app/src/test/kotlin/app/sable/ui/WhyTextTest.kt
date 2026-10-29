@@ -34,4 +34,17 @@ class WhyTextTest {
             WhyText.sentence("steady", -4.2, listOf("ALBUM" to -4.2, "FLOW" to 0.0), "full", albumRun = true),
         )
     }
+
+    @Test fun thoughtsSayOnlyWhatHappened() {
+        assertEquals(
+            listOf("song world · JBL", "turned down 6.9 dB to sit with your library", "hold the number to hear the original"),
+            WhyText.thoughts("song world · JBL", -6.9, listOf("ANCHOR_MATCH" to -6.9), "full", 0.0, false),
+        )
+        assertEquals(
+            listOf("song world · Phone speaker", "lifted 1.2 dB to sit with your library", "peaks kept clean: 2.4 dB under the rest",
+                "+2.0 dB, as you set it here before", "a little bass kept for quiet listening", "hold the number to hear the original"),
+            WhyText.thoughts("song world · Phone speaker", 1.2, listOf("ANCHOR_MATCH" to 3.6, "PEAK_CAP" to -2.4), "full", 2.0, true),
+        )
+        assertEquals(listOf("listening…"), WhyText.thoughts("listening…", -6.0, emptyList(), "provisional", 0.0, false))
+    }
 }

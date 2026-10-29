@@ -30,6 +30,19 @@ class GainTable {
 
     @Volatile var contour: Contour? = null
 
+    /**
+     * MATH §23.6 "Hold to hear the original" (Now Playing): while true the song plays as the file sounds (no contour) at
+     * [originalDb] of Sable's gain: a listening comparison only. It never changes a plan, and presses made while held teach nothing.
+     */
+    @Volatile var original = false
+
+    companion object {
+        /** MATH-1.34 §23.6 J_orig: the original is heard at most this much above Sable's level. */
+        const val ORIGINAL_MAX_JUMP_DB = 6.0
+        /** §23.6: the level of "the original" for a song Sable plays at [db]. */
+        fun originalDb(db: Double) = minOf(0.0, db + ORIGINAL_MAX_JUMP_DB)
+    }
+
     /** Used if an item starts before it has been planned: the provisional gain for the current target (§22.1). */
     @Volatile var fallbackDb = -6.0
 
@@ -77,6 +90,7 @@ class SableAudioSink(
     private var pendingPts = Long.MIN_VALUE
     private var contourVersion = -1L
     private var contourRate = 0
+    private var originalOn = false
 
     override fun supportsFormat(format: Format) = getFormatSupport(format) != AudioSink.SINK_FORMAT_UNSUPPORTED
 
@@ -114,12 +128,13 @@ class SableAudioSink(
         val e = gains[key]
         val db = e?.db(manualStart) ?: gains.fallbackDb
         appliedVersion = e?.version ?: -1L
-        kernel.stepTo(db)  // §23.2: the new item's gain from its first sample
+        kernel.stepTo(if (originalOn) GainTable.originalDb(db) else db)  // §23.2: the new item's gain from its first sample
         onItemGain(key, db, manualStart)
     }
 
     /** §24: follow the table's contour (crossfade on a change; instant at a new rate). */
     private fun applyContour() {
+        if (originalOn) return
         val c = gains.contour
         val v = c?.version ?: -1L
         if (v == contourVersion && sampleRate == contourRate) return
@@ -133,6 +148,7 @@ class SableAudioSink(
     override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
         if (!pcm) return super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
         if (pendingSrc !== buffer || pendingPts != presentationTimeUs) {
+            applyOriginal()
             applyTableChange()
             applyContour()
             val frames = buffer.remaining() / (GainKernel.bytesPerSample(inEncoding) * channels)
@@ -153,8 +169,25 @@ class SableAudioSink(
         return done
     }
 
+    /** §23.6 Hold to hear the original: a 20 ms crossfade to the original (bounded), and back to Sable's gain and contour. */
+    private fun applyOriginal() {
+        val want = gains.original
+        if (want == originalOn) return
+        originalOn = want
+        if (want) {
+            kernel.rampTo(GainTable.originalDb(gains[currentKey]?.db(manualStart) ?: gains.fallbackDb), true, sampleRate)
+            kernel.setContour(null, null, sampleRate)
+            contourVersion = -2L  // on release, applyContour puts the contour back
+        } else {
+            val e = gains[currentKey]
+            kernel.rampTo(e?.db(manualStart) ?: gains.fallbackDb, true, sampleRate)
+            if (e != null) appliedVersion = e.version
+        }
+    }
+
     /** §23.3: the plan changed for the playing item (analysis finished, mode switched): ramp to the new gain. */
     private fun applyTableChange() {
+        if (originalOn) return  // applied when the original is let go
         val e = gains[currentKey] ?: return
         if (e.version == appliedVersion) return
         appliedVersion = e.version

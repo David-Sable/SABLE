@@ -116,7 +116,7 @@ object SongViews {
  * [progress] is read at draw time, so the playhead moves at the display rate without recomposition.
  */
 @Composable
-fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = Modifier, mood: Boolean = false, view: SongView? = null, onSeek: ((Float) -> Unit)? = null) {
+fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = Modifier, anchorLit: () -> Float = { 0f }, mood: Boolean = false, view: SongView? = null, onSeek: ((Float) -> Unit)? = null) {
     val pts = remember(shape, view) { view?.heights ?: silhouetteHeights(shape) }
     // Mood colours (display only): the silhouette's colour follows the song's own brightness (spectral tilt, MATH §8.5) and its
     // energy (the heights above). Ivory is the middle; bright leans soft brass, dark and bassy leans cool grey-blue. Built once per
@@ -162,7 +162,9 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
         else drawPath(path, SableColors.textTertiary.copy(alpha = 0.35f))
         for ((a, b) in shape.anchor) {
             clipRect(left = (a / dur * w).toFloat(), right = (b / dur * w).toFloat()) {
-                drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = 0.55f), SableColors.accent.copy(alpha = 0.12f))))
+                // While the song is in an anchor it glows a little brighter (anchorLit 0..1, eased by the caller).
+                val lit = anchorLit()
+                drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = 0.55f + 0.30f * lit), SableColors.accent.copy(alpha = 0.12f + 0.10f * lit))))
             }
         }
         val px = progress().coerceIn(0f, 1f) * w

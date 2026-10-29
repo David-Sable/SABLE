@@ -122,7 +122,7 @@ class LearningScoreboard(
         private const val OFF_MIDSONG = "off_midsong"
         private const val OFF_PROVISIONAL = "off_provisional"
         private const val IGN_OTHER = "ign_other"
-        private val IGNORED = listOf("ign_route", "ign_paused", "ign_jump", "ign_section", "ign_capped", IGN_OTHER)
+        private val IGNORED = listOf("ign_route", "ign_paused", "ign_original", "ign_jump", "ign_section", "ign_capped", IGN_OTHER)
         private val OUTCOMES = setOf(TAUGHT) + IGNORED
     }
 }

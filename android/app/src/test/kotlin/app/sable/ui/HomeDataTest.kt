@@ -29,7 +29,7 @@ class HomeDataTest {
         assertEquals(listOf("album B", "album A"), names(HomeData.of(plays, rows, now).recent))
     }
 
-    /** 2026-10-30: songs played on shuffle showed only as their albums, so a song played once was nowhere on Home. */
+    /** 2026-10-29: songs played on shuffle showed only as their albums, so a song played once was nowhere on Home. */
     @Test fun songsPlayedOnTheirOwnShowAsSongs() {
         val plays = listOf(play(2, 0), play(1, 1), albumPlay(3, 2), play(2, 3))
         assertEquals(listOf("song 2", "song 1", "album B"), names(HomeData.of(plays, rows, now).recent))

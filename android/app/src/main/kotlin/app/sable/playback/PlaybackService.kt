@@ -117,6 +117,7 @@ class PlaybackService : MediaLibraryService() {
         scope.launch { while (true) { delay(10_000); if (player.isPlaying) saveResume() } }
         // Listening history (Home): see PlayCounter; a replay of the same entry counts again.
         controller.onReplay = playCounter::restarted
+        controller.learning.originalHeld = { gains.original }
         scope.launch {
             while (true) {
                 delay(5_000)
@@ -136,6 +137,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val releaseOriginal = Runnable { holdOriginal(false) }
 
     private var widgetJob: kotlinx.coroutines.Job? = null
 
@@ -308,6 +310,18 @@ class PlaybackService : MediaLibraryService() {
         fun debugReroute() { val s = current ?: return; s.main.post { s.controller.simulatePlaceChange() } }
 
         /** The "quieter / louder for this song" tap on Now Playing (MATH-1.32 §19.4); [done] gets the words to show, on the main thread. */
+        /** Hold to hear the original (Now Playing): on while held; lets go by itself after 30 s in case the release is lost. */
+        fun holdOriginal(on: Boolean) {
+            val s = current ?: return
+            s.main.post {
+                s.main.removeCallbacks(s.releaseOriginal)
+                if (s.gains.original == on) return@post
+                s.gains.original = on
+                PlaybackDiag.log("ORIGINAL ${if (on) "held" else "let go"}")
+                if (on) s.main.postDelayed(s.releaseOriginal, 30_000)
+            }
+        }
+
         fun nudge(up: Boolean, done: (String) -> Unit) {
             val s = current ?: return done("Nothing playing")
             s.main.post { done(s.controller.nudge(up)) }

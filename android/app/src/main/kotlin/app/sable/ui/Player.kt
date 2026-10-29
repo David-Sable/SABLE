@@ -38,6 +38,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -235,6 +240,15 @@ fun NowPlayingScreen(
     val shape = view?.shape
     val mood = view?.mood
     val tick by frameTick(state.playing, state.durationMs, 1000)
+    // The anchor (the part Sable balanced to) brightens while the song plays through it.
+    val inAnchor by produceState(false, shape, state.playing) {
+        while (true) {
+            val t = state.position() / 1000.0
+            value = state.playing && shape != null && shape.anchor.any { (a, b) -> t >= a && t < b }
+            delay(250)
+        }
+    }
+    val anchorLit by animateFloatAsState(if (inAnchor) 1f else 0f, androidx.compose.animation.core.tween(900), label = "anchorLit")
     val onScreen = LocalOnScreen.current
     LaunchedEffect(state.playing) { whileOnScreen(onScreen) { while (true) { state.syncPosition(); delay(1000) } } }
     val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
@@ -326,7 +340,7 @@ fun NowPlayingScreen(
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))
             if (shape != null) {
-                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood, view = view) { state.seekFraction(it) }  // own layer
+                LoudnessShape(shape, { tick; state.progress() }, anchorLit = { anchorLit }, modifier = Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood, view = view) { state.seekFraction(it) }  // own layer
             } else {
                 Canvas(Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) {
                     tick
@@ -379,9 +393,51 @@ fun NowPlayingScreen(
                 .navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("%+.1f dB".format(gain.gainDb), style = SableType.headline, color = SableColors.accent)
-                Text(nudgeNote ?: worldLabel(gain), style = SableType.caption, color = if (nudgeNote != null) SableColors.accent else SableColors.textTertiary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.m))
+                // Hold the number to hear the file as it is (no gain, no contour); let go and Sable's balance is back.
+                var holding by remember { mutableStateOf(false) }
+                val haptics = LocalHapticFeedback.current
+                DisposableEffect(Unit) { onDispose { app.sable.playback.PlaybackService.holdOriginal(false) } }
+                val uiPrefs = remember { context.getSharedPreferences("sable_ui", android.content.Context.MODE_PRIVATE) }
+                var heldOnce by remember { mutableStateOf(uiPrefs.getBoolean("heldOriginal", false)) }
+                val thoughts = remember(gain, heldOnce) {
+                    WhyText.thoughts(worldLabel(gain), gain.gainDb, gain.rules, gain.source, gain.learnedDb, gain.contourOn)
+                        .let { t -> if (heldOnce && t.size > 2) t.dropLast(1) else t }  // the hint goes once it has been tried
+                }
+                // One line every 6 s of the song as it starts, then it rests on what Sable did (the second line).
+                val thought by produceState(thoughts.first(), thoughts) {
+                    while (true) {
+                        val i = (state.position() / 6_000L).toInt()
+                        value = thoughts[if (i < thoughts.size) i else minOf(1, thoughts.size - 1)]
+                        delay(500)
+                    }
+                }
+                Row(
+                    Modifier.weight(1f).pointerInput(Unit) {
+                        detectTapGestures(onPress = {
+                            holding = true
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            app.sable.playback.PlaybackService.holdOriginal(true)
+                            try { tryAwaitRelease() } finally {
+                                holding = false
+                                app.sable.playback.PlaybackService.holdOriginal(false)
+                                if (!heldOnce) { heldOnce = true; uiPrefs.edit().putBoolean("heldOriginal", true).apply() }
+                            }
+                        })
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (holding) "Original" else "%+.1f dB".format(gain.gainDb), style = SableType.headline, color = if (holding) SableColors.textPrimary else SableColors.accent)
+                    val line = when {
+                        holding -> originalNote(gain.gainDb)
+                        nudgeNote != null -> nudgeNote!!
+                        else -> thought
+                    }
+                    androidx.compose.animation.Crossfade(line, animationSpec = androidx.compose.animation.core.tween(280), label = "thought",
+                        modifier = Modifier.weight(1f).padding(horizontal = Space.m)) { s ->
+                        Text(s, style = SableType.caption, color = if (holding || nudgeNote != null) SableColors.accent else SableColors.textTertiary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
                 if (!settings.carTap) Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
             }
             if (settings.carTap) Row(Modifier.fillMaxWidth().padding(top = Space.m), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
@@ -417,6 +473,14 @@ private fun Clock(state: AppState) {
         whileOnScreen(onScreen) { while (true) { value = state.position(); delay(1000 - state.position() % 1000 + 5) } }
     }
     Text(mmss(t), style = SableType.caption, color = SableColors.textTertiary)
+}
+
+/** What the listener hears while holding the number (MATH §23.6): the file as it is, or its sound held to 6 dB above Sable. */
+internal fun originalNote(gainDb: Double): String = when {
+    abs(gainDb) < 0.05 -> "the file as it is, same level"
+    gainDb > 0 -> "the file as it is, %.1f dB quieter".format(gainDb)
+    -gainDb <= app.sable.playback.GainTable.ORIGINAL_MAX_JUMP_DB -> "the file as it is, %.1f dB louder".format(-gainDb)
+    else -> "%.1f dB louder as a file · held to +%.0f dB".format(-gainDb, app.sable.playback.GainTable.ORIGINAL_MAX_JUMP_DB)
 }
 
 fun worldLabel(g: app.sable.playback.NowPlayingGain): String {

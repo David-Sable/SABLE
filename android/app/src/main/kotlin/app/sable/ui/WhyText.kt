@@ -34,6 +34,29 @@ object WhyText {
         else -> id.lowercase(Locale.US).replace('_', ' ')
     }
 
+    /**
+     * Now Playing's thoughts line: what Sable did for this song, one short line at a time (shown in order as the song starts,
+     * then it rests on the second). Only facts from the plan; nothing is shown that did not happen.
+     */
+    fun thoughts(world: String, gainDb: Double, rules: List<Pair<String, Double>>, source: String, learnedDb: Double, contourOn: Boolean): List<String> {
+        if (source == "provisional" || source == "jit") return listOf(world)
+        val r = rules.toMap()
+        return buildList {
+            add(world)
+            add(when {
+                abs(gainDb) < 0.05 -> "already sits with your library"
+                gainDb > 0 -> "lifted ${f(gainDb)} dB to sit with your library"
+                else -> "turned down ${f(gainDb)} dB to sit with your library"
+            })
+            if ("FLOW" in r) add("runs straight into the next track")
+            r["INTIMACY"]?.let { add("kept ${f(it)} dB quieter on purpose") }
+            r["PEAK_CAP"]?.let { add("peaks kept clean: ${f(it)} dB under the rest") }
+            if (abs(learnedDb) >= 0.05) add("${if (learnedDb > 0) "+" else "−"}${f(learnedDb)} dB, as you set it here before")
+            if (contourOn) add("a little bass kept for quiet listening")
+            add("hold the number to hear the original")
+        }
+    }
+
     /** One sentence for the applied gain and the rules that shaped it. */
     fun sentence(character: String?, gainDb: Double, rules: List<Pair<String, Double>>, source: String, albumRun: Boolean): String {
         val verb = when {

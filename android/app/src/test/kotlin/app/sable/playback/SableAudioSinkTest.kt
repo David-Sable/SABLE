@@ -238,4 +238,41 @@ class SableAudioSinkTest {
         s.handleBuffer(pcmFloat(FloatArray(44100 / 10 * 2) { 0.25f }), 2, 1)
         assertEquals(0.25f, inner.floats().last(), 0f)      // off again: bit-exact dry path
     }
+
+    /** §23.6: within 6 dB the original is the file as it is (0 dB, bit-exact) after a 20 ms crossfade, then back to Sable's gain. */
+    @Test fun original_isTheFileAsItIs_thenBackToTheGain() {
+        val t = GainTable().apply { put("A", -5.0, -5.0, false) }
+        val inner = Inner()
+        val s = sink(inner, t)
+        s.configure(config(C.ENCODING_PCM_FLOAT, "A"))
+        val n = 44100 / 10 * 2  // 100 ms of stereo
+        s.handleBuffer(pcmFloat(FloatArray(n) { 0.25f }), 0, 1)
+        val g = GainKernel.linOf(-5.0)
+        assertEquals(0.25f * g, inner.floats().last(), 0f)
+        t.original = true
+        s.handleBuffer(pcmFloat(FloatArray(n) { 0.25f }), 1, 1)
+        val held = inner.floats()
+        assertEquals(0.25f, held.last(), 0f)                 // after the crossfade: exactly the file
+        assertTrue(held[n + 2] < 0.25f && held[n + 2] > 0.25f * g)  // the first samples are mid-crossfade, no step
+        t.put("A", -9.0, -9.0, false)  // a plan change while held waits for the release
+        s.handleBuffer(pcmFloat(FloatArray(n) { 0.25f }), 2, 1)
+        assertEquals(0.25f, inner.floats().last(), 0f)
+        t.original = false
+        s.handleBuffer(pcmFloat(FloatArray(n) { 0.25f }), 3, 1)
+        assertEquals(0.25f * GainKernel.linOf(-9.0), inner.floats().last(), 0f)  // back, with the newer plan
+    }
+
+    /** §23.6: a song Sable turns down 16 dB (Quiet, a loud master) is heard at most 6 dB louder, not 16. */
+    @Test fun original_isBoundedToSixDbAboveSable() {
+        assertEquals(-10.0, GainTable.originalDb(-16.0), 0.0)
+        assertEquals(0.0, GainTable.originalDb(-6.0), 0.0)
+        assertEquals(0.0, GainTable.originalDb(+2.0), 0.0)  // a lifted song: the original is the quieter file
+        val t = GainTable().apply { put("A", -16.0, -16.0, false) }
+        val inner = Inner()
+        val s = sink(inner, t)
+        s.configure(config(C.ENCODING_PCM_FLOAT, "A"))
+        t.original = true
+        s.handleBuffer(pcmFloat(FloatArray(44100 / 10 * 2) { 0.25f }), 0, 1)
+        assertEquals(0.25f * GainKernel.linOf(-10.0), inner.floats().last(), 0f)
+    }
 }

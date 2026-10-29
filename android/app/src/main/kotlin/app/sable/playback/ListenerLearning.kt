@@ -151,6 +151,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private var lastPlayAt = 0L
     private var lastOutsideAt = -1_000_000L
     private var pressedWhilePaused = false
+    private var pressedDuringOriginal = false
+    /** True while Now Playing's "hold to hear the original" is held: a press then is about the unbalanced file. */
+    @Volatile var originalHeld: () -> Boolean = { false }
     private var sawMute = false
     private val close = Runnable { closeWindow() }
     // One UI does not always deliver the volume broadcast to apps: also sample the volume while a window is open.
@@ -238,6 +241,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         startIndex = lastIndex
         firstPressPosMs = -1L
         pressedWhilePaused = false
+        pressedDuringOriginal = false
         sawMute = false
         main.postDelayed(close, WINDOW_MS)
         main.postDelayed(poll, POLL_MS)
@@ -264,6 +268,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val (playing, posMs) = playback()
         if (lastChangeAt == 0L) firstPressPosMs = posMs
         if (!playing) pressedWhilePaused = true  // paused: the press is about the room, not the song (MATH-1.27)
+        if (originalHeld()) pressedDuringOriginal = true
         if (idx == 0) sawMute = true
         lastChangeAt = now
         main.removeCallbacks(close)  // a press can still be undone within 3 s: wait for that before closing
@@ -290,6 +295,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         tally { board.moved(place.id, place.label, knownAtStart, up = delta > 0) }
         if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { tally { board.outcome(place.id, place.label, "ign_route") }; note("LEARN ignored (output changed) ${t.displayName}"); return }
         if (pressedWhilePaused) { tally { board.outcome(place.id, place.label, "ign_paused") }; note("LEARN ignored (paused) ${t.displayName}"); return }
+        if (pressedDuringOriginal) { tally { board.outcome(place.id, place.label, "ign_original") }; note("LEARN ignored (original held) ${t.displayName}"); return }
         commit(t, delta, place)
     }
 

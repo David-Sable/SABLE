@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.33 (2026-10-29)
+**Version:** MATH-1.34 (2026-10-29)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -755,6 +755,15 @@ The ramp is per sample, so there is no zipper noise.
 
 ### 23.5 Opt-in true-peak limiter
 Off by default. When on: 5 ms look-ahead, peak detection on an oversampled sidechain using the **same factor and filter as §6** (L = 8 below 96 kHz). A coarser sidechain could under-read by 0.55 dB and let peaks exceed the ceiling. gain computer `min(1, 10^(C_out/20)/peak)`, attack = instant within the look-ahead (raised-cosine over 5 ms), release time constant 100 ms. Its maximum gain reduction is bounded by §16.4.
+
+
+### 23.6 Hold to hear the original [DESIGN, MATH-1.34, owner request 2026-10-29]
+A listening comparison on Now Playing: while the listener holds the gain figure, the playing song is heard as the file sounds, with no contour (§24), at
+`g_orig = min(0, g + J_orig)`, `J_orig = 6.0 dB`, where `g` is the gain Sable is applying (§16–§21, including learning and calibration).
+- `0 dB` is the file as it is. It is bounded to at most 6 dB above Sable's level, because the file can be far louder: the owner's library has albums at −4 LUFS, which Quiet mode (−19) turns down by 15 dB or more, and an unbounded jump of that size is startling and unsafe at night. 6 dB is clearly audible (about 1.5× as loud) without being a shock. The screen says when the bound applies.
+- The switch both ways is the user-initiated 20 ms crossfade of §23.3. It never changes a plan: a plan update that arrives while held is applied on release. It lets go by itself after 30 s if the release is lost.
+- Volume presses while it is held teach nothing (§19.1; scoreboard outcome `ign_original`).
+- It is not a gain decision and the planner is not involved; the bound lives in the playback sink (`SableAudioSink`, `GainTable.ORIGINAL_MAX_JUMP_DB`).
 
 ---
 

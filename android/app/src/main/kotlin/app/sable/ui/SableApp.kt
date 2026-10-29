@@ -257,7 +257,7 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.33"
+const val MATH_DOC_VERSION = "MATH-1.34"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
