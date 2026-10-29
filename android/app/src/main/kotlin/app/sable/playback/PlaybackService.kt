@@ -18,7 +18,8 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
 import app.sable.data.SableDatabase
 import androidx.compose.ui.graphics.asAndroidBitmap
 import app.sable.ui.MainActivity
@@ -37,10 +38,10 @@ import android.os.SystemClock
  * the system controls and lock screen, and Media3's foreground media notification.
  */
 @UnstableApi
-class PlaybackService : MediaSessionService() {
+class PlaybackService : MediaLibraryService() {
     private val scope: CoroutineScope = MainScope()
     private lateinit var player: ExoPlayer
-    private lateinit var session: MediaSession
+    private lateinit var session: MediaLibrarySession
     private lateinit var controller: GainController
     private val gains = GainTable()
 
@@ -115,10 +116,10 @@ class PlaybackService : MediaSessionService() {
         scope.launch { while (true) { delay(10_000); if (player.isPlaying) saveResume() } }
         restoreResume()
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        session = MediaSession.Builder(this, player).setCallback(callback).setSessionActivity(open).build()
+        session = MediaLibrarySession.Builder(this, player, callback).setSessionActivity(open).build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -209,7 +210,20 @@ class PlaybackService : MediaSessionService() {
     }
 
     /** Controllers send request ids ("<trackId>:<A|S>"); the service resolves them to playable items with unique ids. */
-    private val callback = object : MediaSession.Callback {
+    private val callback = object : MediaLibrarySession.Callback {
+        // Android Auto and other media browsers: Albums, Artists, Songs (LibraryTree).
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<MediaItem>> = future { LibraryResult.ofItem(LibraryTree.root(), params) }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String, page: Int, pageSize: Int, params: LibraryParams?,
+        ): ListenableFuture<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>> = future {
+            val all = LibraryTree.children(this@PlaybackService, parentId)
+            val from = (page.toLong() * pageSize).coerceAtMost(all.size.toLong()).toInt()
+            LibraryResult.ofItemList(all.subList(from, minOf(all.size, from + pageSize)), params)
+        }
+
         // Who asked for a skip, pause or seek: this app, the car, a headset button, the notification...
         override fun onPlayerCommandRequest(session: MediaSession, controller: MediaSession.ControllerInfo, playerCommand: Int): Int {
             if (playerCommand in loggedCommands) PlaybackDiag.log("COMMAND ${commandName(playerCommand)} from ${controller.packageName}")
@@ -234,7 +248,11 @@ class PlaybackService : MediaSessionService() {
             startIndex: Int, startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = future {
             queueRequested = true
-            val items = resolve(mediaItems)
+            // One song picked in the car's browser: the queue the app would start from there (the album, or what follows).
+            val expanded = mediaItems.singleOrNull()?.let { LibraryTree.expand(this@PlaybackService, it.mediaId) }
+            val requests = expanded?.first?.map { MediaItem.Builder().setMediaId(it).build() } ?: mediaItems
+            val startIndex = expanded?.second ?: startIndex
+            val items = resolve(requests)
             PlaybackDiag.log("QUEUE ${items.size} songs from ${controller.packageName}, start ${startIndex + 1}")
             val start = if (startIndex == C.INDEX_UNSET) 0 else startIndex.coerceIn(0, maxOf(0, items.size - 1))
             this@PlaybackService.controller.prepareStart(items.map { it.mediaId }, start)  // JIT wait + plan before playing
@@ -253,7 +271,8 @@ class PlaybackService : MediaSessionService() {
                 .setUri(t.uri)
                 .setMediaMetadata(
                     MediaMetadata.Builder().setTitle(t.title.ifBlank { t.displayName }).setArtist(t.artist).setAlbumTitle(t.album)
-                        .setAlbumArtist(t.albumArtist).setTrackNumber(t.track).setDiscNumber(t.disc).build()
+                        .setAlbumArtist(t.albumArtist).setTrackNumber(t.track).setDiscNumber(t.disc)
+                        .setArtworkUri(ArtProvider.uriFor(t.mediaId)).build()
                 )
                 .build()
         }
