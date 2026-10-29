@@ -70,12 +70,12 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             drawLine(c, Offset(w * 0.25f, h * 0.25f), Offset(w * 0.75f, h * 0.75f), sw, StrokeCap.Round)
             drawLine(c, Offset(w * 0.75f, h * 0.25f), Offset(w * 0.25f, h * 0.75f), sw, StrokeCap.Round)
         }
-        Glyph.REPEAT, Glyph.REPEAT_ONE -> {  // a loop with an arrow on each run; REPEAT_ONE adds a 1 in the middle
-            drawRoundRect(c, Offset(w * 0.16f, h * 0.30f), Size(w * 0.68f, h * 0.40f), CornerRadius(w * 0.14f), style = stroke)
+        Glyph.REPEAT, Glyph.REPEAT_ONE -> {  // a loop with an arrow at the end of each run (top right, bottom left); REPEAT_ONE adds a 1 in the middle
+            drawRoundRect(c, Offset(w * 0.14f, h * 0.26f), Size(w * 0.72f, h * 0.48f), CornerRadius(w * 0.14f), style = stroke)
             val a = w * 0.09f
-            drawPath(Path().apply { moveTo(w * 0.56f - a, h * 0.30f - a); lineTo(w * 0.56f, h * 0.30f); lineTo(w * 0.56f - a, h * 0.30f + a) }, c, style = stroke)
-            drawPath(Path().apply { moveTo(w * 0.44f + a, h * 0.70f - a); lineTo(w * 0.44f, h * 0.70f); lineTo(w * 0.44f + a, h * 0.70f + a) }, c, style = stroke)
-            if (g == Glyph.REPEAT_ONE) {  // a plain "1": straight stem with a short flag, clear of the loop
+            drawPath(Path().apply { moveTo(w * 0.62f - a, h * 0.26f - a); lineTo(w * 0.62f, h * 0.26f); lineTo(w * 0.62f - a, h * 0.26f + a) }, c, style = stroke)
+            drawPath(Path().apply { moveTo(w * 0.38f + a, h * 0.74f - a); lineTo(w * 0.38f, h * 0.74f); lineTo(w * 0.38f + a, h * 0.74f + a) }, c, style = stroke)
+            if (g == Glyph.REPEAT_ONE) {  // a plain "1": straight stem with a short flag, clear of the loop and the arrowheads
                 drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.5f, h * 0.60f), sw, StrokeCap.Round)
                 drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.44f, h * 0.45f), sw, StrokeCap.Round)
             }
