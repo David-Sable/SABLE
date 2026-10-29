@@ -19,7 +19,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 ## Decisions log
 | Date | Decision | Why |
 |---|---|---|
-| 2026-10-25 | Repo: `craigdavid209-design/SABLE` (public), local `C:\Users\Dana\Projects\SABLE`; toolchain in `~/dev/sable-toolchain`, test corpus in `~/dev/sable-corpus` (outside git) | David's choice; copyrighted audio must never be committed |
+| 2026-10-25 | Repo: `David-Sable/SABLE` (public; account renamed from craigdavid209-design on 2026-10-29), local `C:\Users\Dana\Projects\SABLE`; toolchain in `~/dev/sable-toolchain`, test corpus in `~/dev/sable-corpus` (outside git) | David's choice; copyrighted audio must never be committed |
 | 2026-10-25 | Host compiler: **llvm-mingw** (clang 23, ASan/UBSan, clang-tidy) | Portable, no system changes; same compiler family as the NDK |
 | 2026-10-25 | **Bit-identical x86/ARM** engine: no FMA, `-ffp-contract=off`, own deterministic math library (no libm in the engine), fixed reduction order | The spec asks for identical results on ARM; libm differs between bionic and UCRT |
 | 2026-10-25 | Our own FFT and resampler (no pffft) | pffft's SSE and NEON paths reduce in different orders, which breaks bit-identity; zero third-party code in the shipped engine |

@@ -45,6 +45,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 
 ## Log (newest first)
 
+### 2026-10-29 (PC) GitHub account renamed: craigdavid209-design -> David-Sable
+- David's choice ("I want my name to be David"; "David" itself was taken). Done in the browser with David's go-ahead: display name "David", profile picture and the repository's social preview are the white lion, username **David-Sable**. The repo is now `https://github.com/David-Sable/SABLE` (public). GitHub forwards the old repo addresses (web, git, API answers 301), but NOT the old profile page. CLAUDE.md (curl lines, release link, commit identity), PLAN.md and the memory notes use the new name; this PC's `origin` and git identity were switched. **David: re-save the phone bookmark** as `https://github.com/David-Sable/SABLE/releases/latest`. Release build-55 and the CI secret are untouched. Risk: the old username is free for anyone to register; never rely on the old address.
+
 ### 2026-10-29 (PC) 0.23.0: segue rescan, Quieter/Louder buttons, mood colours (MATH-1.32)
 - **Engine:** `leadSilenceSec` / `trailSilenceSec` (edge silences, from the §13.4.2 silent sub-blocks; the 0.4 s smoothing only shortens them) and `shapeTilt` (tilt every 0.5 s, §8.5) in the analysis JSON; the planner's FLOW test uses the join (old rule kept for analyses without the fields). Tests added (61 pass on host, ASan runs in CI).
 - **Rescan** (MATH_VERSION 1.8 -> 1.9): all 418 songs on the phone, ~5.5 s per 4 min of audio, ~33 min, screen kept awake with key presses (the wake-up key alone did not reset the 10 min timeout; a Shift key press every 2 min did). **TLOP:** flowing 2-3 and 15-16 (before: none). The other joins have 0.7-2.1 s of trailing silence in the files, so they correctly do not flow. Other albums flow far more (e.g. All My Heroes Are Cornballs 16 of 19, EXPERIMENTAL RAP 22 of 27).

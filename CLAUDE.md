@@ -37,7 +37,7 @@ David may need to start a new chat when the context fills up, so never leave sta
 - **Never commit audio, licensed references or keys.** David's corpus (copyrighted) and the standards PDFs stay on the
   PC (`~/dev/sable-corpus`, `~/dev/sable-refs`). `.gitignore` blocks audio and keystores. The signing key exists only
   on the PC (`~/.android/debug.keystore`) and in the GitHub secret `SABLE_KEYSTORE_B64`. Never print, copy or move it.
-- Commit identity: `craigdavid209-design <327186142+craigdavid209-design@users.noreply.github.com>`.
+- Commit identity: `David-Sable <327186142+David-Sable@users.noreply.github.com>` (the account was renamed from craigdavid209-design on 2026-10-29; GitHub forwards the old address, but use the new one).
 - **Ask David first** before a major new dependency or a change to the product's philosophy: one static gain per song by
   default; the Quiet contour (on by default in Quiet, switchable in Advanced) is the only non-flat processing; files are never modified.
 
@@ -59,9 +59,9 @@ David may need to start a new chat when the context fills up, so never leave sta
 - App: `cd android && ./gradlew :app:testDebugUnitTest :app:assembleRelease` (JDK 21, SDK 37, NDK 30.0.16248370, CMake 4.1.2).
 - **CI** (`.github/workflows/build.yml`), on every push to `main` that touches more than `*.md` or `docs/`: engine tests (Linux clang, ASan/UBSan) → app tests →
   signed APK → certificate check → GitHub release `build-N` ("Latest"); then older releases are deleted (the newest three stay). David installs from the phone:
-  `https://github.com/craigdavid209-design/SABLE/releases/latest` → tap the APK → Update.
+  `https://github.com/David-Sable/SABLE/releases/latest` → tap the APK → Update.
 - **Checking CI without signing in** (no `gh` here; logs need sign-in, annotations are public):
-  - latest run: `curl -s https://api.github.com/repos/craigdavid209-design/SABLE/actions/runs?per_page=1`
+  - latest run: `curl -s https://api.github.com/repos/David-Sable/SABLE/actions/runs?per_page=1`
   - jobs: `…/actions/runs/<id>/jobs`; errors: `…/check-runs/<job id>/annotations` (the workflow turns compiler and
     Gradle errors into annotations).
   - Validate workflow YAML before pushing (`python -c "import yaml; yaml.safe_load(open('.github/workflows/build.yml'))"`):
