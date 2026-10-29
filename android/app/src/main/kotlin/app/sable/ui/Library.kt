@@ -214,7 +214,7 @@ internal fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ListRow(title: String, subtitle: String, onClick: () -> Unit) {
+internal fun ListRow(title: String, subtitle: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.gutter, vertical = 14.dp)) {
         Text(title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)

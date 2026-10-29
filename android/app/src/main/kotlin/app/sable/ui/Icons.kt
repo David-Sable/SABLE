@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import app.sable.ui.theme.SableColors
 
 /** Hand-drawn line icons: consistent weight, no emoji or font fallbacks (Samsung renders some symbols as emoji). */
-enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS, MOON, SEARCH, CLOSE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED }
+enum class Glyph { PLAY, PAUSE, NEXT, PREV, QUEUE, INFO, BACK, DOWN, SETTINGS, MOON, SEARCH, CLOSE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, UP }
 
 @Composable
 fun Icon(glyph: Glyph, modifier: Modifier = Modifier, size: Dp = 22.dp, color: Color = SableColors.textPrimary) {
@@ -57,6 +57,7 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             drawCircle(c, sw * 0.75f, Offset(w * 0.5f, h * 0.32f))
         }
         Glyph.BACK -> drawPath(Path().apply { moveTo(w * 0.62f, h * 0.2f); lineTo(w * 0.32f, h * 0.5f); lineTo(w * 0.62f, h * 0.8f) }, c, style = stroke)
+        Glyph.UP -> drawPath(Path().apply { moveTo(w * 0.2f, h * 0.62f); lineTo(w * 0.5f, h * 0.34f); lineTo(w * 0.8f, h * 0.62f) }, c, style = stroke)
         Glyph.DOWN -> drawPath(Path().apply { moveTo(w * 0.2f, h * 0.38f); lineTo(w * 0.5f, h * 0.66f); lineTo(w * 0.8f, h * 0.38f) }, c, style = stroke)
         Glyph.MOON -> {  // a crescent: the outer disc minus an offset disc, outlined
             val outer = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.5f, h * 0.5f), w * 0.33f)) }

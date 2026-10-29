@@ -19,6 +19,7 @@ sealed interface Route {
     data class Album(val key: String) : Route
     data class Artist(val name: String) : Route
     data class Folder(val path: String) : Route
+    data class Playlist(val id: Long) : Route
     data object NowPlaying : Route
     data object Queue : Route
     data object Settings : Route
@@ -31,6 +32,8 @@ class AppState {
     val back = mutableStateListOf<Route>(Route.Library)
     val route: Route get() = back.last()
     var libraryTab by mutableIntStateOf(0)
+    /** The song whose "Add to playlist" sheet is open. */
+    var playlistTrack by mutableStateOf<Long?>(null)
     var whyTrack by mutableStateOf<Long?>(null)
     var searchQuery by mutableStateOf("")  // kept while browsing from a result and back
     var menuTrack by mutableStateOf<Long?>(null)  // the long-pressed song (SongMenu)

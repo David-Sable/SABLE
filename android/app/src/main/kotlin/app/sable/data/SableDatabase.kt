@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -158,14 +159,39 @@ interface FavoriteDao {
     @Query("SELECT * FROM favorites ORDER BY addedAt DESC") fun observeAll(): Flow<List<FavoriteEntity>>
 }
 
+/** A playlist you made; its songs are [PlaylistTrackEntity] rows in [PlaylistTrackEntity.position] order. */
+@Entity(tableName = "playlists")
+data class PlaylistEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String, val createdAt: Long)
+
+/** One song in a playlist (the same song may appear twice). Position = when it was added, unless moved. */
+@Entity(tableName = "playlist_tracks", indices = [Index("playlistId")])
+data class PlaylistTrackEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val playlistId: Long, val trackId: Long, val position: Long)
+
+@Dao
+interface PlaylistDao {
+    @Insert suspend fun create(p: PlaylistEntity): Long
+    @Query("UPDATE playlists SET name = :name WHERE id = :id") suspend fun rename(id: Long, name: String)
+    @Query("DELETE FROM playlists WHERE id = :id") suspend fun deletePlaylist(id: Long)
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :id") suspend fun deleteEntries(id: Long)
+    @Transaction suspend fun delete(id: Long) { deleteEntries(id); deletePlaylist(id) }
+    @Insert suspend fun add(e: PlaylistTrackEntity)
+    @Query("DELETE FROM playlist_tracks WHERE id = :entryId") suspend fun remove(entryId: Long)
+    @Query("UPDATE playlist_tracks SET position = :position WHERE id = :entryId") suspend fun setPosition(entryId: Long, position: Long)
+    @Transaction suspend fun swap(a: PlaylistTrackEntity, b: PlaylistTrackEntity) { setPosition(a.id, b.position); setPosition(b.id, a.position) }
+    @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE") fun observePlaylists(): Flow<List<PlaylistEntity>>
+    @Query("SELECT * FROM playlist_tracks ORDER BY playlistId, position, id") fun observeEntries(): Flow<List<PlaylistTrackEntity>>
+}
+
 @Database(
-    entities = [TrackEntity::class, AnalysisEntity::class, PlayEntity::class, FavoriteEntity::class], version = 3, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    entities = [TrackEntity::class, AnalysisEntity::class, PlayEntity::class, FavoriteEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class],
+    version = 4, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 abstract class SableDatabase : RoomDatabase() {
     abstract fun library(): LibraryDao
     abstract fun plays(): PlayDao
     abstract fun favorites(): FavoriteDao
+    abstract fun playlists(): PlaylistDao
 
     companion object {
         const val MATH_VERSION = "1.9"

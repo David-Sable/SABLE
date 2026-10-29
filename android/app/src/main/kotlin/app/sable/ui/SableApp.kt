@@ -165,6 +165,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 is Route.Album -> AlbumScreen(state, rows, r.key, pad)
                 is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
                 is Route.Folder -> FolderScreen(state, rows, r.path, pad)
+                is Route.Playlist -> PlaylistScreen(state, rows, r.id, pad)
                 Route.NowPlaying -> NowPlayingScreen(state, current, sharedScope, contentScope) { byId[it] }
                 Route.Queue -> QueueScreen(state, rows, pad)
                 Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
@@ -179,6 +180,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             enter = slideInVertically(Motion.sheetIn(state.animDur)) { it } + fadeIn(Motion.sheetIn(state.animDur)), exit = slideOutVertically(Motion.sheetOut(state.animDur)) { it } + fadeOut(Motion.sheetOut(state.animDur)),
         ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
         state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
+        state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
         state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
     }
     }

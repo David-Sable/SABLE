@@ -65,8 +65,9 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val home = remember(plays, rows) { plays?.let { HomeData.of(it, rows) } }
     val favIds = rememberFavorites()
     val favs = remember(favIds, rows) { val byId = rows.associateBy { it.mediaId }; favIds.mapNotNull(byId::get) }
+    val playlists = rememberPlaylists()
     if (home == null) return
-    if (home.isEmpty && favs.isEmpty()) {
+    if (home.isEmpty && favs.isEmpty() && playlists.isEmpty()) {
         Column(Modifier.fillMaxWidth().padding(top = 96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             SableMark(64.dp)
             Text("What you play shows up here", style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.l))
@@ -98,6 +99,13 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 SongRow(r, null, state.currentTrackId == r.mediaId, "${artistOf(r)} · $n plays", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) {
                     state.whyTrack = r.mediaId
                 }
+            }
+        }
+        if (playlists.isNotEmpty()) {
+            item(key = "plHead") { Heading("Playlists") }
+            items(playlists.size, key = { "pl${playlists[it].first.id}" }) { i ->
+                val (p, songs) = playlists[i]
+                ListRow(p.name, "${songs.size} song${if (songs.size == 1) "" else "s"}") { state.go(Route.Playlist(p.id)) }
             }
         }
         if (home.rediscover.isNotEmpty()) item(key = "rediscover") { AlbumRow("Not heard in a while", home.rediscover, state) }

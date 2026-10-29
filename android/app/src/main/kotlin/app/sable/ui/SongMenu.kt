@@ -50,6 +50,7 @@ fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
                 Pill("Why", selected = false) { onDismiss(); state.whyTrack = r.mediaId }
                 val fav = r.mediaId in favorites
                 Pill(if (fav) "Remove from Favourites" else "Add to Favourites", selected = false) { Favorites.set(context, r.mediaId, !fav); onDismiss() }
+                Pill("Add to playlist", selected = false) { onDismiss(); state.playlistTrack = r.mediaId }
             }
             Text("Added songs play in their own world, balanced on their own.", style = SableType.caption, color = SableColors.textTertiary,
                 modifier = Modifier.padding(top = Space.m))
