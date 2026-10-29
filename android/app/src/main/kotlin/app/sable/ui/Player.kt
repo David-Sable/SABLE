@@ -351,21 +351,24 @@ fun NowPlayingScreen(
             }
         }
         // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
-        Row(
+        // The gain and its reason on one line; with the Quieter / Louder buttons on, those sit on their own row under it.
+        Column(
             Modifier.fillMaxWidth().graphicsLayer { val a = arrive(0.5f); alpha = a; translationY = (1f - a) * rise }
                 .navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("%+.1f dB".format(gain.gainDb), style = SableType.headline, color = SableColors.accent)
-                Text(nudgeNote ?: worldLabel(gain), style = SableType.caption, color = if (nudgeNote != null) SableColors.accent else SableColors.textTertiary)
+                Text(nudgeNote ?: worldLabel(gain), style = SableType.caption, color = if (nudgeNote != null) SableColors.accent else SableColors.textTertiary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.m))
+                if (!settings.carTap) Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
             }
-            if (settings.carTap) Row(Modifier.padding(end = Space.s), horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+            if (settings.carTap) Row(Modifier.fillMaxWidth().padding(top = Space.m), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 // MATH-1.32 §19.4: a deliberate correction for this song at this place; it acts only when tapped.
                 Pill("Quieter", selected = false) { app.sable.playback.PlaybackService.nudge(false) { nudgeNote = it } }
                 Pill("Louder", selected = false) { app.sable.playback.PlaybackService.nudge(true) { nudgeNote = it } }
+                Spacer(Modifier.weight(1f))
+                Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
             }
-            Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
         }
     }
 }
@@ -405,6 +408,7 @@ fun worldLabel(g: app.sable.playback.NowPlayingGain): String {
 fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val plan by NowPlaying.plan.collectAsState()
+    val advanced = app.sable.playback.PlaybackPrefs.settings.collectAsState().value.advanced
     val list = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, state.queueIndex - 1))
     Column(Modifier.fillMaxSize()) {
         TopBar("QUEUE", { state.pop() }) {
@@ -428,8 +432,10 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                         Text(r?.artist ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     val g = plan[id]
-                    if (g != null) Text("%+.1f".format(g), style = SableType.mono, color = SableColors.textTertiary, modifier = Modifier.width(44.dp))
-                    Text(if (QueueId.albumIntent(id)) "album" else "song", style = SableType.caption, color = SableColors.textTertiary)
+                    if (advanced) {
+                        if (g != null) Text("%+.1f".format(g), style = SableType.mono, color = SableColors.textTertiary)
+                        if (QueueId.albumIntent(id)) Text(" album", style = SableType.caption, color = SableColors.textTertiary)
+                    } else if (r != null) Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
                     if (i > state.queueIndex) IconButton(Glyph.CLOSE, { state.removeAt(i) }, size = 14.dp, color = SableColors.textTertiary)
                     else Spacer(Modifier.width(48.dp))
                 }

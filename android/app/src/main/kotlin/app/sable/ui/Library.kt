@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -106,7 +107,7 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
         }
         Column(Modifier.weight(1f)) {
             Text(titleOf(r), style = SableType.body, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
         IconButton(Glyph.INFO, onWhy, size = 18.dp, color = if (r.analysed) SableColors.textTertiary else SableColors.line)
@@ -161,7 +162,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 LazyColumn(contentPadding = pad) {
                     items(artists.keys.toList(), key = { it }) { name ->
                         val list = artists.getValue(name)
-                        ListRow(name, "${list.size} album${if (list.size == 1) "" else "s"} · ${list.sumOf { it.tracks.size }} songs") { state.go(Route.Artist(name)) }
+                        ListRow(name, "${count(list.size, "album")} · ${count(list.sumOf { it.tracks.size }, "song")}") { state.go(Route.Artist(name)) }
                     }
                 }
             }
@@ -184,7 +185,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 val folders = remember(rows) { rows.groupBy { it.relativePath }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
                 LazyColumn(contentPadding = pad) {
                     items(folders.keys.toList(), key = { it }) { path ->
-                        ListRow(path.trimEnd('/').substringAfterLast('/').ifBlank { path }, "$path · ${folders.getValue(path).size} songs") { state.go(Route.Folder(path)) }
+                        ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(folders.getValue(path).size, "song")) { state.go(Route.Folder(path)) }
                     }
                 }
             }
@@ -250,7 +251,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
         }
         items(album.tracks.size, key = { album.tracks[it].mediaId }) { i ->
             val r = album.tracks[i]
-            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, clean(r.artist), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, clean(r.artist).takeIf { !it.equals(album.artist, ignoreCase = true) }.orEmpty(), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
         }
     }
 }
@@ -265,9 +266,9 @@ fun ArtistScreen(state: AppState, rows: List<LibraryRow>, name: String, bottomPa
     ) {
         item(span = { GridItemSpan(2) }) {
             Column {
-                TopBar(null, { state.pop() })
+                Box(Modifier.offset(x = -Space.gutter)) { TopBar(null, { state.pop() }) }  // the grid's gutter would push the arrow right
                 Text(name, style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(top = Space.s))
-                Text("${albums.size} albums · ${albums.sumOf { it.tracks.size }} songs", style = SableType.caption, color = SableColors.textTertiary)
+                Text("${count(albums.size, "album")} · ${count(albums.sumOf { it.tracks.size }, "song")}", style = SableType.caption, color = SableColors.textTertiary)
             }
         }
         items(albums, key = { it.key }) { a -> AlbumTile(a) { state.go(Route.Album(a.key)) } }
@@ -280,8 +281,8 @@ fun FolderScreen(state: AppState, rows: List<LibraryRow>, path: String, bottomPa
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomPad + Space.l)) {
         item { TopBar(null, { state.pop() }) }
         item {
-            Text(path.trimEnd('/').substringAfterLast('/'), style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(horizontal = Space.gutter))
-            Text(path, style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.s))
+            Text(unexplicit(path.trimEnd('/').substringAfterLast('/')), style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(horizontal = Space.gutter))
+            Text(count(songs.size, "song"), style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(horizontal = Space.gutter, vertical = Space.s))
         }
         items(songs.size, key = { songs[it].mediaId }) { i ->
             val r = songs[i]

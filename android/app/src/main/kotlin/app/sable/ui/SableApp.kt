@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
@@ -173,6 +176,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 Route.Search -> SearchScreen(state, rows, pad)
             }
             }
+            if (r !is Route.NowPlaying) Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(SableColors.base))
             }
         }
         }
@@ -249,7 +253,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
             BatteryRow()
             Group("Library")
             val analysed = rows.count { it.analysed }
-            Text("${rows.size} songs · $analysed listened to", style = SableType.body, color = SableColors.textPrimary)
+            Text("${count(rows.size, "song")} · ${if (analysed == rows.size) "all listened to" else "$analysed listened to"}", style = SableType.body, color = SableColors.textPrimary)
             Row(Modifier.padding(top = Space.m), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 Pill("Rescan now", false, onClick = onRescan)
                 Pill("Listen while charging", false, onClick = onAnalyseWhileCharging)

@@ -114,7 +114,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 
 @Composable
 private fun Heading(text: String) =
-    Text(text, style = SableType.headline, color = SableColors.textPrimary, modifier = Modifier.padding(start = Space.gutter, top = Space.l, bottom = Space.s))
+    Text(text, style = SableType.headline, color = SableColors.textPrimary, modifier = Modifier.padding(start = Space.gutter, top = Space.xl, bottom = Space.m))
 
 @Composable
 private fun AlbumRow(title: String, albums: List<AlbumGroup>, state: AppState) {

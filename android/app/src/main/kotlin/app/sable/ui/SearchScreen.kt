@@ -72,7 +72,7 @@ fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     item(key = "h-artists") { Heading("Artists") }
                     items(results.artists.size, key = { "ar-" + results.artists[it].name }) { i ->
                         val a = results.artists[i]
-                        ResultRow(a.name, "${a.albums} album${if (a.albums == 1) "" else "s"} · ${a.songs} songs") { state.go(Route.Artist(a.name)) }
+                        ResultRow(a.name, "${count(a.albums, "album")} · ${count(a.songs, "song")}") { state.go(Route.Artist(a.name)) }
                     }
                 }
                 if (results.albums.isNotEmpty()) {
@@ -86,7 +86,7 @@ fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                             AlbumArt(a.albumId, a.coverUri, a.title, 48.dp, Modifier.size(48.dp), px = 128)
                             Column(Modifier.weight(1f).padding(start = Space.m)) {
                                 Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${a.artist} · ${a.tracks.size} songs", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${a.artist} · ${count(a.tracks.size, "song")}", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
