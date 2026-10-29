@@ -224,7 +224,7 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.32"
+const val MATH_DOC_VERSION = "MATH-1.33"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -277,7 +277,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("Off", !s.mood) { PlaybackPrefs.update(context) { it.copy(mood = false) } }
                         Pill("On", s.mood) { PlaybackPrefs.update(context) { it.copy(mood = true) } }
                     }
-                    Hint("The loudness silhouette on Now Playing takes a faint colour from the song: warmer and brighter when it is intense and bright, cooler when it is calm and dark. Display only; it never changes the sound.")
+                    Hint("The strip on Now Playing is tinted by how the song sounds at each moment, against that song's own usual: warm brass where it is brighter and sharper, cool blue where it is darker and bassier, ivory in between, a little brighter where it is fuller. The two words under the strip say the same for right now (soft, steady or full; dark, even or bright). Display only; it never changes the sound.")
                     Group("Albums")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }

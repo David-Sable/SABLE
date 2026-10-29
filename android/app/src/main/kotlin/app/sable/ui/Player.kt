@@ -218,6 +218,7 @@ fun NowPlayingScreen(
     var sleepOpen by remember { mutableStateOf(false) }
     val json = analysisJson(state.currentTrackId)
     val shape = remember(json) { SongShape.of(json) }
+    val mood = remember(shape) { shape?.let { SongMood.of(it) } }
     val tick by frameTick(state.playing, state.durationMs, 1000)
     LaunchedEffect(state.playing) { while (true) { state.syncPosition(); delay(1000) } }
     val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
@@ -307,6 +308,8 @@ fun NowPlayingScreen(
             Row(Modifier.fillMaxWidth().padding(top = Space.xs)) {
                 Clock(state)
                 Spacer(Modifier.weight(1f))
+                if (settings.mood && mood != null) MoodCaption(state, mood)
+                Spacer(Modifier.weight(1f))
                 Text(mmss(state.durationMs), style = SableType.caption, color = SableColors.textTertiary)
             }
             Row(Modifier.fillMaxWidth().padding(top = if (compact) Space.s else Space.l), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -361,6 +364,18 @@ fun NowPlayingScreen(
             Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
         }
     }
+}
+
+/** The mood of the moment in two plain words ("full · bright"), in its own colour; changes at most every half second (MATH §8.5). */
+@Composable
+private fun MoodCaption(state: AppState, mood: SongMood) {
+    val i by produceState(0, state.playing, state.currentQueueId, mood) {
+        while (true) {
+            value = (state.position() / 500L).toInt()
+            delay(500 - state.position() % 500 + 5)
+        }
+    }
+    Text(mood.caption(i), style = SableType.caption, color = mood.tint(i).copy(alpha = 0.9f))
 }
 
 @Composable

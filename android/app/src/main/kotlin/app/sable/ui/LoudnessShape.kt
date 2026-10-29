@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import app.sable.ui.theme.SableColors
 import org.json.JSONObject
 import kotlin.math.abs
@@ -40,38 +42,71 @@ data class SongShape(val lufs: List<Double?>, val anchor: List<Pair<Double, Doub
     }
 }
 
+/** The silhouette's heights 0..1, one per 0.5 s. */
+internal fun silhouetteHeights(shape: SongShape): List<Float> {
+    val vals = shape.lufs.map { it ?: Double.NaN }
+    val sorted = vals.filter { !it.isNaN() }.sorted()
+    val top = sorted.lastOrNull() ?: -10.0
+    // Scale to the song's own range (10th percentile minus a margin, at most 24 LU deep) so dense masters still show shape.
+    val p10 = sorted.getOrNull(sorted.size / 10) ?: (top - 24.0)
+    val floor = maxOf(top - 24.0, minOf(p10 - 4.0, top - 8.0))
+    // Normalised heights 0..1, lightly smoothed (3-point) so the silhouette reads as a shape, not a measurement.
+    val h = vals.map { v -> if (v.isNaN()) 0f else ((v - floor) / (top - floor)).coerceIn(0.0, 1.0).toFloat() }
+    return List(h.size) { i -> (h[maxOf(0, i - 1)] + 2 * h[i] + h[minOf(h.size - 1, i + 1)]) / 4f }
+}
+
+/**
+ * The song's mood over time (display only; MATH §8.5): how bright it sounds and how full it is, each measured against the
+ * song's own usual, so every song uses the whole range of the colours. [tone] is -1 (darker than its usual) .. +1 (brighter),
+ * [energy] 0..1 (the silhouette's height, smoothed over 4 s; the tone over 8 s) and [energyMid] its median. One entry per 0.5 s.
+ */
+class SongMood(val tone: FloatArray, val energy: FloatArray, private val energyMid: Float) {
+    fun at(i: Int) = i.coerceIn(0, tone.size - 1)
+    fun tint(i: Int): Color = tone[at(i)].let { x -> lerp(MoodIvory, if (x >= 0) MoodWarm else MoodCool, minOf(0.9f, abs(x))) }
+    /** Two plain words for the moment, e.g. "full · bright". */
+    fun caption(i: Int): String {
+        val k = at(i)
+        val e = energy[k] - energyMid
+        val energyWord = if (e > 0.06f) "full" else if (e < -0.08f) "soft" else "steady"
+        val toneWord = if (tone[k] > 0.25f) "bright" else if (tone[k] < -0.25f) "dark" else "even"
+        return "$energyWord · $toneWord"
+    }
+    companion object {
+        fun of(shape: SongShape): SongMood? {
+            val h = silhouetteHeights(shape)
+            val n = h.size
+            if (n < 8 || shape.tilt.none { it?.isFinite() == true }) return null
+            fun around(i: Int, r: Int, f: (Int) -> Double?): Double? =
+                (maxOf(0, i - r)..minOf(n - 1, i + r)).mapNotNull(f).takeIf { it.isNotEmpty() }?.average()
+            val smooth = List(n) { i -> around(i, 8) { shape.tilt.getOrNull(it)?.takeIf { v -> v.isFinite() } } }  // +-4 s
+            val sorted = smooth.filterNotNull().sorted()
+            if (sorted.isEmpty()) return null
+            val med = sorted[sorted.size / 2]
+            val spread = maxOf(1.0, (sorted[sorted.size * 9 / 10] - sorted[sorted.size / 10]) / 2.0)  // a flat song stays near the middle
+            val tone = FloatArray(n) { i -> smooth[i]?.let { ((it - med) / spread).coerceIn(-1.0, 1.0).toFloat() } ?: 0f }
+            val energy = FloatArray(n) { i -> (maxOf(0, i - 4)..minOf(n - 1, i + 4)).map { h[it] }.average().toFloat() }
+            return SongMood(tone, energy, energy.sorted()[n / 2])
+        }
+    }
+}
+
 /**
  * Beautiful, not technical: a soft loudness silhouette, the anchor glowing in the accent, the played part brighter.
  * [progress] is read at draw time, so the playhead moves at the display rate without recomposition.
  */
 @Composable
 fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = Modifier, mood: Boolean = false, onSeek: ((Float) -> Unit)? = null) {
-    val pts = remember(shape) {
-        val vals = shape.lufs.map { it ?: Double.NaN }
-        val sorted = vals.filter { !it.isNaN() }.sorted()
-        val top = sorted.lastOrNull() ?: -10.0
-        // Scale to the song's own range (10th percentile minus a margin, at most 24 LU deep) so dense masters still show shape.
-        val p10 = sorted.getOrNull(sorted.size / 10) ?: (top - 24.0)
-        val floor = maxOf(top - 24.0, minOf(p10 - 4.0, top - 8.0))
-        // Normalised heights 0..1, lightly smoothed (3-point) so the silhouette reads as a shape, not a measurement.
-        val h = vals.map { v -> if (v.isNaN()) 0f else ((v - floor) / (top - floor)).coerceIn(0.0, 1.0).toFloat() }
-        List(h.size) { i -> (h[maxOf(0, i - 1)] + 2 * h[i] + h[minOf(h.size - 1, i + 1)]) / 4f }
-    }
+    val pts = remember(shape) { silhouetteHeights(shape) }
     // Mood colours (display only): the silhouette's colour follows the song's own brightness (spectral tilt, MATH §8.5) and its
     // energy (the heights above). Ivory is the middle; bright leans soft brass, dark and bassy leans cool grey-blue. Built once per
     // song; drawing it costs nothing more than the plain fill.
     val moodStops = remember(shape, pts, mood) {
-        if (!mood || pts.size < 2) null else {
+        val m = if (mood) SongMood.of(shape) else null
+        if (m == null || pts.size < 2) null else {
             val n = minOf(48, pts.size)
             Array(n) { s ->
-                val i0 = s * pts.size / n
-                val i1 = maxOf(i0 + 1, (s + 1) * pts.size / n).coerceAtMost(pts.size)
-                val e = (i0 until i1).map { pts[it] }.average().toFloat()
-                val ts = (i0 until i1).mapNotNull { shape.tilt.getOrNull(it)?.takeIf { v -> v.isFinite() } }
-                val x = if (ts.isEmpty()) 0f else (((ts.average() + 1.5) / 2.0).coerceIn(-1.0, 1.0)).toFloat()  // -1 dark .. +1 bright
-                val amount = abs(x) * (0.35f + 0.65f * e)  // quiet parts drift less
-                val tint = androidx.compose.ui.graphics.lerp(MoodIvory, if (x >= 0) MoodWarm else MoodCool, amount.coerceIn(0f, 0.85f))
-                s / (n - 1f) to tint.copy(alpha = 0.26f + 0.30f * e)  // brighter at the song's peak, dimmer in quiet parts
+                val i = (s * (pts.size - 1f) / (n - 1f)).toInt()
+                s / (n - 1f) to m.tint(i).copy(alpha = 0.26f + 0.30f * m.energy[m.at(i)])  // brighter at the song's peak, dimmer in quiet parts
             }
         }
     }

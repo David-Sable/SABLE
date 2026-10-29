@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.32 (2026-10-29)
+**Version:** MATH-1.33 (2026-10-29)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -296,8 +296,11 @@ Over the gated frames `R_g` (frames whose sub-block lies in a gated block of §4
 ### 8.4 Spectral density
 `D = (1/25)·|{ b : 10·log10(Ē_b) ≥ max_b 10·log10(Ē_b) − 30 }|`, a fraction in [0, 1] counting 1/3-octave bands within 30 dB of the strongest **[TUNE: 30 dB]**. Computed for the whole track (`D`) and the anchor (`D_a`, frames in anchor sections).
 
-### 8.5 Tilt over time [DESIGN, MATH-1.32, display only]
-For the Now Playing silhouette's colour (it never touches a gain): for every 0.5 s of the track (five 100 ms frames, the same grid as the `shape` loudness series), `Ē_b` is the mean of `E_{r,b}` over those frames and the tilt is the §8.3 slope over bands 63 Hz … 8 kHz, in dB/octave, rounded to 0.1 (fewer than 6 usable bands → absent). Unlike §8.3 the frames are not gated: it describes what that moment sounds like. The app maps `(tilt + 1.5)/2.0`, clamped to [−1, +1] (measured 2026-10-29 on 9 corpus songs: per-song medians −3.0 … +0.7, overall about −1.5; within a song the 10th–90th percentile spans 2–4 dB/oct), to a colour between a cool grey-blue (dark, bassy), the ivory accent (typical) and a soft brass (bright), and the energy of the moment (the `shape` height) sets how far it leaves ivory and how bright it is. Colours stay under about 30 % saturation.
+### 8.5 Tilt over time and the mood read-out [DESIGN, MATH-1.32 / 1.33, display only]
+For the Now Playing silhouette's colour and caption (it never touches a gain): for every 0.5 s of the track (five 100 ms frames, the same grid as the `shape` loudness series), `Ē_b` is the mean of `E_{r,b}` over those frames and the tilt is the §8.3 slope over bands 63 Hz … 8 kHz, in dB/octave, rounded to 0.1 (fewer than 6 usable bands → absent). Unlike §8.3 the frames are not gated: it describes what that moment sounds like.
+**[MATH-1.33] Against the song's own usual.** Measured on 9 corpus songs the per-song median tilt ranges −3.0 … +0.7 dB/oct, so one fixed scale would paint most songs the same colour. The app smooths the series over ±4 s (9 values, ignoring absent ones), takes the song's median `m` and spread `s = max(1, (p90 − p10)/2)` of the smoothed values, and uses `tone = clamp((tilt − m)/s, −1, +1)`. `energy` is the silhouette height (§ LoudnessShape: the 0.5 s short-term loudness scaled to the song's own range) averaged over ±2 s, and `E_mid` its median.
+- Colour: ivory (the accent) mixed with a soft brass for `tone > 0`, or a cool grey-blue for `tone < 0`, by `min(0.9, |tone|)`; alpha `0.26 + 0.30·energy`. Under about 30 % saturation.
+- Words (two, under the strip, at the playhead): energy `full` if `energy − E_mid > 0.06`, `soft` if `< −0.08`, else `steady`; tone `bright` if `tone > 0.25`, `dark` if `< −0.25`, else `even`. A flat song stays "steady · even" because the spread is floored at 1 dB/oct. Changes at most every 0.5 s.
 
 ---
 
@@ -913,7 +916,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Learning window t_w | 20 | s | 19.1 | TUNE |
 | Quieter / Louder tap N | 2 | dB | 19.4 | TUNE |
 | Flow gap G_flow (trailing + leading silence at the join) | 0.5 | s | 17.3 | DESIGN |
-| Mood tilt map: centre / half-width | −1.5 / 2.0 | dB/oct | 8.5 | DESIGN (display) |
+| Mood: tilt spread floor / smoothing / word thresholds | 1 dB/oct / ±4 s / ±0.25 tone, +0.06 / −0.08 energy | | 8.5 | DESIGN (display) |
 | Learning η_t, η_a | 0.5, 0.25 | | 19.2 | TUNE |
 | Learning half-life | 30 | days | 19.2 | TUNE |
 | Learning clamp | ±2 | dB | 19.2 | DESIGN (spec) |
