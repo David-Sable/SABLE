@@ -3,8 +3,18 @@
 package app.sable.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.ExitTransition
@@ -77,7 +87,11 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     val sharedScope = this
     Box(Modifier.fillMaxSize()) {
         val showMini = current != null && state.route !is Route.NowPlaying
-        val pad = if (showMini) bottomBarHeight() else 0.dp
+        // Room for the mini player whenever something is loaded, also under Now Playing: the screen beneath keeps its layout
+        // instead of laying itself out again each time the sheet opens and closes.
+        val pad = if (current != null) bottomBarHeight() else 0.dp
+        val context = androidx.compose.ui.platform.LocalContext.current
+        LaunchedEffect(state.currentTrackId) { SongViews.load(context, state.currentTrackId) }  // Now Playing's picture, ready before it opens
         // Each screen keeps its scroll position (and tab) while it is in the back stack: going back or swiping Now
         // Playing down returns to the same spot. A screen that leaves the stack forgets it, so reopening starts fresh.
         val saved = rememberSaveableStateHolder()
@@ -87,99 +101,77 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             (known - inStack).forEach(saved::removeState)
             known.clear(); known += inStack
         }
-        // While Now Playing is up, the screen beneath it is not composed (it is the same route list), so dragging the sheet down
-        // would drag it over black. The screen is recorded into a layer while it is on top; when Now Playing opens, the last
-        // frame is kept as a picture and drawn beneath the sheet, and the real screen takes over at the same frame the sheet goes.
-        val layer = rememberGraphicsLayer()
-        val sheetUp = state.route is Route.NowPlaying
-        val recordedRoute = remember { arrayOfNulls<Route>(1) }
-        var frozen by remember { mutableStateOf<ImageBitmap?>(null) }
-        LaunchedEffect(sheetUp) {
-            if (!sheetUp) { frozen = null; return@LaunchedEffect }
-            val beneath = state.back.getOrNull(state.back.lastIndex - 1)
-            if (state.debugCaptureDelayMs > 0) kotlinx.coroutines.delay(state.debugCaptureDelayMs)
-            frozen = if (!state.debugNoCapture && recordedRoute[0] == beneath) runCatching { layer.toImageBitmap() }.getOrNull() else null
+        // Now Playing is a sheet over the screens, not one of them: the screen it opened over stays alive beneath it (stepping back as
+        // the sheet rises), so opening needs no snapshot of it and closing rebuilds nothing (measured on the A17: closing cost two
+        // frames of 30-50 ms rebuilding the library, opening a 15-28 ms frame copying the snapshot). Screens opened from Now
+        // Playing (queue, album, artist) go on a layer above the sheet.
+        val np = state.back.indexOfFirst { it is Route.NowPlaying }
+        val baseRoute: Route? = if (np > 0) state.back[np - 1] else state.route
+        val aboveRoute: Route? = if (np >= 0 && np < state.back.lastIndex) state.route else null
+        val spec: AnimatedContentTransitionScope<Route?>.() -> ContentTransform = {
+            // No cross-fade: two half-see-through screens on black dip to nearly black in the middle, which tires the eyes.
+            // Every screen is solid and only the one on top moves or fades: going forward the new screen comes in over the
+            // old one, which stays put; going back the leaving screen goes away over the one it uncovers.
+            val leaving = initialState != null && initialState !in state.back  // going back: the screen we are on is leaving for good
+            // Screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
+            val enter = if (leaving || targetState == null) EnterTransition.None else slideInVertically(Motion.medium()) { it / 50 }
+            val exit = if (leaving) slideOutVertically(Motion.medium()) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
+            val t = enter togetherWith exit
+            t.targetContentZIndex = if (initialState != null && initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
+            t
         }
-        Box(Modifier.fillMaxSize().drawWithContent {
-            if (state.route !is Route.NowPlaying) {
-                recordedRoute[0] = state.route
-                if (state.debugNoRecord) drawContent() else {
-                    layer.record { this@drawWithContent.drawContent() }
-                    drawLayer(layer)
-                }
-            } else {
-                val p = if (state.animDepth) state.sheetP else 0f
-                // The screen behind the sheet steps back (a little smaller and dimmer, in step with the sheet). While the live screen is still
-                // composed it does that itself; the picture is only drawn once the live one is gone (one full-screen pass less per frame).
-                // Only the strip the sheet has not covered yet is drawn: behind a sheet that fills the screen it costs nothing.
-                val bare = (1f - state.sheetP) * size.height + SHEET_CORNER_MARGIN.toPx()
-                if (state.liveBeneath == 0 && bare > 0f && state.sheetP < 0.999f) frozen?.let { img ->
-                    val k = 1f - BACK_SHRINK * p
-                    clipRect(0f, 0f, size.width, bare.coerceAtMost(size.height)) {
-                        withTransform({ scale(k, k, androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)) }) {
-                            drawImage(img)
-                            if (p > 0f) drawRect(androidx.compose.ui.graphics.Color.Black, alpha = BACK_DIM * p)
-                        }
+        val screen: @Composable AnimatedContentScope.(Route?, Boolean) -> Unit = { r, beneathSheet ->
+            if (r != null && r !is Route.NowPlaying) {
+                val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
+                val a by transition.animateFloat(transitionSpec = { Motion.medium() }, label = "screen") {
+                    when (it) {
+                        EnterExitState.Visible -> 1f
+                        EnterExitState.PreEnter -> if (revealed) 1f else 0f
+                        EnterExitState.PostExit -> if (r in state.back) 1f else 0f  // covered: stays; left for good: fades away
                     }
                 }
-                drawContent()
-            }
-        }) {
-        AnimatedContent(
-            state.route,
-            transitionSpec = {
-                // No cross-fade: two half-see-through screens on black dip to nearly black in the middle, which tires the eyes.
-                // Every screen is solid and only the one on top moves or fades: going forward the new screen comes in over the
-                // old one, which stays put; going back the leaving screen goes away over the one it uncovers. Now Playing is a
-                // sheet that slides up from the bottom and slides back down (also after a swipe, from where the finger left it).
-                val leaving = initialState !in state.back  // going back: the screen we are on is leaving for good
-                // Other screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
-                val enter = if (targetState is Route.NowPlaying && state.animGrow) EnterTransition.None
-                    else if (targetState is Route.NowPlaying) slideInVertically(Motion.sheetIn(state.animDur)) { it }
-                    else if (leaving) EnterTransition.None else slideInVertically(Motion.medium()) { it / 50 }
-                val exit = if (leaving && initialState is Route.NowPlaying && state.animGrow) ExitTransition.KeepUntilTransitionsFinished
-                    else if (leaving && initialState is Route.NowPlaying) slideOutVertically(Motion.sheetOut(state.animDur)) { it }
-                    else if (leaving) slideOutVertically(Motion.medium()) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
-                val t = enter togetherWith exit
-                t.targetContentZIndex = if (initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
-                t
-            },
-            label = "route",
-        ) { r ->
-            val contentScope: androidx.compose.animation.AnimatedVisibilityScope = this
-            if (r !is Route.NowPlaying) androidx.compose.runtime.DisposableEffect(Unit) { state.liveBeneath++; onDispose { state.liveBeneath-- } }  // a live screen under the sheet?
-            val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
-            val a by transition.animateFloat(
-                transitionSpec = { Motion.medium() }, label = "screen",
-            ) {
-                when (it) {
-                    EnterExitState.Visible -> 1f
-                    EnterExitState.PreEnter -> if (revealed || r is Route.NowPlaying) 1f else 0f
-                    EnterExitState.PostExit -> if (r is Route.NowPlaying || r in state.back) 1f else 0f  // covered: stays; left for good: fades away
+                Box(Modifier.graphicsLayer { alpha = a }.background(SableColors.base).then(if (beneathSheet) Modifier.stepBack(state) else Modifier)) {
+                    saved.SaveableStateProvider(r.toString()) {
+                        when (r) {
+                            Route.Library -> LibraryScreen(state, rows, pad)
+                            is Route.Album -> AlbumScreen(state, rows, r.key, pad)
+                            is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
+                            is Route.Folder -> FolderScreen(state, rows, r.path, pad)
+                            is Route.Playlist -> PlaylistScreen(state, rows, r.id, pad)
+                            Route.Queue -> QueueScreen(state, rows, pad)
+                            Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
+                            Route.Search -> SearchScreen(state, rows, pad)
+                            Route.NowPlaying -> Unit
+                        }
+                    }
+                    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(SableColors.base))  // lists never scroll under the clock
                 }
             }
-            val grown by transition.animateFloat(
-                transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "grow",
-            ) { if (it == EnterExitState.Visible) 1f else 0f }
-            val grow = r is Route.NowPlaying && state.animGrow
-            Box(Modifier.graphicsLayer { alpha = a }.then(if (grow) Modifier.growFromBar { grown } else Modifier).then(if (r is Route.NowPlaying) Modifier else Modifier.background(SableColors.base).stepBack(state))) {  // Now Playing paints its own, so the background moves with its sheet
-            saved.SaveableStateProvider(r.toString()) {
-            when (r) {
-                Route.Library -> LibraryScreen(state, rows, pad)
-                is Route.Album -> AlbumScreen(state, rows, r.key, pad)
-                is Route.Artist -> ArtistScreen(state, rows, r.name, pad)
-                is Route.Folder -> FolderScreen(state, rows, r.path, pad)
-                is Route.Playlist -> PlaylistScreen(state, rows, r.id, pad)
-                Route.NowPlaying -> NowPlayingScreen(state, current, sharedScope, contentScope) { byId[it] }
-                Route.Queue -> QueueScreen(state, rows, pad)
-                Route.Settings -> SettingsScreen(state, rows, pad, onRescan, onAnalyseWhileCharging)
-                Route.Search -> SearchScreen(state, rows, pad)
-            }
-            }
-            if (r !is Route.NowPlaying) Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(SableColors.base))
+        }
+        AnimatedContent(baseRoute, transitionSpec = spec, label = "route") { r -> screen(r, true) }
+        // The sheet is built once and kept, hidden below the screen while closed (and not drawn), so opening it is only a slide:
+        // measured on the A17, building it in the slide's first frame took 35-55 ms. It slides up from the bottom and back down (also
+        // after a swipe, from where the finger left it) and paints its own background. Its enter/exit state drives the cover's
+        // flight from and back into the mini player, as an AnimatedVisibility would.
+        val npOpen = np >= 0
+        val npTransition = updateTransition(if (npOpen) EnterExitState.Visible else EnterExitState.PostExit, label = "nowPlaying")
+        val npScope = remember(npTransition) { object : AnimatedVisibilityScope { override val transition = npTransition } }
+        val sheet by npTransition.animateFloat(
+            transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "sheet",
+        ) { if (it == EnterExitState.Visible) 1f else 0f }
+        if (current != null) Box(
+            Modifier.fillMaxSize()
+                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { p.place(0, ((1f - sheet) * p.height).roundToInt()) } }
+                .drawWithContent { if (sheet > 0f) drawContent() },
+        ) {
+            saved.SaveableStateProvider(Route.NowPlaying.toString()) {
+                val onScreen = rememberUpdatedState(npOpen)
+                androidx.compose.runtime.CompositionLocalProvider(LocalOnScreen provides onScreen) {
+                    NowPlayingScreen(state, current, sharedScope, npScope, rowOf = { byId[it] })
+                }
             }
         }
-        }
+        AnimatedContent(aboveRoute, transitionSpec = spec, label = "above") { r -> screen(r, false) }
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(Motion.sheetIn(state.animDur)) { it } + fadeIn(Motion.sheetIn(state.animDur)), exit = slideOutVertically(Motion.sheetOut(state.animDur)) { it } + fadeOut(Motion.sheetOut(state.animDur)),
@@ -195,21 +187,7 @@ private const val BACK_SHRINK = 0.06f
 private const val BACK_DIM = 0.5f
 private val SHEET_CORNER_MARGIN = 32.dp  // a little more than the sheet's rounded corner
 
-/** The screen under Now Playing while it opens: it steps back (smaller, rounder, dimmer) as the sheet rises, as the frozen copy does. */
-/** The sheet opens up from the mini player's bar: its edges move out to the screen's, the words stay where they are. */
-private fun Modifier.growFromBar(p: () -> Float): Modifier = graphicsLayer {
-    val f = p().coerceIn(0f, 1f)
-    val bar = 130.dp.toPx()  // the mini player's height plus the bottom inset
-    val inset = (1f - f) * 12.dp.toPx()
-    val top = (1f - f) * (size.height - bar)
-    val r = (1f - f) * 20.dp.toPx() + 0.01f
-    clip = true
-    shape = object : androidx.compose.ui.graphics.Shape {
-        override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density) =
-            androidx.compose.ui.graphics.Outline.Rounded(androidx.compose.ui.geometry.RoundRect(inset, top, size.width - inset, size.height - (1f - f) * 0f, androidx.compose.ui.geometry.CornerRadius(r)))
-    }
-}
-
+/** The screen under Now Playing while it opens: it steps back (smaller and dimmer) as the sheet rises. */
 private fun Modifier.stepBack(state: AppState): Modifier = this
     .graphicsLayer {
         val p = if (state.animDepth) state.sheetP else 0f

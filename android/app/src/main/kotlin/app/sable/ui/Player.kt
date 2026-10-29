@@ -85,6 +85,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Redraw clock for the playhead. It ticks only while playing, and only as often as the playhead moves by one pixel
@@ -92,13 +95,28 @@ import kotlin.math.roundToInt
  * cost of redrawing every 90 Hz frame (battery, MATH-independent UI tuning; M7).
  */
 @Composable
-fun frameTick(active: Boolean, durationMs: Long = 0L, widthPx: Int = 1000): State<Long> = produceState(0L, active, durationMs, widthPx) {
-    val step = if (durationMs > 0 && widthPx > 0) (durationMs / widthPx).coerceIn(16L, 500L) else 250L
-    while (active) {
-        delay(step)
-        value = SystemClock.uptimeMillis()
+fun frameTick(active: Boolean, durationMs: Long = 0L, widthPx: Int = 1000): State<Long> {
+    val onScreen = LocalOnScreen.current
+    return produceState(0L, active, durationMs, widthPx) {
+        val step = if (durationMs > 0 && widthPx > 0) (durationMs / widthPx).coerceIn(16L, 500L) else 250L
+        if (active) whileOnScreen(onScreen) {
+            while (true) {
+                delay(step)
+                value = SystemClock.uptimeMillis()
+            }
+        }
     }
 }
+
+/**
+ * Whether the screen is in view. Now Playing stays built while closed (SableApp) and provides false then, so its clocks stop and
+ * a hidden sheet never wakes the display. Elsewhere it is always true.
+ */
+val LocalOnScreen = androidx.compose.runtime.staticCompositionLocalOf<State<Boolean>> { mutableStateOf(true) }
+
+/** Runs [block] while [onScreen] is true, cancelling it when the screen goes out of view and starting it again when it returns. */
+suspend fun whileOnScreen(onScreen: State<Boolean>, block: suspend () -> Unit) =
+    snapshotFlow { onScreen.value }.collectLatest { if (it) block() }
 
 @Composable
 fun analysisJson(trackId: Long?): JSONObject? {
@@ -217,11 +235,13 @@ fun NowPlayingScreen(
     LaunchedEffect(nudgeNote) { if (nudgeNote != null) { delay(2500); nudgeNote = null } }
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
     var sleepOpen by remember { mutableStateOf(false) }
-    val json = analysisJson(state.currentTrackId)
-    val shape = remember(json) { SongShape.of(json) }
-    val mood = remember(shape) { shape?.let { SongMood.of(it) } }
+    val context = LocalContext.current
+    val view by produceState(SongViews.peek(state.currentTrackId), state.currentTrackId) { value = SongViews.load(context, state.currentTrackId) }
+    val shape = view?.shape
+    val mood = view?.mood
     val tick by frameTick(state.playing, state.durationMs, 1000)
-    LaunchedEffect(state.playing) { while (true) { state.syncPosition(); delay(1000) } }
+    val onScreen = LocalOnScreen.current
+    LaunchedEffect(state.playing) { whileOnScreen(onScreen) { while (true) { state.syncPosition(); delay(1000) } } }
     val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
     // Gestures move only in the draw phase (graphicsLayer translation: no relayout per frame), follow the finger the
     // same frame (undispatched), and settle on a spring that carries the finger's speed, so nothing jumps or stalls.
@@ -246,7 +266,6 @@ fun NowPlayingScreen(
     // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
     val artSwipe = songSwipe(state)
     // Decode the neighbours' covers ahead of time, so a swipe never shows a blank square while the new one loads.
-    val context = LocalContext.current
     LaunchedEffect(state.queueIndex, state.queueIds) {
         for (i in listOf(state.queueIndex + 1, state.queueIndex - 1)) {
             val r = state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf) ?: continue
@@ -267,7 +286,15 @@ fun NowPlayingScreen(
     // Where the sheet is (0 away .. 1 open), from its real place on screen, drag and slide included: the screen behind, the corners
     // and the arrival of the words and controls all follow it, so they stay in step with the finger as well as with the animation.
     val screenH = with(LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { state.sheetP = 0f } }
+    // The sheet is kept while closed (SableApp): once it is out of sight, forget the swipe and any open sheet of its own.
+    LaunchedEffect(Unit) {
+        snapshotFlow { onScreen.value }.collectLatest { open ->
+            if (open) return@collectLatest
+            sleepOpen = false
+            snapshotFlow { state.sheetP }.first { it <= 0.001f }
+            dragY.snapTo(0f)
+        }
+    }
     val corner = with(LocalDensity.current) { 28.dp.toPx() }
     val rise = with(LocalDensity.current) { 18.dp.toPx() }
     // 0 until the sheet is `from` of the way up, then 1 by the time it is open: later pieces arrive after the cover.
@@ -304,7 +331,7 @@ fun NowPlayingScreen(
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))
             if (shape != null) {
-                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood) { state.seekFraction(it) }  // own layer
+                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood, view = view) { state.seekFraction(it) }  // own layer
             } else {
                 Canvas(Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) {
                     tick
@@ -376,10 +403,13 @@ fun NowPlayingScreen(
 /** The mood of the moment in two plain words ("full · bright"), in its own colour; changes at most every half second (MATH §8.5). */
 @Composable
 private fun MoodCaption(state: AppState, mood: SongMood) {
+    val onScreen = LocalOnScreen.current
     val i by produceState(0, state.playing, state.currentQueueId, mood) {
-        while (true) {
-            value = (state.position() / 500L).toInt()
-            delay(500 - state.position() % 500 + 5)
+        whileOnScreen(onScreen) {
+            while (true) {
+                value = (state.position() / 500L).toInt()
+                delay(500 - state.position() % 500 + 5)
+            }
         }
     }
     Text(mood.caption(i), style = SableType.caption, color = if (SableColors.light) SableColors.textSecondary else mood.tint(i).copy(alpha = 0.9f))  // the ivory tint is unreadable on paper
@@ -387,8 +417,9 @@ private fun MoodCaption(state: AppState, mood: SongMood) {
 
 @Composable
 private fun Clock(state: AppState) {
+    val onScreen = LocalOnScreen.current
     val t by produceState(0L, state.playing, state.currentQueueId) {
-        while (true) { value = state.position(); delay(1000 - state.position() % 1000 + 5) }
+        whileOnScreen(onScreen) { while (true) { value = state.position(); delay(1000 - state.position() % 1000 + 5) } }
     }
     Text(mmss(t), style = SableType.caption, color = SableColors.textTertiary)
 }

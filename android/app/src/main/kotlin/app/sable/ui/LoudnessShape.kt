@@ -90,18 +90,39 @@ class SongMood(val tone: FloatArray, val energy: FloatArray, private val energyM
     }
 }
 
+/** A song's silhouette, its heights and its mood, worked out once (off the main thread) and kept for the songs around now. */
+class SongView(val shape: SongShape, val heights: List<Float>, val mood: SongMood?)
+
+/**
+ * Now Playing opens with the playing song's picture already worked out: the analysis is read and turned into a [SongView] when
+ * the song starts (SableApp), not in the frames of the opening slide (measured on the A17: 8-10 ms in the slide's second frame).
+ */
+object SongViews {
+    private val cache = android.util.LruCache<Long, SongView>(8)
+    fun peek(trackId: Long?): SongView? = trackId?.let { cache.get(it) }
+    suspend fun load(context: android.content.Context, trackId: Long?): SongView? {
+        trackId ?: return null
+        peek(trackId)?.let { return it }
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val json = app.sable.data.SableDatabase.get(context).library().analysisForTrack(trackId, app.sable.data.SableDatabase.MATH_VERSION)?.json
+            val shape = json?.let { runCatching { SongShape.of(JSONObject(it)) }.getOrNull() } ?: return@withContext null
+            SongView(shape, silhouetteHeights(shape), SongMood.of(shape)).also { cache.put(trackId, it) }
+        }
+    }
+}
+
 /**
  * Beautiful, not technical: a soft loudness silhouette, the anchor glowing in the accent, the played part brighter.
  * [progress] is read at draw time, so the playhead moves at the display rate without recomposition.
  */
 @Composable
-fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = Modifier, mood: Boolean = false, onSeek: ((Float) -> Unit)? = null) {
-    val pts = remember(shape) { silhouetteHeights(shape) }
+fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = Modifier, mood: Boolean = false, view: SongView? = null, onSeek: ((Float) -> Unit)? = null) {
+    val pts = remember(shape, view) { view?.heights ?: silhouetteHeights(shape) }
     // Mood colours (display only): the silhouette's colour follows the song's own brightness (spectral tilt, MATH §8.5) and its
     // energy (the heights above). Ivory is the middle; bright leans soft brass, dark and bassy leans cool grey-blue. Built once per
     // song; drawing it costs nothing more than the plain fill.
     val moodStops = remember(shape, pts, mood) {
-        val m = if (mood) SongMood.of(shape) else null
+        val m = if (mood) (view?.mood ?: SongMood.of(shape)) else null
         if (m == null || pts.size < 2) null else {
             val n = minOf(48, pts.size)
             Array(n) { s ->

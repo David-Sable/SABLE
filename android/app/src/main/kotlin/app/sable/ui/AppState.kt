@@ -53,7 +53,6 @@ class AppState {
     var animDepth by mutableStateOf(true)      // the screen behind steps back (smaller, dimmer) while the sheet is up
     var animCorners by mutableStateOf(true)    // the sheet's top corners are round until it fills the screen
     var animStagger by mutableStateOf(false)    // the words and controls arrive after the cover, following the sheet
-    var liveBeneath by mutableIntStateOf(0)    // screens other than Now Playing composed right now (0 = the frozen picture must stand in)
     var animGrow by mutableStateOf(false)      // Now Playing grows out of the mini player's bar (its edges open up) instead of sliding up
     var animSpring by mutableStateOf(false)    // the cover's flight settles on a spring instead of a timed curve
     var debugCaptureDelayMs by mutableStateOf(0L)
@@ -66,7 +65,11 @@ class AppState {
     var queueIndex by mutableIntStateOf(0)
     var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
 
-    fun go(r: Route) { if (route != r) back.add(r) }
+    fun go(r: Route) {
+        // Now Playing is one sheet: asked for again from a screen above it (the queue), go back down to it instead of stacking a second.
+        if (r is Route.NowPlaying && r in back) while (route !is Route.NowPlaying) back.removeAt(back.lastIndex)
+        else if (route != r) back.add(r)
+    }
     fun pop(): Boolean = if (back.size > 1) { back.removeAt(back.lastIndex); true } else false
 
     fun withController(action: (MediaController) -> Unit) {
