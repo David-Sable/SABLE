@@ -31,6 +31,8 @@ import app.sable.ui.theme.Space
 @Composable
 fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val favorites = rememberFavorites()
+    val context = androidx.compose.ui.platform.LocalContext.current
     ModalBottomSheet(
         onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
         dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
@@ -46,6 +48,8 @@ fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
                 Pill("Add to queue", selected = false) { state.addToQueue(r); onDismiss() }
                 if (r.album.isNotBlank()) Pill("Go to album", selected = false) { onDismiss(); state.go(Route.Album(albumKey(r))) }
                 Pill("Why", selected = false) { onDismiss(); state.whyTrack = r.mediaId }
+                val fav = r.mediaId in favorites
+                Pill(if (fav) "Remove from Favourites" else "Add to Favourites", selected = false) { Favorites.set(context, r.mediaId, !fav); onDismiss() }
             }
             Text("Added songs play in their own world, balanced on their own.", style = SableType.caption, color = SableColors.textTertiary,
                 modifier = Modifier.padding(top = Space.m))

@@ -147,13 +147,25 @@ interface PlayDao {
     @Query("SELECT * FROM plays ORDER BY playedAt DESC") fun observeAll(): Flow<List<PlayEntity>>
 }
 
+/** A song you marked with the heart (Now Playing or the song menu). */
+@Entity(tableName = "favorites")
+data class FavoriteEntity(@PrimaryKey val trackId: Long, val addedAt: Long)
+
+@Dao
+interface FavoriteDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun add(f: FavoriteEntity)
+    @Query("DELETE FROM favorites WHERE trackId = :trackId") suspend fun remove(trackId: Long)
+    @Query("SELECT * FROM favorites ORDER BY addedAt DESC") fun observeAll(): Flow<List<FavoriteEntity>>
+}
+
 @Database(
-    entities = [TrackEntity::class, AnalysisEntity::class, PlayEntity::class], version = 2, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    entities = [TrackEntity::class, AnalysisEntity::class, PlayEntity::class, FavoriteEntity::class], version = 3, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class SableDatabase : RoomDatabase() {
     abstract fun library(): LibraryDao
     abstract fun plays(): PlayDao
+    abstract fun favorites(): FavoriteDao
 
     companion object {
         const val MATH_VERSION = "1.9"

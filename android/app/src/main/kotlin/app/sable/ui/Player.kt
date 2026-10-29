@@ -213,6 +213,7 @@ fun NowPlayingScreen(
     val gain by NowPlaying.gain.collectAsState()
     val settings by app.sable.playback.PlaybackPrefs.settings.collectAsState()
     var nudgeNote by remember { mutableStateOf<String?>(null) }
+    val favorites = rememberFavorites()
     LaunchedEffect(nudgeNote) { if (nudgeNote != null) { delay(2500); nudgeNote = null } }
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
     var sleepOpen by remember { mutableStateOf(false) }
@@ -289,9 +290,16 @@ fun NowPlayingScreen(
             val gap = if (compact) Space.s else Space.xl
             val shapeH = if (compact) 40.dp else 56.dp
             val info: @Composable ColumnScope.() -> Unit = {
-            // Tap the title for its album, the artist line for the artist.
-            Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
+            // Tap the title for its album, the artist line for the artist; the heart keeps the song in Favourites.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
+                if (row != null) {
+                    val fav = row.mediaId in favorites
+                    IconButton(if (fav) Glyph.HEART_FILLED else Glyph.HEART, { Favorites.set(context, row.mediaId, !fav) }, size = 22.dp,
+                        color = if (fav) SableColors.accent else SableColors.textTertiary)
+                }
+            }
             Text(listOfNotNull(row?.artist, row?.album).map(::clean).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))

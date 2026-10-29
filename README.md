@@ -48,6 +48,7 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Your outputs** (§20): each output (speaker, Bluetooth, USB-C, wired) keeps its own level offset and peak ceiling.
 - **Learning** (§19): volume presses early in a song teach small offsets, shown and resettable on the Why sheet. Each place learns on its own (§19.3): your car, your headphones and the phone speaker are told apart by the device, so turning a song up in the car never changes it on headphones.
 - **Home**: the first tab. It shows the albums you played recently, your most played songs this month and albums you have not heard in a while. It is built only from your own listening on this phone (a song counts after 30 seconds), never sent anywhere, and never changes how a song sounds.
+- **Favourites**: tap the heart beside the title on Now Playing (or long-press a song → Add to Favourites). They appear on Home, with Shuffle.
 - **Search**: the magnifier at the top of the library. Type part of a title, album or artist (accents and capitals don't matter); tapping a song plays it and the songs listed after it.
 - **Sleep timer**: the moon on Now Playing (right of the controls). Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
 - **Swipe the mini player** (the bar at the bottom) left or right to change songs from any page; tap it to open Now Playing.

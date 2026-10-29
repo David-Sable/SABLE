@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -62,8 +63,10 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val playsFlow = remember { SableDatabase.get(context).plays().observeAll() }
     val plays by playsFlow.collectAsState(initial = null)
     val home = remember(plays, rows) { plays?.let { HomeData.of(it, rows) } }
+    val favIds = rememberFavorites()
+    val favs = remember(favIds, rows) { val byId = rows.associateBy { it.mediaId }; favIds.mapNotNull(byId::get) }
     if (home == null) return
-    if (home.isEmpty) {
+    if (home.isEmpty && favs.isEmpty()) {
         Column(Modifier.fillMaxWidth().padding(top = 96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             SableMark(64.dp)
             Text("What you play shows up here", style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.l))
@@ -71,7 +74,22 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         return
     }
     LazyColumn(contentPadding = PaddingValues(top = Space.l, bottom = bottomPad + Space.l)) {
-        item(key = "recent") { AlbumRow("Recently played", home.recent, state) }
+        if (home.recent.isNotEmpty()) item(key = "recent") { AlbumRow("Recently played", home.recent, state) }
+        if (favs.isNotEmpty()) {
+            item(key = "favHead") {
+                Row(Modifier.fillMaxWidth().padding(end = Space.gutter), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { Heading("Favourites") }
+                    if (favs.size > 1) Pill("Shuffle", selected = false, Modifier.padding(top = Space.l)) { state.playSongWorld(favs.shuffled(), 0); state.go(Route.NowPlaying) }
+                }
+            }
+            val shown = favs.take(6)
+            items(shown.size, key = { "fav${shown[it].mediaId}" }) { i ->
+                val r = shown[i]
+                SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(favs, i) }, { state.menuTrack = r.mediaId }) {
+                    state.whyTrack = r.mediaId
+                }
+            }
+        }
         if (home.most.isNotEmpty()) {
             item(key = "mostHead") { Heading("Most played this month") }
             val songs = home.most.map { it.first }
