@@ -4,6 +4,8 @@ Written 2026-10-28 after reading the whole repo, at David's request ("where's th
 David pastes the short prompt at the bottom; this file is the plan behind it. Work top to bottom; each part ends with
 "done means". Tick parts off in NOTES "Now" as they land.
 
+**Progress (2026-10-28 night): Parts 1-4 are done (0.24.7-0.29.0, see NOTES "Now"). Next: Part 5, then Part 6 once there is car data.**
+
 ## Where Sable stands
 The hard part is done and is rare: an engine that understands each song (anchor, character, perceived loudness),
 changes only its level, explains itself (Why sheet) and learns per place. The app looks calm and premium (true black,
@@ -92,5 +94,5 @@ can unplug, then name the release.
 
 ## The prompt David pastes into a new chat
 > Continue SABLE. Read CLAUDE.md, docs/NOTES.md and docs/NEXT-SESSION-PROMPT.md first. My phone is plugged in over
-> USB. Start with Part 1 (the widget), show me screenshots of each size, then carry on with Part 2. Ask me before
-> Part 3 which of those I want.
+> USB. Parts 1-4 are done: start Part 5 (the polish pass), show me the punch list before fixing, then Part 6 if
+> there is car data.
