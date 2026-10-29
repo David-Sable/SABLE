@@ -3,7 +3,10 @@
 """
 import subprocess,json,os,re,random,time,sys
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
-from lt import adb,setvol,key,devnow
+def adb(*a): return subprocess.run(['adb']+list(a),capture_output=True,text=True,encoding='utf-8',errors='replace').stdout
+def devnow(): return adb('shell','date "+%m-%d %H:%M:%S.000"').strip()
+def setvol(n): adb('shell','cmd media_session volume --stream 3 --set %d'%n)
+def key(k): adb('shell','input keyevent '+k)
 T=os.environ['TEMP']+'/aud/'
 rows=[json.loads(l) for l in open(T+'decide.jsonl',encoding='utf-8')]
 for r in rows:

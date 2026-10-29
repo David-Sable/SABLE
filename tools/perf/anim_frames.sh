@@ -12,7 +12,10 @@ adb shell $A open --es screen nowplaying >/dev/null 2>&1; sleep 2; r
 for k in 1 2; do adb shell input swipe 850 800 200 800 180; sleep 1.2; adb shell input swipe 200 800 900 800 180; sleep 1.2; done; fs cover-swipes
 r; for k in 1 2; do adb shell input swipe 540 400 540 1500 220; sleep 1.2; adb shell $A open --es screen nowplaying >/dev/null 2>&1; sleep 1.2; done; fs nowplaying-close-open
 adb shell $A open --es screen settings >/dev/null 2>&1; sleep 2; r
-for k in 1 2; do adb shell input tap 302 1705; sleep 1.2; adb shell input tap 139 1705; sleep 1.2; done; fs advanced-toggle
+# Taps are found by the words on screen (uiautomator), not by fixed pixels, so they survive layout changes.
+tap_text() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$TEMP/ui.xml" >/dev/null 2>&1
+  xy=$(python "$S/tap_xy.py" "$TEMP/ui.xml" "$1"); [ -n "$xy" ] && adb shell input tap $xy; }
+for k in 1 2; do tap_text "Advanced"; sleep 1.2; tap_text "Easy"; sleep 1.2; done; fs advanced-toggle
 adb shell $A open --es screen library >/dev/null 2>&1; sleep 2; r
 for k in 1 2; do adb shell input swipe 540 1800 540 500 250; sleep 0.8; adb shell input swipe 540 500 540 1800 250; sleep 0.8; done; fs library-scroll
 adb shell $A pause >/dev/null 2>&1

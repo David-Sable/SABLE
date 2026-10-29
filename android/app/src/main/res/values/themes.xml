@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light mode: the window behind the app is the same warm paper as SableColors.base, so nothing flashes white or black at start. -->
+    <style name="Theme.Sable" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F1EDE4</item>
+        <item name="android:colorBackground">#F1EDE4</item>
+    </style>
+</resources>
