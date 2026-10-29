@@ -45,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -181,7 +182,7 @@ fun songSwipe(state: AppState): Modifier {
  */
 fun Modifier.coverSpot(state: AppState, mini: Boolean): Modifier = this
     .onGloballyPositioned { c ->
-        val r = androidx.compose.ui.geometry.Rect(c.positionInRoot(), androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+        val r = c.boundsInRoot()  // as drawn: includes the pause shrink and a sideways swipe (a paused cover is 94%; measuring it at full size made it land big and snap smaller)
         if (mini) state.miniCover = r
         else state.npCover = r
     }
@@ -357,7 +358,7 @@ fun NowPlayingScreen(
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverSpot(state, mini = false).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
                     Column(
                         Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise },
                         verticalArrangement = Arrangement.Center, content = info,
@@ -365,7 +366,7 @@ fun NowPlayingScreen(
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverSpot(state, mini = false).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
                     Spacer(Modifier.height(gap))
                     Column(Modifier.graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise }) { info() }  // arrives after the cover
                 }
