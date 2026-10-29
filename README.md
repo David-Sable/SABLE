@@ -50,6 +50,7 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Home**: the first tab. It shows the albums you played recently, your most played songs this month and albums you have not heard in a while. It is built only from your own listening on this phone (a song counts after 30 seconds), never sent anywhere, and never changes how a song sounds.
 - **Favourites**: tap the heart beside the title on Now Playing (or long-press a song → Add to Favourites). They appear on Home, with Shuffle.
 - **Playlists**: long-press a song → Add to playlist, then pick one or type a new name. Your playlists are on Home; open one to play or shuffle it, rename or delete it, move a song up or take it out.
+- **Backup**: Settings → Backup → Save backup puts one small file in Downloads/Sable with your settings, what Sable learned, your history, favourites and playlists (never music). On a new phone, install Sable, let it find your music, then Settings → Backup → Restore… and pick the file.
 - **Search**: the magnifier at the top of the library. Type part of a title, album or artist (accents and capitals don't matter); tapping a song plays it and the songs listed after it.
 - **Sleep timer**: the moon on Now Playing (right of the controls). Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
 - **Swipe the mini player** (the bar at the bottom) left or right to change songs from any page; tap it to open Now Playing.

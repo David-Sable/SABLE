@@ -3,6 +3,7 @@
 package app.sable.ui
 
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.EnterExitState
@@ -253,6 +254,8 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                 Pill("Rescan now", false, onClick = onRescan)
                 Pill("Listen while charging", false, onClick = onAnalyseWhileCharging)
             }
+            Group("Backup")
+            BackupRow()
             Group("Advanced settings")
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                 Pill("Off", !s.advanced) { PlaybackPrefs.update(context) { it.copy(advanced = false) } }
@@ -358,6 +361,23 @@ private fun BatteryRow() {
         }
     }
     Hint("By hand: Settings → Apps → SABLE → Battery → Unrestricted. Also check Settings → Battery → Background usage limits: Sable should not be in Sleeping or Deep sleeping apps.")
+}
+
+/** Save everything Sable knows about you to one file in Downloads/Sable, or put it back (also on a new phone). */
+@Composable
+private fun BackupRow() {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var note by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch { note = runCatching { app.sable.data.Backup.restore(context, uri) }.getOrElse { "Could not restore: ${it.message}" } }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+        Pill("Save backup", false) { scope.launch { note = runCatching { "Saved to " + app.sable.data.Backup.save(context) }.getOrElse { "Could not save: ${it.message}" } } }
+        Pill("Restore…", false) { pick.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }
+    }
+    note?.let { Text(it, style = SableType.body, color = SableColors.accent, modifier = Modifier.padding(top = Space.m)) }
+    Hint("One small file with your settings, what Sable learned, your history, favourites and playlists (never music). Restore replaces those on this phone with the file's.")
 }
 
 @Composable

@@ -146,6 +146,9 @@ data class PlayEntity(
 interface PlayDao {
     @Insert suspend fun add(play: PlayEntity)
     @Query("SELECT * FROM plays ORDER BY playedAt DESC") fun observeAll(): Flow<List<PlayEntity>>
+    @Query("SELECT * FROM plays") suspend fun all(): List<PlayEntity>
+    @Query("DELETE FROM plays") suspend fun clear()
+    @Insert suspend fun addAll(plays: List<PlayEntity>)
 }
 
 /** A song you marked with the heart (Now Playing or the song menu). */
@@ -157,6 +160,8 @@ interface FavoriteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun add(f: FavoriteEntity)
     @Query("DELETE FROM favorites WHERE trackId = :trackId") suspend fun remove(trackId: Long)
     @Query("SELECT * FROM favorites ORDER BY addedAt DESC") fun observeAll(): Flow<List<FavoriteEntity>>
+    @Query("SELECT * FROM favorites") suspend fun all(): List<FavoriteEntity>
+    @Query("DELETE FROM favorites") suspend fun clear()
 }
 
 /** A playlist you made; its songs are [PlaylistTrackEntity] rows in [PlaylistTrackEntity.position] order. */
@@ -180,6 +185,10 @@ interface PlaylistDao {
     @Transaction suspend fun swap(a: PlaylistTrackEntity, b: PlaylistTrackEntity) { setPosition(a.id, b.position); setPosition(b.id, a.position) }
     @Query("SELECT * FROM playlists ORDER BY name COLLATE NOCASE") fun observePlaylists(): Flow<List<PlaylistEntity>>
     @Query("SELECT * FROM playlist_tracks ORDER BY playlistId, position, id") fun observeEntries(): Flow<List<PlaylistTrackEntity>>
+    @Query("SELECT * FROM playlists") suspend fun allPlaylists(): List<PlaylistEntity>
+    @Query("SELECT * FROM playlist_tracks ORDER BY playlistId, position, id") suspend fun allEntries(): List<PlaylistTrackEntity>
+    @Query("DELETE FROM playlists") suspend fun clearPlaylists()
+    @Query("DELETE FROM playlist_tracks") suspend fun clearEntries()
 }
 
 @Database(
