@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget colours, light (this file) and dark (values-night): the same tokens as the app (ui/theme/Tokens.kt). -->
+<resources>
+    <color name="w_card">#FFFCFCFC</color>
+    <color name="w_line">#FFD6D6D6</color>
+    <color name="w_text">#FF1A1A1A</color>
+    <color name="w_text2">#FF5C5C5C</color>
+    <color name="w_accent">#FF2B2B2B</color>
+    <color name="w_on_accent">#FFF2F2F2</color>
+    <color name="w_art">#FFEBEBEB</color>
+</resources>
