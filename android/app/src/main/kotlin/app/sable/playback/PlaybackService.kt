@@ -44,7 +44,7 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var session: MediaLibrarySession
     private lateinit var controller: GainController
     private val gains = GainTable()
-    private var countedPlay: String? = null  // the queue entry already counted in the history for this time it plays
+    private val playCounter = PlayCounter()
 
     override fun onCreate() {
         super.onCreate()
@@ -115,16 +115,15 @@ class PlaybackService : MediaLibraryService() {
         })
         // While playing, the spot in the song is also saved every 10 s (a crash or a swipe-away loses at most that).
         scope.launch { while (true) { delay(10_000); if (player.isPlaying) saveResume() } }
-        // Listening history (Home): a song counts once it has played 30 s, or half of it when shorter; once per time it plays.
+        // Listening history (Home): see PlayCounter; a replay of the same entry counts again.
+        controller.onReplay = playCounter::restarted
         scope.launch {
             while (true) {
                 delay(5_000)
                 val item = player.currentMediaItem ?: continue
-                if (!player.isPlaying || countedPlay == item.mediaId) continue
-                val dur = player.duration
-                if (dur <= 0 || player.currentPosition < minOf(30_000L, dur / 2)) continue
-                countedPlay = item.mediaId
+                if (!playCounter.tick(item.mediaId, player.isPlaying, player.currentPosition, player.duration)) continue
                 val trackId = QueueId.trackId(item.mediaId) ?: continue
+                PlaybackDiag.log("PLAY counted $trackId")
                 val play = app.sable.data.PlayEntity(trackId = trackId, playedAt = System.currentTimeMillis(), albumWorld = QueueId.albumIntent(item.mediaId))
                 launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { SableDatabase.get(this@PlaybackService).plays().add(play) } }
             }
