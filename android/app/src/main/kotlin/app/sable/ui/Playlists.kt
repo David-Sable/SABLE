@@ -85,11 +85,7 @@ fun AddToPlaylistSheet(trackId: Long, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val playlists = rememberPlaylists()
     var name by remember { mutableStateOf("") }
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
-        dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
-    ) {
+    SableSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Text("Add to playlist", style = SableType.title, color = SableColors.textPrimary, modifier = Modifier.padding(horizontal = Space.xl, vertical = Space.m))
             for ((p, songs) in playlists) {

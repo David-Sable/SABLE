@@ -61,7 +61,6 @@ import org.json.JSONObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val json = analysisJson(row.mediaId)
     val live by NowPlaying.gain.collectAsState()
     val settings by PlaybackPrefs.settings.collectAsState()
@@ -75,10 +74,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
             override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity) = androidx.compose.ui.unit.Velocity(0f, minOf(available.y, 0f))
         }
     }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
-        dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
-    ) {
+    SableSheet(onDismiss) {
         // No stretch at the ends: inside a sheet it fights the sheet's own drag and the content jitters when you keep scrolling.
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollFactory provides null) {
         Box(Modifier.nestedScroll(noSheetLift)) {

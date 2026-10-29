@@ -43,12 +43,8 @@ fun sleepStatus(s: SleepTimer.State?): String? = when {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SleepSheet(onDismiss: () -> Unit) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val st by SleepTimer.state.collectAsState()
-    ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
-        dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
-    ) {
+    SableSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text("SLEEP TIMER", style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m))
             Text(sleepStatus(st) ?: "Off", style = SableType.title, color = if (st != null) SableColors.accent else SableColors.textPrimary,

@@ -234,7 +234,6 @@ fun NowPlayingScreen(
     val favorites = rememberFavorites()
     LaunchedEffect(nudgeNote) { if (nudgeNote != null) { delay(2500); nudgeNote = null } }
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
-    var sleepOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val view by produceState(SongViews.peek(state.currentTrackId), state.currentTrackId) { value = SongViews.load(context, state.currentTrackId) }
     val shape = view?.shape
@@ -290,7 +289,7 @@ fun NowPlayingScreen(
     LaunchedEffect(Unit) {
         snapshotFlow { onScreen.value }.collectLatest { open ->
             if (open) return@collectLatest
-            sleepOpen = false
+            state.sleepSheet = false
             snapshotFlow { state.sheetP }.first { it <= 0.001f }
             dragY.snapTo(0f)
         }
@@ -310,7 +309,6 @@ fun NowPlayingScreen(
         }
         }
         sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
-        if (sleepOpen) SleepSheet { sleepOpen = false }
         // A short window (split screen, a small pane) puts the cover beside the controls instead of above them.
         BoxWithConstraints(Modifier.weight(1f)) {
             val compact = maxHeight < 440.dp
@@ -358,7 +356,7 @@ fun NowPlayingScreen(
                     contentAlignment = Alignment.Center,
                 ) { androidx.compose.animation.Crossfade(state.playing, animationSpec = androidx.compose.animation.core.tween(140), label = "playPause") { p -> Icon(if (p) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) } }
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
-                IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
+                IconButton(Glyph.MOON, { state.sleepSheet = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
             }
             }
             if (compact) {

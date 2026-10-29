@@ -30,13 +30,9 @@ import app.sable.ui.theme.Space
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val favorites = rememberFavorites()
     val context = androidx.compose.ui.platform.LocalContext.current
-    ModalBottomSheet(
-        onDismissRequest = onDismiss, sheetState = sheet, containerColor = SableColors.surface1, scrimColor = SableColors.base.copy(alpha = 0.6f),
-        dragHandle = { Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp))) },
-    ) {
+    SableSheet(onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text(titleOf(r), style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Space.m))

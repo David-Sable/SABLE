@@ -130,7 +130,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                         EnterExitState.PostExit -> if (r in state.back) 1f else 0f  // covered: stays; left for good: fades away
                     }
                 }
-                Box(Modifier.graphicsLayer { alpha = a }.background(SableColors.base).then(if (beneathSheet) Modifier.stepBack(state) else Modifier)) {
+                Box(Modifier.graphicsLayer { alpha = a }.then(if (beneathSheet) Modifier.stepBack(state) else Modifier).background(SableColors.base)) {  // inside the step-back clip: covered by the sheet, it is not painted
                     saved.SaveableStateProvider(r.toString()) {
                         when (r) {
                             Route.Library -> LibraryScreen(state, rows, pad)
@@ -179,6 +179,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
         state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
         state.whyTrack?.let { id -> byId[id]?.let { WhySheet(state, it) { state.whyTrack = null } } }
+        if (state.sleepSheet) SleepSheet { state.sleepSheet = false }
     }
     }
 }
