@@ -65,6 +65,8 @@ Each milestone ends with a test report. The next one does not start until it is 
 
 | 2026-10-29 | **Dark only**: light mode removed (app, system bars, widget); the light palette stays unused in `SableColors` | "Dark feels more respectful and lets the cover art breathe" | David |
 | 2026-10-29 | **The cover's flight is drawn by Sable itself**, not Compose's shared element: one picture moved between the mini player's cover and Now Playing's resting cover at the sheet's own progress; the real covers hide meanwhile | The shared element learned the landing spot late (a jump on opening) and aimed at a moving target (a bounce); now it starts and ends exactly on the two covers and moves with the sheet | Claude (David: "the album cover does the bouncy thing") |
+| 2026-10-29 | **Targets confirmed: Normal −14, Quiet −19** (no change) after a sweep of all 418 songs (`docs/reports/targets-2026-10-29.md`) | At −14, 96–97 % of songs and every album reach the target within 1 dB (about the smallest difference people notice); higher targets lose songs to the peak cap fast, lower ones gain little and cost knob. −19 is 5 dB (about 30 % less loud) below, leaves room for the contour (99 % reach it) | Claude (David: "as co owner I want you to decide") |
+
 ## Known risks / blind spots
 1. Perceived loudness depends on real playback SPL, which the phone doesn't know. Mitigated by the D_cal convention and per-output calibration (MATH §12, §20).
 2. Full ISO 532-3 is far too slow for the phone budget. The fast model is mandatory and its error is measured (MATH §11).
