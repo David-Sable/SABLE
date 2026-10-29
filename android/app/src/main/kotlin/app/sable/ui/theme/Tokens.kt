@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.random.Random
 
 /**
- * SABLE design tokens (dark, and a soft warm-paper light mode that follows the phone). Every colour, type style, spacing step and motion curve in the UI comes from here.
+ * SABLE design tokens (dark, and a soft light-grey light mode matching One UI that follows the phone). Every colour, type style, spacing step and motion curve in the UI comes from here.
  * True black base for AMOLED, near-black matte surfaces layered on top, one restrained accent (warm ivory; brushed
  * brass is kept as the alternate token, PLAN decision 2026-10-25).
  */
@@ -36,18 +36,18 @@ object SableColors {
     var light by mutableStateOf(false)
         internal set
 
-    // Dark: true black, warm ivory accent. Light: warm paper (never pure white), dark ink as the accent.
-    val base get() = if (light) Color(0xFFF1EDE4) else Color(0xFF000000)
-    val surface1 get() = if (light) Color(0xFFEAE5DA) else Color(0xFF0A0A09)
-    val surface2 get() = if (light) Color(0xFFE2DCCF) else Color(0xFF121110)
-    val surface3 get() = if (light) Color(0xFFD8D1C2) else Color(0xFF1B1A17)
-    val line get() = if (light) Color(0xFFCDC6B6) else Color(0xFF24221E)
-    val textPrimary get() = if (light) Color(0xFF1D1B17) else Color(0xFFEDE8DF)
-    val textSecondary get() = if (light) Color(0xFF5E584D) else Color(0xFFA39D92)
-    val textTertiary get() = if (light) Color(0xFF8B8579) else Color(0xFF6B665E)
-    val accent get() = if (light) Color(0xFF2B2822) else Color(0xFFE8E1D3)      // dark: warm ivory; light: dark ink
-    val accentAlt get() = if (light) Color(0xFF8A6D34) else Color(0xFFB5975A)   // brushed brass (alternate)
-    val onAccent get() = if (light) Color(0xFFF1EDE4) else Color(0xFF0A0A09)
+    // Dark: true black, warm ivory accent. Light: One UI grey with near-white cards, dark ink as the accent.
+    val base get() = if (light) Color(0xFFF2F2F2) else Color(0xFF000000)
+    val surface1 get() = if (light) Color(0xFFFCFCFC) else Color(0xFF0A0A09)
+    val surface2 get() = if (light) Color(0xFFEBEBEB) else Color(0xFF121110)
+    val surface3 get() = if (light) Color(0xFFE0E0E0) else Color(0xFF1B1A17)
+    val line get() = if (light) Color(0xFFD6D6D6) else Color(0xFF24221E)
+    val textPrimary get() = if (light) Color(0xFF1A1A1A) else Color(0xFFEDE8DF)
+    val textSecondary get() = if (light) Color(0xFF5C5C5C) else Color(0xFFA39D92)
+    val textTertiary get() = if (light) Color(0xFF8A8A8A) else Color(0xFF6B665E)
+    val accent get() = if (light) Color(0xFF2B2B2B) else Color(0xFFE8E1D3)      // dark: warm ivory; light: dark ink
+    val accentAlt get() = if (light) Color(0xFF7A6330) else Color(0xFFB5975A)   // brushed brass (alternate)
+    val onAccent get() = if (light) Color(0xFFF2F2F2) else Color(0xFF0A0A09)
     val accentSoft get() = accent.copy(alpha = 0.14f)
 }
 
@@ -146,7 +146,7 @@ private fun grainOnBaseTileOf(b: Color, ink: Float): ImageBitmap {
     return android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }
 private val grainOnBaseDark: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFF000000), 1f) }
-private val grainOnBaseLight: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFFF1EDE4), 0f) }
+private val grainOnBaseLight: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFFF2F2F2), 0f) }
 
 /**
  * Now Playing's surface: the base colour with the grain, in one pass, with its top corners rounded by [corner] (px, read at draw
