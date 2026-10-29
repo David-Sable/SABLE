@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.border
 import app.sable.ui.theme.Motion
 import app.sable.ui.theme.Radius
 import app.sable.ui.theme.SableColors
@@ -81,9 +83,9 @@ fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier
             .background(Brush.linearGradient(listOf(SableColors.surface3, SableColors.surface1))),
         contentAlignment = Alignment.Center,
     ) {
-        if (img == null) {
-            Text(title.trim().take(1).uppercase(), style = SableType.title.copy(fontSize = SableType.title.fontSize * (size.value / 120f).coerceIn(0.6f, 3f)),
-                color = SableColors.textTertiary)
+        if (img == null) {  // no cover: a quiet tile with an edge line and, when big enough, the lion at low strength (no letter)
+            Box(Modifier.matchParentSize().border(0.75.dp, SableColors.line, RoundedCornerShape(Radius.art)))
+            if (size >= 100.dp) SableMark(size * 0.2f, Modifier.alpha(0.16f))
         }
         img?.let { Image(it, null, contentScale = ContentScale.Crop, alpha = shown, modifier = Modifier.matchParentSize()) }  // paint alpha: no offscreen copy
     }
