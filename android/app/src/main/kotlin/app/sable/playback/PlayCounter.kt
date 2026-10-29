@@ -15,6 +15,9 @@ class PlayCounter {
         return true
     }
 
+    /** The player moved to an item (another one, or the same one again by repeat): it can count. */
+    fun newItem() { counted = null }
+
     /** The entry plays again from its start (the same signal the learning window uses, MATH-1.31). */
     fun restarted(entryId: String) { if (counted == entryId) counted = null }
 }

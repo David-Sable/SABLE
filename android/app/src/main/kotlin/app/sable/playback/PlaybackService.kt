@@ -96,7 +96,7 @@ class PlaybackService : MediaLibraryService() {
             }
 
             // Pick up where you left off: the queue, the song and the spot in it are kept as playback moves.
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { countedPlay = null; saveResume(); updateWidget() }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { playCounter.newItem(); saveResume(); updateWidget() }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) = saveResume()
             override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) unplayableInARow = 0; saveResume(); updateWidget() }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) = saveResume()

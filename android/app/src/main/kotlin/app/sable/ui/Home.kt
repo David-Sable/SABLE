@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.sable.data.LibraryRow
@@ -31,7 +33,12 @@ import app.sable.ui.theme.Space
 private const val DAY_MS = 24L * 60 * 60 * 1000
 
 /** What Home shows, worked out from the listening history (newest play first) and the library. */
-class HomeData(val recent: List<AlbumGroup>, val most: List<Pair<LibraryRow, Int>>, val rediscover: List<AlbumGroup>) {
+/** One tile in Recently played: the album when you played the album, the song when you played songs (shuffle, a tapped song). */
+sealed interface Recent { val key: String }
+data class RecentAlbum(val album: AlbumGroup) : Recent { override val key get() = "a|${album.key}" }
+data class RecentSong(val row: LibraryRow) : Recent { override val key get() = "s|${row.mediaId}" }
+
+class HomeData(val recent: List<Recent>, val most: List<Pair<LibraryRow, Int>>, val rediscover: List<AlbumGroup>) {
     val isEmpty get() = recent.isEmpty()
 
     companion object {
@@ -39,8 +46,12 @@ class HomeData(val recent: List<AlbumGroup>, val most: List<Pair<LibraryRow, Int
             val byId = rows.associateBy { it.mediaId }
             val albums = albumsOf(rows)
             val albumByKey = albums.associateBy { it.key }
-            // Recently played: albums in the order you last played something from them.
-            val recent = plays.mapNotNull { byId[it.trackId]?.let(::albumKey) }.distinct().mapNotNull(albumByKey::get).take(12)
+            // Recently played, newest first: an album you played as an album, a song you played on its own (a single counts as its album).
+            val recent = plays.mapNotNull { p ->
+                val r = byId[p.trackId] ?: return@mapNotNull null
+                val album = albumByKey[albumKey(r)]
+                if ((p.albumWorld || album?.single == true) && album != null) RecentAlbum(album) else RecentSong(r)
+            }.distinctBy { it.key }.take(12)
             // Most played over the last 30 days: songs with at least two plays, most first.
             val most = plays.filter { it.playedAt >= now - 30 * DAY_MS }.groupingBy { it.trackId }.eachCount()
                 .filter { it.value >= 2 }.entries.sortedByDescending { it.value }
@@ -75,7 +86,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         return
     }
     LazyColumn(contentPadding = PaddingValues(top = Space.l, bottom = bottomPad + Space.l)) {
-        if (home.recent.isNotEmpty()) item(key = "recent") { AlbumRow("Recently played", home.recent, state) }
+        if (home.recent.isNotEmpty()) item(key = "recent") { RecentRow(home.recent, state) }
         if (favs.isNotEmpty()) {
             item(key = "favHead") {
                 Row(Modifier.fillMaxWidth().padding(end = Space.gutter), verticalAlignment = Alignment.CenterVertically) {
@@ -115,6 +126,34 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 @Composable
 private fun Heading(text: String) =
     Text(text, style = SableType.headline, color = SableColors.textPrimary, modifier = Modifier.padding(start = Space.gutter, top = Space.xl, bottom = Space.m))
+
+@Composable
+private fun RecentRow(recent: List<Recent>, state: AppState) {
+    val songs = recent.filterIsInstance<RecentSong>().map { it.row }
+    Column {
+        Heading("Recently played")
+        LazyRow(contentPadding = PaddingValues(horizontal = Space.gutter), horizontalArrangement = Arrangement.spacedBy(Space.l)) {
+            items(recent, key = { it.key }) { item ->
+                Box(Modifier.width(136.dp)) {
+                    when (item) {
+                        is RecentAlbum -> AlbumTile(item.album) { state.go(Route.Album(item.album.key)) }
+                        // A song plays from here, with the other recent songs after it (each in its own world).
+                        is RecentSong -> SongTile(item.row) { state.playSongWorld(songs, songs.indexOf(item.row)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SongTile(r: LibraryRow, onClick: () -> Unit) {
+    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
+        AlbumArt(r.albumId, r.uri, r.album, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
+        Text(titleOf(r), style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
+        Text(artistOf(r), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
 
 @Composable
 private fun AlbumRow(title: String, albums: List<AlbumGroup>, state: AppState) {

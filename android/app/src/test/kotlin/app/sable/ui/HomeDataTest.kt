@@ -21,9 +21,18 @@ class HomeDataTest {
 
     @Test fun emptyHistoryIsEmpty() = assertTrue(HomeData.of(emptyList(), rows, now).isEmpty)
 
+    private fun albumPlay(track: Long, daysAgo: Long) = play(track, daysAgo).copy(albumWorld = true)
+    private fun names(r: List<Recent>) = r.map { when (it) { is RecentAlbum -> "album ${it.album.title}"; is RecentSong -> "song ${it.row.mediaId}" } }
+
     @Test fun recentAlbumsInOrderOfLastPlay() {
-        val plays = listOf(play(3, 0), play(1, 1), play(2, 2), play(3, 3))  // newest first, as the database gives them
-        assertEquals(listOf("B", "A"), HomeData.of(plays, rows, now).recent.map { it.title })
+        val plays = listOf(albumPlay(3, 0), albumPlay(1, 1), albumPlay(2, 2), albumPlay(3, 3))  // newest first, as the database gives them
+        assertEquals(listOf("album B", "album A"), names(HomeData.of(plays, rows, now).recent))
+    }
+
+    /** 2026-10-30: songs played on shuffle showed only as their albums, so a song played once was nowhere on Home. */
+    @Test fun songsPlayedOnTheirOwnShowAsSongs() {
+        val plays = listOf(play(2, 0), play(1, 1), albumPlay(3, 2), play(2, 3))
+        assertEquals(listOf("song 2", "song 1", "album B"), names(HomeData.of(plays, rows, now).recent))
     }
 
     @Test fun mostPlayedNeedsTwoPlaysInThirtyDays() {
