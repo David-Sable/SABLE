@@ -75,7 +75,10 @@ private fun DrawScope.draw(g: Glyph, c: Color) {
             val a = w * 0.09f
             drawPath(Path().apply { moveTo(w * 0.56f - a, h * 0.30f - a); lineTo(w * 0.56f, h * 0.30f); lineTo(w * 0.56f - a, h * 0.30f + a) }, c, style = stroke)
             drawPath(Path().apply { moveTo(w * 0.44f + a, h * 0.70f - a); lineTo(w * 0.44f, h * 0.70f); lineTo(w * 0.44f + a, h * 0.70f + a) }, c, style = stroke)
-            if (g == Glyph.REPEAT_ONE) drawLine(c, Offset(w * 0.5f, h * 0.43f), Offset(w * 0.5f, h * 0.57f), sw, StrokeCap.Round)
+            if (g == Glyph.REPEAT_ONE) {  // a plain "1": straight stem with a short flag, clear of the loop
+                drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.5f, h * 0.60f), sw, StrokeCap.Round)
+                drawLine(c, Offset(w * 0.5f, h * 0.40f), Offset(w * 0.44f, h * 0.45f), sw, StrokeCap.Round)
+            }
         }
         Glyph.SETTINGS ->for ((y, x) in listOf(0.28f to 0.65f, 0.5f to 0.35f, 0.72f to 0.58f)) {
             drawLine(c, Offset(w * 0.16f, h * y), Offset(w * 0.84f, h * y), sw * 0.8f, StrokeCap.Round)

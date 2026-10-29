@@ -325,10 +325,6 @@ fun NowPlayingScreen(
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
                 IconButton(Glyph.MOON, { sleepOpen = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
             }
-            Text(
-                when (state.repeatMode) { Player.REPEAT_MODE_ALL -> "Repeating the queue"; Player.REPEAT_MODE_ONE -> "Repeating this song"; else -> "" },
-                style = SableType.caption, color = SableColors.accent, modifier = Modifier.fillMaxWidth().padding(top = Space.xs), textAlign = TextAlign.Center,
-            )
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
