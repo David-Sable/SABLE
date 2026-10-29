@@ -174,7 +174,8 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         AnimatedContent(aboveRoute, transitionSpec = spec, label = "above") { r -> screen(r, false) }
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter),
-            enter = slideInVertically(Motion.sheetIn(state.animDur)) { it } + fadeIn(Motion.sheetIn(state.animDur)), exit = slideOutVertically(Motion.sheetOut(state.animDur)) { it } + fadeOut(Motion.sheetOut(state.animDur)),
+            // A plain fade: sliding up while the sheet slides down put two things moving against each other at the bottom of the screen.
+            enter = fadeIn(Motion.sheetIn(state.animDur)), exit = fadeOut(Motion.sheetOut(state.animDur)),
         ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
         state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
         state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
@@ -184,7 +185,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     }
 }
 
-private const val BACK_SHRINK = 0.06f
+private const val BACK_SHRINK = 0f  // the screen behind only dims: shrinking it as the sheet rose read as bouncing (David, 2026-10-29)
 private const val BACK_DIM = 0.5f
 private val SHEET_CORNER_MARGIN = 32.dp  // a little more than the sheet's rounded corner
 

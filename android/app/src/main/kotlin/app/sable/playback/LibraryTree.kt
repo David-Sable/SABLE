@@ -12,7 +12,8 @@ import app.sable.data.TrackEntity
  *
  * Playable ids are queue requests ("<trackId>:<A|S>") with a third part saying where they were picked, so a tap in the car
  * starts the same queue the app would ([expand]): "Play album" is the album world from its first song; a song in an
- * album, or in Songs, is the song world from that song on (MATH §17: one album gain only when the album is asked for).
+ * album, or in Songs, is the song world starting at that song, with the songs before it in the queue too (MATH §17: one album
+ * gain only when the album is asked for).
  */
 object LibraryTree {
     const val ROOT = "root"
@@ -58,7 +59,7 @@ object LibraryTree {
 
     /**
      * A single item picked in a browser becomes the queue the app would start: the album (album world) for "Play album", the
-     * rest of the album or of Songs (song world) for a song, everything shuffled for Shuffle all. Null for anything else
+     * whole album or Songs list starting at that song (song world) for a song, everything shuffled for Shuffle all. Null for anything else
      * (the app's own requests carry no third part and pass through unchanged).
      */
     suspend fun expand(context: Context, requestId: String): Pair<List<String>, Int>? {
@@ -71,9 +72,9 @@ object LibraryTree {
             FROM_ALBUM -> {
                 val tracks = albumTracks(all, picked.albumId)
                 if (p[1] == "A") tracks.map { QueueId.request(it.mediaId, true) } to 0
-                else tracks.dropWhile { it.mediaId != id }.map { QueueId.request(it.mediaId, false) } to 0
+                else tracks.map { QueueId.request(it.mediaId, false) } to tracks.indexOfFirst { it.mediaId == id }.coerceAtLeast(0)
             }
-            FROM_SONGS -> songOrder(all).dropWhile { it.mediaId != id }.map { QueueId.request(it.mediaId, false) } to 0
+            FROM_SONGS -> songOrder(all).let { s -> s.map { QueueId.request(it.mediaId, false) } to s.indexOfFirst { it.mediaId == id }.coerceAtLeast(0) }
             SHUFFLE -> all.shuffled().map { QueueId.request(it.mediaId, false) } to 0
             else -> null
         }

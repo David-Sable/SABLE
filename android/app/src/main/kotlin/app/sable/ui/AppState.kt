@@ -45,13 +45,15 @@ class AppState {
 
     var playing by mutableStateOf(false)
     // Debug switches for measuring the Now Playing animation piece by piece (`--es cmd animflag`); all off in normal use.
-    var debugNoFlight by mutableStateOf(false)
+    // The cover rides inside the sheet: flying it on its own path to and from the mini player read as a second cover behind the
+    // sheet and settled after the sheet had stopped (David, 2026-10-29, at 1x). `animflag noflight 0` brings the flight back.
+    var debugNoFlight by mutableStateOf(true)
     var debugNoCapture by mutableStateOf(false)
     var debugNoRecord by mutableStateOf(false)
     // Now Playing's sheet, live-tunable (`--es cmd animflag`): how far it is up (0 away .. 1 open; read in draw/graphics lambdas only),
     // the speed factor of the sheet and the cover's flight (1 = as designed, 2 = twice as slow), and the pieces of the choreography.
     var sheetP by androidx.compose.runtime.mutableFloatStateOf(0f)
-    var animDur by androidx.compose.runtime.mutableFloatStateOf(1.25f)
+    var animDur by androidx.compose.runtime.mutableFloatStateOf(0.85f)  // Now Playing's slide: x0.85 = ~440 ms in, ~320 ms out at 1x (1.25 was chosen at 0.5x and dragged at 1x; David, 2026-10-29)
     var animDepth by mutableStateOf(true)      // the screen behind steps back (smaller, dimmer) while the sheet is up
     var animCorners by mutableStateOf(true)    // the sheet's top corners are round until it fills the screen
     var animStagger by mutableStateOf(false)    // the words and controls arrive after the cover, following the sheet
@@ -121,9 +123,13 @@ class AppState {
     /** Album world: Play album (MATH §17.1). */
     fun playAlbum(tracks: List<LibraryRow>, start: Int = 0) = play(tracks.map { MediaItem.Builder().setMediaId(QueueId.request(it.mediaId, true)).build() }, start)
 
-    /** Song world: the tapped song and everything after it, each balanced in its own world. */
+    /**
+     * Song world: plays from the tapped song, each song balanced in its own world. The songs before it are in the queue too, so
+     * Previous and a swipe back reach the one before (before 0.31.1 the queue started at the tapped song and a swipe back
+     * could only restart it).
+     */
     fun playSongWorld(tracks: List<LibraryRow>, from: Int) =
-        play(tracks.drop(from).map { MediaItem.Builder().setMediaId(QueueId.request(it.mediaId, false)).build() }, 0)
+        play(tracks.map { MediaItem.Builder().setMediaId(QueueId.request(it.mediaId, false)).build() }, from.coerceIn(0, maxOf(0, tracks.size - 1)))
 
     /** Slips a song in right after the playing one (song world); with nothing loaded it just plays. */
     fun playNext(r: LibraryRow) = withController { c ->
