@@ -24,6 +24,8 @@ object PlaybackPrefs {
         val routeCal: Map<String, Double> = emptyMap(),         // §20.2 c_out per route
         val routeCeiling: Map<String, Double> = emptyMap(),     // §20.1 overrides
         val advanced: Boolean = false,                          // Easy mode unless the listener opts in
+        val carTap: Boolean = true,                             // §19.4: "Quieter / Louder" on Now Playing (trial: on; the switch is in Advanced)
+        val mood: Boolean = true,                               // display only: Now Playing's colour follows the song (trial: on)
     ) {
         /**
          * What playback actually uses. Easy mode (the default) keeps Sable's own defaults for everything except
@@ -50,6 +52,8 @@ object PlaybackPrefs {
             intimacyLu = p.getFloat("intimacyLu", 1.0f).toDouble().coerceIn(0.0, 2.0),
             contour = p.getBoolean("contourOn", true),
             advanced = p.getBoolean("advanced", false),
+            carTap = p.getBoolean("carTap", true),
+            mood = p.getBoolean("mood", true),
             routeCal = Route.entries.mapNotNull { r -> if (p.contains("cal_${r.key}")) r.key to p.getFloat("cal_${r.key}", 0f).toDouble() else null }.toMap(),
             routeCeiling = Route.entries.mapNotNull { r -> if (p.contains("ceil_${r.key}")) r.key to p.getFloat("ceil_${r.key}", 0f).toDouble() else null }.toMap(),
         )
@@ -62,7 +66,7 @@ object PlaybackPrefs {
         state.value = s
         val e = context.getSharedPreferences("sable", Context.MODE_PRIVATE).edit()
             .putString("mode", s.mode.name).putString("albumMode", s.albumMode.name).putFloat("intimacyLu", s.intimacyLu.toFloat())
-            .putBoolean("contourOn", s.contour).putBoolean("advanced", s.advanced)
+            .putBoolean("contourOn", s.contour).putBoolean("advanced", s.advanced).putBoolean("carTap", s.carTap).putBoolean("mood", s.mood)
         for (r in Route.entries) {
             s.routeCal[r.key]?.let { e.putFloat("cal_${r.key}", it.toFloat()) } ?: e.remove("cal_${r.key}")
             s.routeCeiling[r.key]?.let { e.putFloat("ceil_${r.key}", it.toFloat()) } ?: e.remove("ceil_${r.key}")

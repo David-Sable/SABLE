@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.31 (2026-10-28)
+**Version:** MATH-1.32 (2026-10-29)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -296,6 +296,9 @@ Over the gated frames `R_g` (frames whose sub-block lies in a gated block of §4
 ### 8.4 Spectral density
 `D = (1/25)·|{ b : 10·log10(Ē_b) ≥ max_b 10·log10(Ē_b) − 30 }|`, a fraction in [0, 1] counting 1/3-octave bands within 30 dB of the strongest **[TUNE: 30 dB]**. Computed for the whole track (`D`) and the anchor (`D_a`, frames in anchor sections).
 
+### 8.5 Tilt over time [DESIGN, MATH-1.32, display only]
+For the Now Playing silhouette's colour (it never touches a gain): for every 0.5 s of the track (five 100 ms frames, the same grid as the `shape` loudness series), `Ē_b` is the mean of `E_{r,b}` over those frames and the tilt is the §8.3 slope over bands 63 Hz … 8 kHz, in dB/octave, rounded to 0.1 (fewer than 6 usable bands → absent). Unlike §8.3 the frames are not gated: it describes what that moment sounds like. The app maps `(tilt + 1.5)/2.0`, clamped to [−1, +1] (measured 2026-10-29 on 9 corpus songs: per-song medians −3.0 … +0.7, overall about −1.5; within a song the 10th–90th percentile spans 2–4 dB/oct), to a colour between a cool grey-blue (dark, bassy), the ivory accent (typical) and a soft brass (bright), and the energy of the moment (the `shape` height) sets how far it leaves ivory and how bright it is. Colours stay under about 30 % saturation.
+
 ---
 
 ## 9. Transient density [DESIGN]
@@ -588,7 +591,8 @@ Two adjacent `SONG`-intent queue items `(a → b)` **flow** when all of these ho
 - both have a full analysis (not JIT or provisional), the same album key, and that album's gain exists (every track analysed, §17.1);
 - `b` is the next track of `a` on the album: the same disc number, and `track_b = track_a + 1` with `track_a ≥ 1`;
 - neither edge is a fade: `a` has no fade-out and `b` no fade-in (§13.5);
-- neither track contains silence worth the name: `D − D_ns ≤ G_flow = 0.5 s` for both, where `D` is the decoded duration and `D_ns` the non-silent duration (silent sub-blocks as defined in §13.4). A track with no silent sub-blocks anywhere has none at its start or end, so the music really runs across the join. (This is conservative: a track with a pause in its middle does not qualify. A later analysis version may record leading and trailing silence separately.)
+- **[MATH-1.32]** the join itself is gapless: `T_a + L_b ≤ G_flow = 0.5 s`, where `T_a` is the **trailing silence** of `a` (the time after its last non-silent sub-block) and `L_b` the **leading silence** of `b` (the time before its first), both recorded by the analysis from the silent sub-blocks of §13.4.2 (the 0.4 s smoothing there only ever shortens an edge silence, never lengthens it, so the test errs towards "not flowing"). A pause in the middle of a track no longer matters: it is not at the join. Owner's library: The Life of Pablo (segued, with a pause somewhere in several tracks) flows under this rule and not under 1.31.
+- *Before 1.32* (analyses stored without `leadSilenceSec` / `trailSilenceSec`, `MATH_VERSION` before 1.9, which the app rescans) the rule was: `D − D_ns ≤ G_flow` for both tracks, with `D` the decoded duration and `D_ns` the non-silent duration; conservative, because any silence anywhere in either track broke the flow. The planner still applies it when a track has no edge figures.
 - the album setting is not *Always track* (§17.1).
 
 Every maximal chain of flowing pairs becomes a **flow run**: all its items use the album gain `g_album` and its cap (§17.2) exactly as an album run does, with no seams inside it (§18), and rule `FLOW` (Δ = 0) is added to their rules. The first item of the run takes the album gain too, so the whole stretch keeps the artist's balance. Items outside flow runs are unchanged. Intent still decides everything else: a tapped song that does not flow into its neighbours stays in its own world.
@@ -655,6 +659,14 @@ where `n_a` = the number of distinct tracks by that artist that have contributed
 - **State stored before 1.30** has no `τ₀`/`confirmed`: a song's lesson counts as confirmed and an artist counts as older than 12 h, so a first event after 1.30 does not suspend it. Nothing the owner has taught changes retroactively.
 The 1 dB probation and the 12 h gap are **[TUNE]**; neither changes how fast `o_t` moves, only what is applied until a lesson repeats.
 Offsets are visible on the Why sheet and resettable (per track, per artist, all).
+
+### 19.4 A deliberate "quieter / louder for this song" tap [DESIGN, MATH-1.32, owner decision 2026-10-28]
+A car stereo's volume knob is invisible to Android (the phone's media volume stays where it was), so nothing can be learned there from §19.1. Now Playing can show two small buttons, **Quieter** and **Louder** (Advanced switch, on in the trial build). Nothing happens unless they are tapped; there is no new always-on processing.
+- A tap is a counted feedback event at the current place for the playing song, with `Δv = ∓N`, `N = 2 dB`, and it goes through exactly the same update as a press (§19.1 filters that still apply, §19.2, §19.2's hint-first rule MATH-1.30): the environment filter (a second tap the same way within 10 min is weighted 0.25), the peak-cap rule (`ignored: capped` for **Louder** on a song its cap already holds; the app says so), the ±2 dB clamp, the 1 dB probation until the same direction repeats 12 h or more later, and the artist rule (two songs agreeing on two different days).
+- The rules that decide whether a *press* was meant for the song do **not** apply, because a tap is: the 20 s window, "from the beginning", the full-analysis requirement is kept (a tap on a provisional gain still teaches, since the listener heard it), the section-aware correction `e` (§19.1), the mute and `|Δv| ≤ 12 dB` checks, and the paused and route-change ignores.
+- It acts on the playing song **now**, smoothly (the user-initiated in-track change of §23.3), because the tap is the listener's own correction; §28's "no double correction" does not apply (nothing else corrected this play).
+- The stored "previous event" for the environment filter records the tap and leaves the "level the previous event ended at" at the current volume (nothing was pressed).
+
 
 ### 19.3 Places [DESIGN, owner decision 2026-10-26]
 The same song is turned up in a car and down on headphones for reasons that have nothing to do with the song. So learning is kept **per place**: the output device that plays the media stream when the feedback window opens.
@@ -899,6 +911,9 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Seam window | 3 | s | 18 | DESIGN |
 | Seam silence skip | −40 | LUFS | 18 | TUNE |
 | Learning window t_w | 20 | s | 19.1 | TUNE |
+| Quieter / Louder tap N | 2 | dB | 19.4 | TUNE |
+| Flow gap G_flow (trailing + leading silence at the join) | 0.5 | s | 17.3 | DESIGN |
+| Mood tilt map: centre / half-width | −1.5 / 2.0 | dB/oct | 8.5 | DESIGN (display) |
 | Learning η_t, η_a | 0.5, 0.25 | | 19.2 | TUNE |
 | Learning half-life | 30 | days | 19.2 | TUNE |
 | Learning clamp | ±2 | dB | 19.2 | DESIGN (spec) |

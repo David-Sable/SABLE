@@ -169,6 +169,23 @@ class GainController(
         }
     }
 
+    /**
+     * MATH-1.32 §19.4: the "quieter / louder for this song" tap. Teaches like a press (same rules, hint first), and the
+     * playing song takes it now, smoothly, like a change of place (§23.3): the tap is the listener's own correction, so
+     * §28's "no double correction" does not apply. Returns what to tell the listener.
+     */
+    fun nudge(up: Boolean): String {
+        val id = player.currentMediaItem?.mediaId ?: return "Nothing playing"
+        val t = QueueId.trackId(id)?.let { trackCache[it] } ?: return "Nothing playing"
+        val say = learning.nudge(t, up)
+        if (say.endsWith("from now on")) {
+            refreeze += id
+            frozenLearned.remove(id)
+            replan(user = true)
+        }
+        return say
+    }
+
     /** MATH-1.31: how much louder the playing song could still go before its peak cap holds it (dB), from the plan that started it. */
     private fun headroomOf(t: TrackEntity): Double? {
         val id = player.currentMediaItem?.mediaId ?: return null

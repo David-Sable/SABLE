@@ -133,7 +133,7 @@ abstract class SableDatabase : RoomDatabase() {
     abstract fun library(): LibraryDao
 
     companion object {
-        const val MATH_VERSION = "1.8"
+        const val MATH_VERSION = "1.9"
         @Volatile private var instance: SableDatabase? = null
         fun get(context: Context): SableDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, SableDatabase::class.java, "sable.db").build().also { instance = it }

@@ -61,6 +61,20 @@ TEST_CASE("Structure: quiet intro, body, fade-out -> sections and anchor on the 
   REQUIRE(u.endLufs);
 }
 
+TEST_CASE("Edge silences are recorded separately; tilt over time has one value per 0.5 s (MATH 17.3, 8.5)") {
+  const auto a = song({{3.0, -90.0, 0}, {20.0, -14.0, 0}, {2.0, -90.0, 0}});
+  const auto r = sigs::analyze(a);
+  const auto u = sable::understand(r, nullptr, 0.0);
+  CHECK(u.leadSilenceSec == doctest::Approx(3.0).epsilon(0.05));
+  CHECK(u.trailSilenceSec > 1.5);
+  CHECK(u.trailSilenceSec <= 2.0 + 1e-9);  // never longer than the real silence: the 0.4 s smoothing only shortens edges
+  CHECK(u.shapeTilt.size() == (r.bandEnergy.size() / sable::LoudnessResult::kBands + 4) / 5);
+  // A pause in the middle is not an edge silence.
+  const auto m = sable::understand(sigs::analyze(song({{10.0, -14.0, 0}, {4.0, -90.0, 0}, {10.0, -14.0, 0}})), nullptr, 0.0);
+  CHECK(m.leadSilenceSec < 0.2);
+  CHECK(m.trailSilenceSec < 0.2);
+}
+
 TEST_CASE("Structure: a steady song -> one body anchor, not fallback; deterministic") {
   const auto a = song({{45.0, -14.0, 0}});
   const auto r = sigs::analyze(a);

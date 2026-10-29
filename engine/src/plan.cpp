@@ -187,6 +187,7 @@ struct Track {
   TrackUnderstanding u;
   bool decodeClipped = false;
   std::optional<double> durationSec;  // decoded duration (frames / rate), for §17.3
+  std::optional<double> leadSilenceSec, trailSilenceSec;  // §17.3 (analysis 1.9 and later)
   std::optional<double> pleOffset() const {  // §18: (PLE_anchor - L_anchor), clamped as in §16.2
     const auto ple = usablePle(u);
     if (!ple || !u.anchorLufs) return std::nullopt;
@@ -211,6 +212,8 @@ Track trackOf(const J& a) {
   t.u.anchorSec = a.num("anchorSec", 0.0);
   if (const auto nf = a.num("frames"), fs = a.num("sampleRateHz"); nf && fs && *fs > 0.0) t.durationSec = *nf / *fs;
   if (const auto ns = a.num("nonSilentSec")) t.u.nonSilentSec = *ns;
+  t.leadSilenceSec = a.num("leadSilenceSec");
+  t.trailSilenceSec = a.num("trailSilenceSec");
   t.u.character = characterOf(a.str("character"));
   if (const J* p = a.get("anchorBlockPower"); p && p->t == J::T::Arr)
     for (const J& x : p->a)
@@ -365,6 +368,8 @@ std::string planQueueJson(const std::string& input) {
       if (ag == albumGain.end() || !ag->second) return false;
       if (a.trackNo < 1 || a.disc != b.disc || b.trackNo != a.trackNo + 1) return false;
       if (a.track->u.fadeOut || b.track->u.fadeIn) return false;
+      // Only the join matters when both tracks carry edge silences; older analyses fall back to "no silence anywhere".
+      if (a.track->trailSilenceSec && b.track->leadSilenceSec) return *a.track->trailSilenceSec + *b.track->leadSilenceSec <= kFlowGap;
       return noGaps(*a.track) && noGaps(*b.track);
     };
     std::vector<char> inRun(items.size(), 0);

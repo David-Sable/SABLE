@@ -293,7 +293,30 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         commit(t, delta, place)
     }
 
-    private fun commit(t: TrackEntity, delta: Double, p: Place) {
+    /**
+     * MATH-1.32 §19.4: a deliberate "quieter" / "louder for this song" tap. It is the same lesson as a press of the volume
+     * key (§19.2, §19.1 environment filter, MATH-1.30 hint-first), minus the rules that guess whether a press was meant
+     * for the song: a tap is. Returns what to tell the listener.
+     */
+    fun nudge(t: TrackEntity, up: Boolean): String {
+        val p = currentPlace()
+        val delta = if (up) NUDGE_DB else -NUDGE_DB
+        val before = offsets(t, p).trackDb
+        val result = runCatching { commit(t, delta, p, deliberateAt = volumeDb()) }.getOrDefault("error")
+        val after = offsets(t, p).trackDb
+        note("LEARN nudge ${if (up) "louder" else "quieter"} ${t.displayName} at ${p.label}: track %+.2f -> %+.2f dB".format(before, after))
+        return when {
+            result == "capped" -> "Already as loud as it can safely go"
+            result != null || after == before -> "Nothing changed"
+            up -> "Louder from now on"
+            else -> "Quieter from now on"
+        }
+    }
+
+    /** Null when the lesson counted, else the engine's reason it did not. [deliberateAt]: a tap (the volume then), not a window's press. */
+    private fun commit(t: TrackEntity, delta: Double, p: Place, deliberateAt: Double? = null): String? {
+        val deliberate = deliberateAt != null
+        val startDb = deliberateAt ?: this.startDb
         val o = offsets(t, p)
         val now = nowDays()
         val input = JSONObject().put("deltaDb", delta).put("trackDb", o.trackDb).put("trackDays", o.trackDays)
@@ -310,21 +333,21 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         prefs.getString("${p.id}|jumpDays", null)?.toDoubleOrNull()?.let { input.put("jumpDays", it) }
         prefs.getString("${p.id}|jumpEndDb", null)?.toDoubleOrNull()?.let { input.put("jumpEndDb", it) }
         // MATH-1.27: a mute is not a verdict, and the section the press was made in is measured against the song's anchor.
-        if (startIndex == 0 || sawMute || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0) input.put("muted", true)
+        if (!deliberate && (startIndex == 0 || sawMute || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0)) input.put("muted", true)
         var heard: Double? = null
-        shapeOf(t)?.takeIf { it.lufs.isNotEmpty() }?.let { sh ->  // under 3 s there is no short-term series at all
+        if (!deliberate) shapeOf(t)?.takeIf { it.lufs.isNotEmpty() }?.let { sh ->  // under 3 s there is no short-term series at all
             val k = ((firstPressPosMs / 1000.0 - 3.0) / 0.5).roundToInt().coerceIn(0, sh.lufs.size - 1)  // the 3 s before the press
             heard = sh.lufs.getOrNull(k)?.takeIf { it.isFinite() && firstPressPosMs >= 0 }
             heard?.let { input.put("heardLufs", it).put("anchorLufs", sh.anchorLufs) }
         }
         val out = JSONObject(SableEngine.learnUpdate(input.toString()))
-        if (out.has("error")) { tally { board.outcome(p.id, p.label, "ign_other") }; return }
+        if (out.has("error")) { tally { board.outcome(p.id, p.label, "ign_other") }; return "error" }
         if (out.has("ignored")) {
             tally { board.outcome(p.id, p.label, "ign_" + out.getString("ignored")) }
             if (out.getString("ignored") == "jump") prefs.edit().putString("${p.id}|jumpDays", now.toString()).putString("${p.id}|jumpEndDb", (startDb + delta).toString()).apply()
             note("LEARN ignored (${out.getString("ignored")}) ${t.displayName}: volume %+.1f dB".format(delta) +
                 (heard?.let { ", heard %.1f LUFS, song %.1f".format(it, input.optDouble("anchorLufs")) } ?: "") + (room?.let { ", room under the cap %.1f dB".format(it) } ?: ""))
-            return
+            return out.getString("ignored")
         }
         val ak = artistKey(t)
         val ac = ak?.let { (setAt(p, "ac:$it") ?: emptySet()).toMutableSet().apply { if (t.contentHash != null) remove(idKey(t)); add(trackKey(t)) } }
@@ -334,12 +357,13 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .apply { if (ak != null) putString("${p.id}|a:$ak", "${out.getDouble("artistDb")},${out.getDouble("artistDays")},${out.getDouble("artistFirstDays")}").putStringSet("${p.id}|ac:$ak", ac) }
             .putFloat(prev, delta.toFloat())
             .putString("${p.id}|prevDays", now.toString())
-            .putString("${p.id}|prevEndDb", (startDb + delta).toString())
+            .putString("${p.id}|prevEndDb", (if (deliberate) startDb else startDb + delta).toString())
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")}, counted %+.1f dB -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")) + (room?.let { ", room %.1f dB".format(it) } ?: ""))
         tally { board.outcome(p.id, p.label, LearningScoreboard.TAUGHT) }
-        onLearned(t)
+        if (!deliberate) onLearned(t)
+        return null
     }
 
     /** The media volume in dB (§19.1 Δv): the platform's own figure, or the AOSP default curve where it is flat. */
@@ -382,6 +406,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         const val POLL_MS = 250L
         const val SAME_PLAY_MS = 2_000L   // scoreboard: a second window for the same song this soon is the same play
         const val OUTSIDE_GAP_MS = 5_000L // scoreboard: presses closer than this are one touch
+        const val NUDGE_DB = 2.0          // §19.4: one tap is a correction of this size (before the η and ω of §19.2)
         const val MIN_EVENT_DB = 0.5      // below one volume step's worth: not a deliberate correction
         fun nowDays() = System.currentTimeMillis() / 86_400_000.0
 

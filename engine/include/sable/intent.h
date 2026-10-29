@@ -31,6 +31,8 @@ struct TrackUnderstanding {
   std::vector<Section> sections;
   std::optional<std::pair<double, double>> fadeIn, fadeOut;
   double nonSilentSec = 0.0;
+  double leadSilenceSec = 0.0, trailSilenceSec = 0.0;  // §17.3: silence before the first / after the last non-silent sub-block
+  std::vector<double> shapeTilt;                       // §8.5: spectral tilt (dB/oct) every 0.5 s, NaN where unknown (display only)
   // Anchor (MATH §14)
   std::vector<std::pair<double, double>> anchor;  // intervals (s)
   bool anchorFallback = false;

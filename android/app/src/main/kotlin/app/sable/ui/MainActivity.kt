@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity() {
                             .put("outputCalDb", 0.0).put("albumMode", "auto").put("albums", albums).put("items", items)
                         val out = JSONObject(app.sable.engine.SableEngine.planQueue(input.toString())).getJSONArray("items")
                         val flowing = (0 until out.length()).filter { out.getJSONObject(it).getJSONArray("rules").toString().contains("\"FLOW\"") }.map { tracks[it].track }
-                        val gaps = an.map { j -> "%.1f".format(j!!.optLong("frames") / j.optDouble("sampleRateHz", 1.0) - j.optDouble("nonSilentSec")) }
+                        val gaps = an.map { j -> "%.1f+%.1f".format(j!!.optDouble("leadSilenceSec"), j.optDouble("trailSilenceSec")) }
                         android.util.Log.i("SablePlay", "FLOWS ${tracks.first().album} (${tracks.size}): flowing $flowing silence $gaps")
                     }
                 }

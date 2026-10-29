@@ -148,6 +148,19 @@ TEST_CASE("plan: song-world neighbours that flow into each other share the album
   CHECK(separate(item(t1, 3) + "," + item(t2, 5), albums));                          // not the next track
   CHECK(separate(item(t1, 3) + "," + item(timed(analysis(-16, -16, -16, -6, -15, -15), 2.0), 4), albums));  // a real pause
   CHECK(separate(item(t1, 3) + "," + item(timed(analysis(-16, -16, -16, -6, -15, -15, "steady", true), 0.3), 4), albums));  // fade-in
+  // Edge silences (analysis 1.9): a pause in the middle of a track no longer blocks flow; a gap at the join does.
+  auto edged = [&](std::string a, double lead, double trail, double mid) {
+    a.pop_back();
+    return a + ",\"frames\":9600000,\"sampleRateHz\":48000,\"nonSilentSec\":" + std::to_string(200.0 - lead - trail - mid) +
+           ",\"leadSilenceSec\":" + std::to_string(lead) + ",\"trailSilenceSec\":" + std::to_string(trail) + "}";
+  };
+  const std::string e1 = edged(analysis(-8, -8, -8, -6, -9, -9), 0.1, 0.1, 6.0), e2 = edged(analysis(-16, -16, -16, -6, -15, -15), 0.2, 0.1, 5.0);
+  const std::string e3 = edged(analysis(-16, -16, -16, -6, -15, -15), 1.5, 0.1, 0.0);
+  const std::string ealb = "{\"A\":{\"complete\":true,\"tracks\":[" + e1 + "," + e2 + "]}}";
+  const std::string eout = sable::planQueueJson(ctx(item(e1, 3, ",\"manual\":true") + "," + item(e2, 4), ealb));
+  CHECK(eout.find("\"FLOW\"") != std::string::npos);
+  CHECK(field(eout, "gainDb", 0) == field(eout, "gainDb", 1));
+  CHECK(separate(item(e1, 3) + "," + item(e3, 4), "{\"A\":{\"complete\":true,\"tracks\":[" + e1 + "," + e3 + "]}}"));  // 1.6 s gap at the join
   CHECK(separate(flowing, "{\"A\":{\"complete\":false,\"tracks\":[]}}"));          // album not fully analysed
   CHECK(separate(flowing, albums, "track"));                                           // Always track
   CHECK(separate(item(analysis(-8, -8, -8, -6, -9, -9), 3) + "," + item(analysis(-16, -16, -16, -6, -15, -15), 4), albums));  // no duration data

@@ -273,6 +273,12 @@ class PlaybackService : MediaSessionService() {
         /** Debug: the change-of-place path without a real device (GainController.simulatePlaceChange). */
         fun debugReroute() { val s = current ?: return; s.main.post { s.controller.simulatePlaceChange() } }
 
+        /** The "quieter / louder for this song" tap on Now Playing (MATH-1.32 §19.4); [done] gets the words to show, on the main thread. */
+        fun nudge(up: Boolean, done: (String) -> Unit) {
+            val s = current ?: return done("Nothing playing")
+            s.main.post { done(s.controller.nudge(up)) }
+        }
+
         /** The widget's previous / next: acts on the running player; does nothing when Sable is not playing anything. */
         fun skip(next: Boolean) {
             val s = current ?: return

@@ -211,6 +211,9 @@ fun NowPlayingScreen(
     rowOf: (Long) -> LibraryRow? = { null },
 ) {
     val gain by NowPlaying.gain.collectAsState()
+    val settings by app.sable.playback.PlaybackPrefs.settings.collectAsState()
+    var nudgeNote by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(nudgeNote) { if (nudgeNote != null) { delay(2500); nudgeNote = null } }
     val sleep by app.sable.playback.SleepTimer.state.collectAsState()
     var sleepOpen by remember { mutableStateOf(false) }
     val json = analysisJson(state.currentTrackId)
@@ -292,7 +295,7 @@ fun NowPlayingScreen(
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))
             if (shape != null) {
-                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) { state.seekFraction(it) }  // own layer
+                LoudnessShape(shape, { tick; state.progress() }, Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood) { state.seekFraction(it) }  // own layer
             } else {
                 Canvas(Modifier.fillMaxWidth().height(shapeH).graphicsLayer()) {
                     tick
@@ -348,7 +351,12 @@ fun NowPlayingScreen(
         ) {
             Column(Modifier.weight(1f)) {
                 Text("%+.1f dB".format(gain.gainDb), style = SableType.headline, color = SableColors.accent)
-                Text(worldLabel(gain), style = SableType.caption, color = SableColors.textTertiary)
+                Text(nudgeNote ?: worldLabel(gain), style = SableType.caption, color = if (nudgeNote != null) SableColors.accent else SableColors.textTertiary)
+            }
+            if (settings.carTap) Row(Modifier.padding(end = Space.s), horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+                // MATH-1.32 §19.4: a deliberate correction for this song at this place; it acts only when tapped.
+                Pill("Quieter", selected = false) { app.sable.playback.PlaybackService.nudge(false) { nudgeNote = it } }
+                Pill("Louder", selected = false) { app.sable.playback.PlaybackService.nudge(true) { nudgeNote = it } }
             }
             Pill("Why", selected = false) { state.whyTrack = state.currentTrackId }
         }

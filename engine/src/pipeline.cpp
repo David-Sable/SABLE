@@ -99,14 +99,14 @@ std::string TrackPipeline::resultJson() const {
   std.decodeClipped = quiet.decodeClipped = s.decodeClipped;
   quiet.targetLufs = kQuiet;
   const auto dS = decideTrackGain(r, u, std), dQ = decideTrackGain(r, u, quiet);
-  std::string o = "{\"engine\":\"sable-1\",\"math\":\"1.8\",\"sampleRateHz\":" + std::to_string(r.sampleRateHz) +
+  std::string o = "{\"engine\":\"sable-1\",\"math\":\"1.9\",\"sampleRateHz\":" + std::to_string(r.sampleRateHz) +
                   ",\"channels\":" + std::to_string(r.channels) + ",\"frames\":" + std::to_string(r.frames) +
                   ",\"integratedLufs\":" + num(r.integratedLufs) + ",\"lraLu\":" + num(r.lraLu) + ",\"truePeakDbtp\":" + num(r.truePeakDbtp) +
                   ",\"samplePeakDbfs\":" + num(r.samplePeakDbfs) + ",\"plrDb\":" + num(r.plrDb) + ",\"crestDb\":" + num(r.crestFactorDb) +
                   ",\"shortFile\":" + (r.shortFile ? "true" : "false") + ",\"decodeClipped\":" + (s.decodeClipped ? "true" : "false") +
                   ",\"anchorLufs\":" + num(u.anchorLufs) + ",\"anchorPle\":" + num(u.anchorPle) + ",\"anchorSec\":" + num(u.anchorSec) +
                   ",\"anchorCentreSec\":" + num(u.anchorCentreSec) + ",\"anchorFallback\":" + (u.anchorFallback ? "true" : "false") +
-                  ",\"nonSilentSec\":" + num(u.nonSilentSec) + ",\"character\":" + esc(toString(u.character)) +
+                  ",\"nonSilentSec\":" + num(u.nonSilentSec) + ",\"leadSilenceSec\":" + num(u.leadSilenceSec) + ",\"trailSilenceSec\":" + num(u.trailSilenceSec) + ",\"character\":" + esc(toString(u.character)) +
                   ",\"tilt\":" + num(u.tiltDbPerOct) + ",\"density\":" + num(u.density) + ",\"transientsPerSec\":" + num(u.transientsPerSec) +
                   ",\"plrAnchorDb\":" + num(u.plrAnchorDb) + ",\"sectionContrastLu\":" + num(u.sectionContrastLu) +
                   ",\"openLufs\":" + num(u.openLufs) + ",\"endLufs\":" + num(u.endLufs) +
@@ -127,6 +127,11 @@ std::string TrackPipeline::resultJson() const {
   for (std::size_t k = 0, n = 0; k < r.shortTermLufs.size(); k += 5, ++n) {
     if (n) o += ',';
     o += num(r.shortTermLufs[k]);
+  }
+  o += "],\"shapeTilt\":[";
+  for (std::size_t i = 0; i < u.shapeTilt.size(); ++i) {
+    if (i) o += ',';
+    o += num(u.shapeTilt[i]);
   }
   o += "],\"anchorBlockPower\":[";
   for (std::size_t i = 0; i < u.anchorBlockPower.size(); ++i) {

@@ -195,6 +195,22 @@ TrackUnderstanding understand(const LoudnessResult& r, const PerceptualSeries* p
   int firstNs = -1, lastNs = -1, nNs = 0;
   for (int m = 0; m < M; ++m) if (!silent[static_cast<std::size_t>(m)]) { if (firstNs < 0) firstNs = m; lastNs = m; ++nNs; }
   u.nonSilentSec = nNs * kSub;
+  {  // §17.3 leading and trailing silence (the tail counts the part of the file past the last whole sub-block)
+    const double fileSec = r.sampleRateHz > 0 ? static_cast<double>(r.frames) / r.sampleRateHz : durSec;
+    u.leadSilenceSec = firstNs < 0 ? fileSec : firstNs * kSub;
+    u.trailSilenceSec = lastNs < 0 ? fileSec : std::max(0.0, fileSec - (lastNs + 1) * kSub);
+  }
+  // ---- §8.5 tilt over time (display only): the §8.3 slope over each 0.5 s (5 frames), rounded to 0.1 dB/oct ----
+  for (int f0 = 0; f0 < std::min(nSpec, M); f0 += 5) {
+    std::vector<double> eb(static_cast<std::size_t>(B), 0.0);
+    const int f1 = std::min(f0 + 5, std::min(nSpec, M));
+    for (int f = f0; f < f1; ++f)
+      for (int b = 0; b < B; ++b) eb[static_cast<std::size_t>(b)] += r.bandEnergy[static_cast<std::size_t>(f * B + b)];
+    std::vector<double> t, v;
+    for (int b = 1; b <= 22; ++b)
+      if (eb[static_cast<std::size_t>(b)] / (f1 - f0) > 1e-20) { t.push_back((b - 13) / 3.0); v.push_back(10.0 * dm::log10(eb[static_cast<std::size_t>(b)] / (f1 - f0))); }
+    u.shapeTilt.push_back(t.size() >= 6 ? std::floor(slope(t, v) * 10.0 + 0.5) / 10.0 : std::numeric_limits<double>::quiet_NaN());
+  }
 
   // ---- seams (§18): first / last 3 s of non-silent audio ----
   auto windowLufs = [&](int m0, int m1) {  // energy mean over sub-blocks [m0, m1)

@@ -224,7 +224,7 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.31"
+const val MATH_DOC_VERSION = "MATH-1.32"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -266,6 +266,18 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("On", s.contour) { PlaybackPrefs.update(context) { it.copy(contour = true) } }
                     }
                     Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected. On by default; turn it off for level changes only.")
+                    Group("Quieter / Louder buttons")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                        Pill("Off", !s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = false) } }
+                        Pill("On", s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = true) } }
+                    }
+                    Hint("Two small buttons on Now Playing for places where the volume knob is invisible to the phone, like a car stereo. A tap tells Sable this song should be a little quieter or louder here; the same rule as turning the volume at the start of a song: one tap is a hint, the same tap on another day is a lesson. Nothing happens unless you tap.")
+                    Group("Mood colours")
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                        Pill("Off", !s.mood) { PlaybackPrefs.update(context) { it.copy(mood = false) } }
+                        Pill("On", s.mood) { PlaybackPrefs.update(context) { it.copy(mood = true) } }
+                    }
+                    Hint("The loudness silhouette on Now Playing takes a faint colour from the song: warmer and brighter when it is intense and bright, cooler when it is calm and dark. Display only; it never changes the sound.")
                     Group("Albums")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }

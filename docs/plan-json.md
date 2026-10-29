@@ -30,7 +30,7 @@ lives in the engine. The app only gathers inputs and applies the outputs.
 - `complete` = every track of the album in the library is analysed. Otherwise the album's items use track mode and get
   the rule `ALBUM_PENDING`.
 - `disc`, `trackNo` (§17.3): the item's place on its album. Song-world neighbours that are the next track and flow into
-  each other (no fades, ≤ 0.5 s of silence in each, read from `frames`, `sampleRateHz`, `nonSilentSec`) share the album
+  each other (no fades; `trailSilenceSec` of the first + `leadSilenceSec` of the second ≤ 0.5 s, MATH-1.32; analyses without those two fields fall back to ≤ 0.5 s of silence anywhere in each, read from `frames`, `sampleRateHz`, `nonSilentSec`) share the album
   gain and get the rule `FLOW`; the album must be listed in `albums` and complete.
 - `learn` (§19.2): stored offsets for the place playing now; the planner decays and combines them. `trackTaught` = the
   song has its own lesson (then the artist's is not used); `artistTrackDbs` = the stored offsets of the artist's taught
