@@ -25,7 +25,8 @@ private val MoodWarm = androidx.compose.ui.graphics.Color(0xFFCDB88F)   // brass
 private val MoodCool = androidx.compose.ui.graphics.Color(0xFF9DAEC2)   // a cool grey-blue
 
 /** The engine's view of a song: short-term loudness every 0.5 s and the anchor (the body Sable balances to). */
-data class SongShape(val lufs: List<Double?>, val anchor: List<Pair<Double, Double>>, val durationSec: Double, val tilt: List<Double?> = emptyList()) {
+data class SongShape(val lufs: List<Double?>, val anchor: List<Pair<Double, Double>>, val durationSec: Double, val tilt: List<Double?> = emptyList(),
+                     val bodyLufs: Double? = null) {
     companion object {
         fun of(json: JSONObject?): SongShape? {
             json ?: return null
@@ -37,7 +38,9 @@ data class SongShape(val lufs: List<Double?>, val anchor: List<Pair<Double, Doub
             val dur = if (fs > 0) json.optDouble("frames", 0.0) / fs else l.size * 0.5
             val tl = json.optJSONArray("shapeTilt")  // MATH §8.5 (analysis 1.9 and later): the song's brightness every 0.5 s
             val tilt = if (tl == null) emptyList() else List(tl.length()) { i -> if (tl.isNull(i)) null else tl.optDouble(i) }
-            return SongShape(l, anchor, dur, tilt)
+            // The anchor's loudness as Sable balanced it (perceptual figure first, §16.2), for the thoughts line.
+            val body = listOf("anchorPle", "anchorLufs").firstNotNullOfOrNull { k -> json.optDouble(k, Double.NaN).takeIf { it.isFinite() } }
+            return SongShape(l, anchor, dur, tilt, body)
         }
     }
 }

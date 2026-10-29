@@ -35,16 +35,24 @@ class WhyTextTest {
         )
     }
 
+    /** 2026-10-29: babygirl (one rule) ran out of lines after 12 s; every song now has its reason and its own figure. */
     @Test fun thoughtsSayOnlyWhatHappened() {
         assertEquals(
-            listOf("song world · JBL", "turned down 6.9 dB to sit with your library", "hold the number to hear the original"),
-            WhyText.thoughts("song world · JBL", -6.9, listOf("ANCHOR_MATCH" to -6.9), "full", 0.0, false),
+            listOf("turned down 12.4 dB · dense, loud master", "measures −2 LUFS · Normal aims for −14", "song world · Phone speaker"),
+            WhyText.thoughts(WhyText.Facts("song world · Phone speaker", -12.4, listOf("ANCHOR_MATCH" to -12.4), "full",
+                character = "sustained and dense", bodyLufs = -1.6, hint = false)),
         )
         assertEquals(
-            listOf("song world · Phone speaker", "lifted 1.2 dB to sit with your library", "peaks kept clean: 2.4 dB under the rest",
-                "+2.0 dB, as you set it here before", "a little bass kept for quiet listening", "hold the number to hear the original"),
-            WhyText.thoughts("song world · Phone speaker", 1.2, listOf("ANCHOR_MATCH" to 3.6, "PEAK_CAP" to -2.4), "full", 2.0, true),
+            listOf("lifted 1.2 dB · steady song", "measures −22 LUFS · Quiet aims for −19", "peaks kept clean: 2.4 dB under the rest",
+                "+2.0 dB, as you set it here before", "a little bass kept for quiet listening", "song world · JBL", "hold the number to hear the original"),
+            WhyText.thoughts(WhyText.Facts("song world · JBL", 1.2, listOf("ANCHOR_MATCH" to 3.6, "PEAK_CAP" to -2.4), "full", learnedDb = 2.0,
+                contourOn = true, character = "steady", modeLabel = "Quiet", targetLufs = -19.0, bodyLufs = -22.4)),
         )
-        assertEquals(listOf("listening…"), WhyText.thoughts("listening…", -6.0, emptyList(), "provisional", 0.0, false))
+        assertEquals(
+            listOf("turned down 15.3 dB · flows into its neighbour, one album gain", "keeps the album's own loud and quiet", "flowing album tracks · JBL"),
+            WhyText.thoughts(WhyText.Facts("flowing album tracks · JBL", -15.3, listOf("ALBUM" to -15.3, "FLOW" to 0.0), "full",
+                bodyLufs = -2.8, albumRun = true, hint = false)),
+        )
+        assertEquals(listOf("listening…"), WhyText.thoughts(WhyText.Facts("listening…", -6.0, emptyList(), "provisional")))
     }
 }

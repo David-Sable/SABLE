@@ -399,15 +399,21 @@ fun NowPlayingScreen(
                 DisposableEffect(Unit) { onDispose { app.sable.playback.PlaybackService.holdOriginal(false) } }
                 val uiPrefs = remember { context.getSharedPreferences("sable_ui", android.content.Context.MODE_PRIVATE) }
                 var heldOnce by remember { mutableStateOf(uiPrefs.getBoolean("heldOriginal", false)) }
-                val thoughts = remember(gain, heldOnce) {
-                    WhyText.thoughts(worldLabel(gain), gain.gainDb, gain.rules, gain.source, gain.learnedDb, gain.contourOn)
-                        .let { t -> if (heldOnce && t.size > 2) t.dropLast(1) else t }  // the hint goes once it has been tried
+                val eff = settings.effective()
+                val thoughts = remember(gain, heldOnce, row?.character, shape, eff.mode) {
+                    WhyText.thoughts(WhyText.Facts(
+                        worldLabel(gain), gain.gainDb, gain.rules, gain.source, gain.learnedDb, gain.contourOn, row?.character,
+                        eff.mode.label, eff.mode.targetLufs, shape?.bodyLufs, gain.albumRun, hint = !heldOnce,  // the hint goes once tried
+                    ))
                 }
-                // One line every 6 s of the song as it starts, then it rests on what Sable did (the second line).
-                val thought by produceState(thoughts.first(), thoughts) {
+                // One line every 8 s of the song, turning slowly through all of them (paused, it stays). Reaching the anchor
+                // says so for one turn, in time with its glow.
+                var anchorNote by remember { mutableStateOf(false) }
+                LaunchedEffect(inAnchor) { if (inAnchor && state.position() > 2_000L) { anchorNote = true; delay(8_000); anchorNote = false } }
+                val thought by produceState(thoughts.first(), thoughts, anchorNote) {
                     while (true) {
-                        val i = (state.position() / 6_000L).toInt()
-                        value = thoughts[if (i < thoughts.size) i else minOf(1, thoughts.size - 1)]
+                        value = if (anchorNote) "now in the part Sable balanced to"
+                            else thoughts[((state.position() / 8_000L) % thoughts.size).toInt()]
                         delay(500)
                     }
                 }

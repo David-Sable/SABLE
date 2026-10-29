@@ -34,28 +34,48 @@ object WhyText {
         else -> id.lowercase(Locale.US).replace('_', ' ')
     }
 
+    /** What the thoughts line knows about the playing song: the plan, plus the song's own analysis. */
+    data class Facts(
+        val world: String, val gainDb: Double, val rules: List<Pair<String, Double>>, val source: String,
+        val learnedDb: Double = 0.0, val contourOn: Boolean = false, val character: String? = null,
+        val modeLabel: String = "Normal", val targetLufs: Double = -14.0, val bodyLufs: Double? = null, val albumRun: Boolean = false,
+        val hint: Boolean = true,
+    )
+
     /**
-     * Now Playing's thoughts line: what Sable did for this song, one short line at a time (shown in order as the song starts,
-     * then it rests on the second). Only facts from the plan; nothing is shown that did not happen.
+     * Now Playing's thoughts line: what Sable did for this song, one short line at a time, turning slowly through the whole
+     * song (first the main reason). Only facts from the plan and the analysis; nothing is shown that did not happen.
      */
-    fun thoughts(world: String, gainDb: Double, rules: List<Pair<String, Double>>, source: String, learnedDb: Double, contourOn: Boolean): List<String> {
-        if (source == "provisional" || source == "jit") return listOf(world)
-        val r = rules.toMap()
+    fun thoughts(x: Facts): List<String> {
+        if (x.source == "provisional" || x.source == "jit") return listOf(x.world)
+        val r = x.rules.toMap()
+        val verb = when {
+            abs(x.gainDb) < 0.05 -> "left as it is"
+            x.gainDb > 0 -> "lifted ${f(x.gainDb)} dB"
+            else -> "turned down ${f(x.gainDb)} dB"
+        }
+        val why = when {
+            "FLOW" in r -> "flows into its neighbour, one album gain"
+            x.albumRun -> "one gain for the whole album"
+            else -> characterPhrase(x.character).takeIf { it != "This song" }?.replaceFirstChar { it.lowercase(Locale.US) }
+        }
         return buildList {
-            add(world)
-            add(when {
-                abs(gainDb) < 0.05 -> "already sits with your library"
-                gainDb > 0 -> "lifted ${f(gainDb)} dB to sit with your library"
-                else -> "turned down ${f(gainDb)} dB to sit with your library"
-            })
-            if ("FLOW" in r) add("runs straight into the next track")
+            add(if (why == null) verb else "$verb · $why")
+            // The song's own figure only explains the gain in song world (an album's gain comes from the whole album).
+            if (!x.albumRun && x.bodyLufs != null && x.bodyLufs.isFinite())
+                add("measures ${n(x.bodyLufs)} LUFS · ${x.modeLabel} aims for ${n(x.targetLufs)}")
+            if (x.albumRun) add("keeps the album's own loud and quiet")
             r["INTIMACY"]?.let { add("kept ${f(it)} dB quieter on purpose") }
             r["PEAK_CAP"]?.let { add("peaks kept clean: ${f(it)} dB under the rest") }
-            if (abs(learnedDb) >= 0.05) add("${if (learnedDb > 0) "+" else "−"}${f(learnedDb)} dB, as you set it here before")
-            if (contourOn) add("a little bass kept for quiet listening")
-            add("hold the number to hear the original")
+            if (abs(x.learnedDb) >= 0.05) add("${if (x.learnedDb > 0) "+" else "−"}${f(x.learnedDb)} dB, as you set it here before")
+            if (x.contourOn) add("a little bass kept for quiet listening")
+            add(x.world)
+            if (x.hint) add("hold the number to hear the original")
         }
     }
+
+    /** A whole-number LUFS figure with a true minus sign: −14, −1.6 → −2. */
+    private fun n(x: Double): String = String.format(Locale.US, "%.0f", x).let { if (it.startsWith("-")) "−" + it.drop(1) else it }.let { if (it == "−0") "0" else it }
 
     /** One sentence for the applied gain and the rules that shaped it. */
     fun sentence(character: String?, gainDb: Double, rules: List<Pair<String, Double>>, source: String, albumRun: Boolean): String {
