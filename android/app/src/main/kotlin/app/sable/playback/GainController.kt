@@ -134,9 +134,11 @@ class GainController(
 
     private val resumedIds = HashSet<String>()  // main thread: queue entries put back where they were left
     private val playedBefore = HashSet<String>()  // main thread: queue entries that have been the playing item
+    var onReplay: ((String) -> Unit)? = null  // main thread: the listening history counts a replay as a new play
 
     /** MATH-1.31: the entry plays again from its start: drop the offset frozen for its first play (the next plan takes the current one and freezes it), and open a window. */
     private fun replay(id: String) {
+        onReplay?.invoke(id)
         frozenLearned.remove(id)
         refreeze += id
         resumedIds -= id
