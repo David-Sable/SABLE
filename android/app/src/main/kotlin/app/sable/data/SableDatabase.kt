@@ -1,6 +1,7 @@
 package app.sable.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -128,9 +129,31 @@ interface LibraryDao {
     suspend fun pending(math: String): List<TrackEntity>
 }
 
-@Database(entities = [TrackEntity::class, AnalysisEntity::class], version = 1, exportSchema = true)
+/**
+ * One listen: a song counts once it has played 30 s, or half of it when shorter. Kept on the phone only; it feeds the
+ * Home view (recently played, most played, not heard in a while) and never changes a gain.
+ */
+@Entity(tableName = "plays", indices = [Index("trackId"), Index("playedAt")])
+data class PlayEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val trackId: Long,
+    val playedAt: Long,
+    val albumWorld: Boolean,
+)
+
+@Dao
+interface PlayDao {
+    @Insert suspend fun add(play: PlayEntity)
+    @Query("SELECT * FROM plays ORDER BY playedAt DESC") fun observeAll(): Flow<List<PlayEntity>>
+}
+
+@Database(
+    entities = [TrackEntity::class, AnalysisEntity::class, PlayEntity::class], version = 2, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+)
 abstract class SableDatabase : RoomDatabase() {
     abstract fun library(): LibraryDao
+    abstract fun plays(): PlayDao
 
     companion object {
         const val MATH_VERSION = "1.9"

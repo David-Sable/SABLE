@@ -44,6 +44,7 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var session: MediaLibrarySession
     private lateinit var controller: GainController
     private val gains = GainTable()
+    private var countedPlay: String? = null  // the queue entry already counted in the history for this time it plays
 
     override fun onCreate() {
         super.onCreate()
@@ -95,7 +96,7 @@ class PlaybackService : MediaLibraryService() {
             }
 
             // Pick up where you left off: the queue, the song and the spot in it are kept as playback moves.
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { saveResume(); updateWidget() }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { countedPlay = null; saveResume(); updateWidget() }
             override fun onTimelineChanged(timeline: Timeline, reason: Int) = saveResume()
             override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) unplayableInARow = 0; saveResume(); updateWidget() }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) = saveResume()
@@ -114,6 +115,20 @@ class PlaybackService : MediaLibraryService() {
         })
         // While playing, the spot in the song is also saved every 10 s (a crash or a swipe-away loses at most that).
         scope.launch { while (true) { delay(10_000); if (player.isPlaying) saveResume() } }
+        // Listening history (Home): a song counts once it has played 30 s, or half of it when shorter; once per time it plays.
+        scope.launch {
+            while (true) {
+                delay(5_000)
+                val item = player.currentMediaItem ?: continue
+                if (!player.isPlaying || countedPlay == item.mediaId) continue
+                val dur = player.duration
+                if (dur <= 0 || player.currentPosition < minOf(30_000L, dur / 2)) continue
+                countedPlay = item.mediaId
+                val trackId = QueueId.trackId(item.mediaId) ?: continue
+                val play = app.sable.data.PlayEntity(trackId = trackId, playedAt = System.currentTimeMillis(), albumWorld = QueueId.albumIntent(item.mediaId))
+                launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { SableDatabase.get(this@PlaybackService).plays().add(play) } }
+            }
+        }
         restoreResume()
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaLibrarySession.Builder(this, player, callback).setSessionActivity(open).build()

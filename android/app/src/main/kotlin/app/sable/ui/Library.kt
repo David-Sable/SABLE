@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,7 +118,7 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
 @Composable
 fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     val albums = remember(rows) { albumsOf(rows) }
-    val tabs = listOf("Albums", "Artists", "Songs", "Folders")
+    val tabs = listOf("Home", "Albums", "Artists", "Songs", "Folders")
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.gutter, end = Space.xs, top = Space.m),
@@ -133,7 +135,10 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             if (rows.isEmpty()) "Looking for music…" else "${rows.size} songs · ${if (analysed == rows.size) "all listened to" else "$analysed of ${rows.size} listened to"}",
             style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(start = Space.gutter, top = 2.dp),
         )
-        Row(Modifier.padding(start = Space.gutter, top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Space.gutter, end = Space.gutter, top = Space.l),
+            horizontalArrangement = Arrangement.spacedBy(Space.xl),
+        ) {
             tabs.forEachIndexed { i, t -> TabLabel(t, state.libraryTab == i) { state.libraryTab = i } }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(SableColors.line))
@@ -144,13 +149,14 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         Box {
         tabState.SaveableStateProvider("tab${state.libraryTab}") {
         when (state.libraryTab) {
-            0 -> LazyVerticalGrid(
+            0 -> HomeTab(state, rows, bottomPad)
+            1 -> LazyVerticalGrid(
                 GridCells.Fixed(2), contentPadding = PaddingValues(start = Space.gutter, end = Space.gutter, top = Space.l, bottom = bottomPad + Space.l),
                 horizontalArrangement = Arrangement.spacedBy(Space.l), verticalArrangement = Arrangement.spacedBy(Space.xl),
             ) {
                 items(albums, key = { it.key }) { a -> AlbumTile(a) { state.go(Route.Album(a.key)) } }
             }
-            1 -> {
+            2 -> {
                 val artists = remember(albums) { albums.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
                 LazyColumn(contentPadding = pad) {
                     items(artists.keys.toList(), key = { it }) { name ->
@@ -159,7 +165,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     }
                 }
             }
-            2 -> {
+            3 -> {
                 val songs = remember(rows) { rows.sortedBy { titleOf(it).lowercase() } }
                 LazyColumn(contentPadding = pad) {
                     item(key = "shuffle") {
@@ -199,7 +205,7 @@ private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
+internal fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
