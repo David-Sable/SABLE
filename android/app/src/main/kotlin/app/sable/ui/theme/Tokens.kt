@@ -4,7 +4,6 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -91,20 +90,20 @@ object Motion {
     fun <T> medium() = tween<T>(MEDIUM, easing = easing)
     /** Now Playing's sheet and the cover's flight: durations in ms (x the live tuning factor), one easing so they move as one. */
     const val SHEET_IN = 520
-    const val SHEET_OUT = 380
+    const val SHEET_OUT = 340
     /** Arriving: moves at once (15% of the way in the first 5% of the time) and lands with a shorter tail than the shared easing,
      *  whose slow start hid the sheet behind the fading mini player for the first frames (David, 2026-10-29). */
     val enterEasing = CubicBezierEasing(0.1f, 0.3f, 0.3f, 1f)
     fun <T> sheetIn(m: Float) = tween<T>((SHEET_IN * m).toInt().coerceAtLeast(80), easing = enterEasing)
-    /** Leaving starts at speed (a flick is already moving) and settles: the shared easing starts from rest, so after a fast
-     *  swipe down the sheet stopped for a few frames before it went (David, 2026-10-29). */
-    val exitEasing = CubicBezierEasing(0f, 0f, 0.2f, 1f)
+    /** Leaving starts at speed (a flick is already moving) and keeps it into the landing: measured at 60 fps, a long settle spent
+     *  320 ms creeping the last few millimetres into the mini player's corner, which read as delayed (David, 2026-10-29). */
+    val exitEasing = CubicBezierEasing(0.1f, 0.4f, 0.6f, 1f)
     fun <T> sheetOut(m: Float) = tween<T>((SHEET_OUT * m).toInt().coerceAtLeast(80), easing = exitEasing)
 }
 
 @Composable
 fun SableTheme(content: @Composable () -> Unit) {
-    val light = !isSystemInDarkTheme()
+    val light = false  // dark only (David, 2026-10-29); the light palette is kept in SableColors but never used
     if (SableColors.light != light) SableColors.light = light
     val c = SableColors
     val scheme = if (light) lightColorScheme(

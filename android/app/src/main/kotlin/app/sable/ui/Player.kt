@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -173,27 +174,18 @@ fun songSwipe(state: AppState): Modifier {
 }
 
 /**
- * The cover that grows out of the mini player into Now Playing and back (a shared element). Off where there is nobody to share
- * it with (previews, tests) and while [enabled] is false (after a swipe-down, which already moves the sheet).
+ * Where a cover is on screen, for the cover's flight between the mini player and Now Playing (drawn by SableApp from these two
+ * rectangles and the sheet's progress, so it starts exactly on one cover and ends exactly on the other). While it flies, this
+ * cover is hidden. Replaces Compose's shared element, which on the first opening only learned where the cover lands at the last
+ * moment and made it jump (David, 2026-10-29).
  */
-@Composable
-fun Modifier.coverShared(
-    shared: androidx.compose.animation.SharedTransitionScope?, visibility: androidx.compose.animation.AnimatedVisibilityScope?, enabled: Boolean,
-    durationFactor: Float = 1f, spring: Boolean = false,
-): Modifier =
-    if (shared == null || visibility == null || !enabled) this
-    else with(shared) {
-        this@coverShared.sharedElement(
-            rememberSharedContentState("cover"), visibility,
-            // Opening and closing use the sheet's own timing, so the cover lands in the corner as the sheet leaves (on the opening
-            // timing it outlived the sheet and floated alone over the page).
-            boundsTransform = { _, _ ->
-                if (spring) androidx.compose.animation.core.spring(dampingRatio = 0.88f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow / durationFactor.coerceAtLeast(0.2f))
-                else if (visibility.transition.targetState == androidx.compose.animation.EnterExitState.Visible) Motion.sheetIn(durationFactor)
-                else Motion.sheetOut(durationFactor)
-            },
-        )
+fun Modifier.coverSpot(state: AppState, mini: Boolean): Modifier = this
+    .onGloballyPositioned { c ->
+        val r = androidx.compose.ui.geometry.Rect(c.positionInRoot(), androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+        if (mini) state.miniCover = r
+        else state.npCover = r
     }
+    .graphicsLayer { alpha = if (state.coverFlying()) 0f else 1f }
 
 @Composable
 fun MiniPlayer(
@@ -213,7 +205,7 @@ fun MiniPlayer(
             // The big cover Now Playing will want, decoded and uploaded while the song plays (not in the first frames of the open).
             val artContext = LocalContext.current
             LaunchedEffect(row?.albumId) { row?.let { ArtCache.load(artContext, it.albumId, it.uri, 1024) } }
-            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring), px = 128)
+            if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverSpot(state, mini = true), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
                 Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(row?.let { clean(it.artist) } ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -261,7 +253,9 @@ fun NowPlayingScreen(
             orientation = Orientation.Vertical,
             state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
             onDragStopped = { velocity ->
-                if (dragY.value > closeAt || velocity > 2500f) state.pop()
+                // Closing keeps the finger's momentum from this very frame (the close itself starts a frame or two later; before, the
+                // sheet stood still for those frames, 50 ms at 60 fps).
+                if (dragY.value > closeAt || velocity > 2500f) { state.pop(); dragY.animateDecay(velocity.coerceAtLeast(0f), androidx.compose.animation.core.exponentialDecay()) }
                 else dragY.animateTo(0f, settle, initialVelocity = velocity)
             },
         )
@@ -363,7 +357,7 @@ fun NowPlayingScreen(
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).coverSpot(state, mini = false).then(artSwipe).scale(pressScale), px = 1024)
                     Column(
                         Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise },
                         verticalArrangement = Arrangement.Center, content = info,
@@ -371,7 +365,7 @@ fun NowPlayingScreen(
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverShared(shared, visibility, !state.debugNoFlight, state.animDur, state.animSpring).then(artSwipe).scale(pressScale), px = 1024)
+                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).coverSpot(state, mini = false).then(artSwipe).scale(pressScale), px = 1024)
                     Spacer(Modifier.height(gap))
                     Column(Modifier.graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise }) { info() }  // arrives after the cover
                 }

@@ -38,6 +38,18 @@ class AppState {
     var sleepSheet by mutableStateOf(false)
     /** Now Playing is being drawn once, invisibly, to have its pictures ready before its first opening (SableApp). */
     var npPrewarm by mutableStateOf(false)
+    /** The cover's flight between the mini player and Now Playing (SableApp draws it): where each real cover is on screen (root
+     *  coordinates) and how far the sheet is open. While it flies, the real covers are hidden. */
+    var miniCover by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    var npCover by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    /** How far below its resting place the sheet is placed right now (px). The opening flight aims at Now Playing's cover moved up
+     *  by this, i.e. where it will rest: aiming at the cover as it rose with the sheet bent the path down and up again, a bounce
+     *  (David, 2026-10-29). Written while placing the sheet, read while drawing the flight. */
+    var npSheetOffset = 0f
+    var sheetProgress: () -> Float = { 0f }
+    /** Closing: where Now Playing's cover was when the sheet started to leave (it flies from there, while the sheet falls away). */
+    var flightFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    fun coverFlying(): Boolean = !debugNoFlight && miniCover != null && npCover != null && sheetProgress().let { it > 0f && it < 1f }
     var whyTrack by mutableStateOf<Long?>(null)
     var searchQuery by mutableStateOf("")  // kept while browsing from a result and back
     var menuTrack by mutableStateOf<Long?>(null)  // the long-pressed song (SongMenu)

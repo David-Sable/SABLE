@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget colours, light (this file) and dark (values-night): the same tokens as the app (ui/theme/Tokens.kt). -->
+<!-- Widget colours: dark only, the same tokens as the app (ui/theme/Tokens.kt). -->
 <resources>
-    <color name="w_card">#FFFCFCFC</color>
-    <color name="w_line">#FFD6D6D6</color>
-    <color name="w_text">#FF1A1A1A</color>
-    <color name="w_text2">#FF5C5C5C</color>
-    <color name="w_accent">#FF2B2B2B</color>
-    <color name="w_on_accent">#FFF2F2F2</color>
-    <color name="w_art">#FFEBEBEB</color>
+    <color name="w_card">#FF0A0A09</color>
+    <color name="w_line">#FF24221E</color>
+    <color name="w_text">#FFEDE8DF</color>
+    <color name="w_text2">#FFA39D92</color>
+    <color name="w_accent">#FFE8E1D3</color>
+    <color name="w_on_accent">#FF0A0A09</color>
+    <color name="w_art">#FF121110</color>
     <!-- Text on a cover under the dark shade (2x2): the same in light and dark. -->
     <color name="w_on_art">#FFF5F1EA</color>
     <color name="w_on_art2">#CCF5F1EA</color>

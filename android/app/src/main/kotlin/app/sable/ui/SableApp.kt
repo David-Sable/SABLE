@@ -9,6 +9,7 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.layout.layout
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.zIndex
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.rememberUpdatedState
@@ -158,9 +159,11 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         val npOpen = np >= 0
         val npTransition = updateTransition(if (npOpen) EnterExitState.Visible else EnterExitState.PostExit, label = "nowPlaying")
         val npScope = remember(npTransition) { object : AnimatedVisibilityScope { override val transition = npTransition } }
-        val sheet by npTransition.animateFloat(
+        val sheetState = npTransition.animateFloat(
             transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "sheet",
         ) { if (it == EnterExitState.Visible) 1f else 0f }
+        val sheet by sheetState
+        state.sheetProgress = { sheetState.value }
         // The first opening after a start (or a new song) drew the sheet for the first time: its cover upload and first draw stalled
         // about five frames while the mini player's cover had already gone. So it is drawn once, invisibly, as soon as a song is there.
         LaunchedEffect(current?.mediaId) {
@@ -171,7 +174,14 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         }
         if (current != null) Box(
             Modifier.fillMaxSize().zIndex(2f)  // over the mini player: the sheet rises out of it instead of behind it
-                .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { p.place(0, if (state.npPrewarm && !npOpen) 0 else ((1f - sheet) * p.height).roundToInt()) } }
+                .layout { m, c ->
+                    val p = m.measure(c)
+                    layout(p.width, p.height) {
+                        val y = if (state.npPrewarm && !npOpen) 0 else ((1f - sheet) * p.height).roundToInt()
+                        state.npSheetOffset = y.toFloat()
+                        p.place(0, y)
+                    }
+                }
                 .graphicsLayer { alpha = if (state.npPrewarm && !npOpen) 0.004f else 1f }
                 .drawWithContent { if (sheet > 0f || state.npPrewarm) drawContent() },
         ) {
@@ -182,11 +192,38 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
                 }
             }
         }
+        // The cover's flight: drawn between the mini player's cover and Now Playing's at the sheet's progress, over both (draw phase
+        // only: nothing is laid out or rebuilt per frame). At 0 it is exactly the mini player's cover, at 1 exactly Now Playing's.
+        val flyArt = current?.let { c -> remember(c.albumId) { c.albumId } }
+        // Opening follows the rising sheet's cover (it lands exactly on it); closing starts from where that cover was when the close
+        // began and flies into the corner while the sheet falls away (after a swipe the sheet keeps the finger's speed off the screen).
+        LaunchedEffect(npOpen) { state.flightFrom = if (npOpen) null else state.npCover }
+        Spacer(Modifier.fillMaxSize().zIndex(2.5f).drawBehind {
+            if (!state.coverFlying() || flyArt == null) return@drawBehind
+            val img = ArtCache.peekAny(flyArt, 1024) ?: return@drawBehind
+            val a = state.miniCover ?: return@drawBehind
+            val b = state.flightFrom ?: state.npCover?.translate(0f, -state.npSheetOffset) ?: return@drawBehind
+            val f = state.sheetProgress().coerceIn(0f, 1f)
+            val l = a.left + (b.left - a.left) * f; val t = a.top + (b.top - a.top) * f
+            val w = a.width + (b.width - a.width) * f; val h = a.height + (b.height - a.height) * f
+            val side = minOf(img.width, img.height)  // the cover's centre square, as the covers crop it
+            val path = androidx.compose.ui.graphics.Path().apply {
+                addRoundRect(androidx.compose.ui.geometry.RoundRect(l, t, l + w, t + h, androidx.compose.ui.geometry.CornerRadius(app.sable.ui.theme.Radius.art.toPx())))
+            }
+            clipPath(path) {
+                drawImage(
+                    img, srcOffset = androidx.compose.ui.unit.IntOffset((img.width - side) / 2, (img.height - side) / 2),
+                    srcSize = androidx.compose.ui.unit.IntSize(side, side),
+                    dstOffset = androidx.compose.ui.unit.IntOffset(l.roundToInt(), t.roundToInt()),
+                    dstSize = androidx.compose.ui.unit.IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+                )
+            }
+        })
         AnimatedContent(aboveRoute, transitionSpec = spec, label = "above", modifier = Modifier.zIndex(3f)) { r -> screen(r, false) }
         AnimatedVisibility(
             showMini, Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f),  // under the sheet, over screens opened from it
             // A plain fade: sliding up while the sheet slides down put two things moving against each other at the bottom of the screen.
-            enter = fadeIn(Motion.sheetIn(state.animDur)), exit = fadeOut(Motion.sheetOut(state.animDur)),
+            enter = fadeIn(Motion.sheetOut(state.animDur)), exit = fadeOut(Motion.sheetOut(state.animDur)),  // fully there when the cover lands in it
         ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
         Box(Modifier.zIndex(5f)) {  // the sheets cover everything, Now Playing included
             state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }

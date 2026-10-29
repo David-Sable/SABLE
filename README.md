@@ -6,7 +6,7 @@ The player exists to serve the **Sable Intent Engine**. By default the engine ma
 
 > Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.22), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
 >
-> **Look:** the app follows your phone's light or dark setting. Dark is true black with warm ivory; light matches Samsung's own light mode (soft grey page, near-white cards) with dark ink.
+> **Look:** true black with warm ivory, always (dark only, so the cover art breathes). The home-screen widget matches.
 
 ---
 
