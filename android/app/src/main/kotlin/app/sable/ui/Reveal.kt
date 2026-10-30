@@ -33,10 +33,19 @@ fun Modifier.lightAlpha(alpha: () -> Float): Modifier = graphicsLayer {
  */
 @Composable
 fun Reveal(visible: Boolean, expand: Boolean = true, riseWithSheet: Boolean = false, content: @Composable () -> Unit) {
+    // Inside a SableSheet the sheet itself rises to the new height and slides back down (draw position only), so the section only fades
+    // in, and it goes in one frame once the sheet has hidden it.
+    if (riseWithSheet) {
+        if (visible) {
+            val a = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+            androidx.compose.runtime.LaunchedEffect(Unit) { a.animateTo(1f, Motion.panel(0.001f)) }
+            Box(Modifier.lightAlpha { a.value }) { content() }
+        }
+        return
+    }
     AnimatedVisibility(
         visible,
-        // Inside a SableSheet the sheet itself rises to the new height (draw position only), so the section only fades in.
-        enter = if (expand && !riseWithSheet) expandVertically(Motion.panel(androidx.compose.ui.unit.IntSize.VisibilityThreshold)) else EnterTransition.None,
+        enter = if (expand) expandVertically(Motion.panel(androidx.compose.ui.unit.IntSize.VisibilityThreshold)) else EnterTransition.None,
         exit = if (expand) shrinkVertically(Motion.panel(androidx.compose.ui.unit.IntSize.VisibilityThreshold)) else fadeOut(Motion.panel(0.001f), targetAlpha = 1f),  // kept on screen while the light fade runs
     ) {
         val a by transition.animateFloat(

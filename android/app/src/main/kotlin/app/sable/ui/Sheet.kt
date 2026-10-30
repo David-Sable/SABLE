@@ -50,6 +50,9 @@ import kotlin.math.roundToInt
 
 /** Slides the sheet away, for an action inside it. Calling onDismiss directly removed the sheet in one frame, and the page flashed bright; a sheet opened from it (song menu to Add to playlist) now rises as this one leaves. */
 val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<() -> Unit> { {} }
+/** Slides the panel down by the given px and stays there until its content next gets shorter, which then happens in that same frame:
+ *  a section closes as one slide into place. Taking the height away first dropped the panel off the screen and it climbed back (David, 2026-10-30). */
+val LocalSheetSink = androidx.compose.runtime.staticCompositionLocalOf<suspend (Float) -> Unit> { {} }
 
 /**
  * Sable's bottom sheet (Why, the song menu, the sleep timer, Add to playlist), drawn in the app's own window. Material's
@@ -67,6 +70,7 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
     val grow = remember { Animatable(0f) }   // px still to rise after the content grew
     var height by remember { mutableIntStateOf(0) }
     var closing by remember { mutableStateOf(false) }
+    var sunk by remember { mutableStateOf(false) }
     // Now Playing's family (Motion.panel): one no-overshoot spring in and out; a pull that lets go keeps the finger's speed.
     LaunchedEffect(Unit) { shown.animateTo(1f, Motion.panel(0.0005f)) }
     fun close(velocity: Float = 0f) {
@@ -119,6 +123,7 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
                         if (old > 0 && p.height > old && !closing && shown.value >= 1f) scope.launch(start = CoroutineStart.UNDISPATCHED) {
                             grow.snapTo(grow.value + (p.height - old)); grow.animateTo(0f, Motion.panel(0.5f))
                         }
+                        if (sunk && p.height < old) { sunk = false; scope.launch(start = CoroutineStart.UNDISPATCHED) { grow.snapTo(0f) } }
                         height = p.height
                         layout(p.width, p.height) { p.place(0, ((1f - shown.value) * p.height + pull.value + grow.value).roundToInt()) }
                     }
@@ -134,7 +139,7 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp)))
-                androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides { close() }) { Column(Modifier.fillMaxWidth(), content = content) }
+                androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides { close() }, LocalSheetSink provides { px -> sunk = true; grow.animateTo(px, Motion.panel(0.5f)) }) { Column(Modifier.fillMaxWidth(), content = content) }
                 // The window already shrinks above the keyboard; a little room so a text field does not sit right on it.
                 if (WindowInsets.isImeVisible) Spacer(Modifier.size(1.dp, 28.dp))
             }

@@ -1,5 +1,8 @@
 package app.sable.ui
 
+import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.onSizeChanged
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -81,7 +84,11 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
         // No stretch at the ends: inside a sheet it fights the sheet's own drag and the content jitters when you keep scrolling.
         androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollFactory provides null) {
         Box(Modifier.nestedScroll(noSheetLift)) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.xl).navigationBarsPadding()) {
+        val scroll = rememberScrollState()
+        val sink = LocalSheetSink.current
+        val whyScope = androidx.compose.runtime.rememberCoroutineScope()
+        var detailsH by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+        Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text("WHY", style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m))
             Text(titleOf(row), style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.xs))
             Text(listOf(clean(row.artist), clean(row.album)).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -122,14 +129,22 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
             // Plain by default: the details (every measurement and rule) fold away. Advanced users see them open.
             var open by remember(settings.advanced) { mutableStateOf(settings.advanced) }
             Row(
-                Modifier.fillMaxWidth().padding(top = Space.xl).clickable { open = !open }.padding(vertical = Space.s),
+                Modifier.fillMaxWidth().padding(top = Space.xl).clickable {
+                    if (!open) open = true
+                    else whyScope.launch {  // one slide into place, back to the top of the page, then the details go, out of sight
+                        val left = scroll.viewportSize + scroll.maxValue - detailsH
+                        launch { scroll.animateScrollTo(0, app.sable.ui.theme.Motion.panel()) }
+                        if (scroll.viewportSize > left) sink((scroll.viewportSize - left).toFloat())
+                        open = false
+                    }
+                }.padding(vertical = Space.s),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (open) "Hide details" else "Details", style = SableType.label, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
                 Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, app.sable.ui.theme.Motion.panel(0.1f), label = "arrow").value))
             }
             Reveal(open, riseWithSheet = true) {
-                Column {
+                Column(Modifier.onSizeChanged { detailsH = it.height }) {
                 Section("What Sable heard")
                 Measure("Loudness (BS.1770)", lufs(json, "integratedLufs"))
                 Measure("Perceived loudness of the body", lufs(json, "anchorPle"))
