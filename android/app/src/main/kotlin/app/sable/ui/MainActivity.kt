@@ -30,6 +30,7 @@ import app.sable.library.TrackAnalyzer
 import app.sable.work.ScanWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 /**
  * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
@@ -162,6 +163,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Log.i(TAG, "ENSURE done")
                 }
+                "organizeplan" -> SableDatabase.get(applicationContext).library().observeRows(SableDatabase.MATH_VERSION).first().let { rows -> app.sable.library.Organizer.plan(rows).forEach { Log.i(TAG, "ORGANIZE ${it.mediaId} '${it.from}' -> '${it.to}'") }.also { Log.i(TAG, "ORGANIZE plan done") } }  // dry run: what Organize would move
                 "cancel" -> androidx.work.WorkManager.getInstance(applicationContext).cancelUniqueWork(ScanWorker.NAME).also { Log.i(TAG, "scan cancelled") }
                 "bench" -> bench(intent.getStringExtra("match") ?: "", intent.getBooleanExtra("mc", false))
                 "playalbum" -> {

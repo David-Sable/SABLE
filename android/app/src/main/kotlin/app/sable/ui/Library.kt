@@ -217,6 +217,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 val folders = remember(rows) { rows.groupBy { it.relativePath }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
                 val folderCover = remember(folders) { folders.mapValues { (_, t) -> albumsOf(t).maxByOrNull { it.tracks.size } } }
                 LazyColumn(contentPadding = pad) {
+                    item(key = "organize") { OrganizeRow(rows) }
                     items(folders.keys.toList(), key = { it }) { path ->
                         ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(folders.getValue(path).size, "song"), cover = folderCover[path]) { state.go(Route.Folder(path)) }
                     }
