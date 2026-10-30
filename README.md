@@ -43,6 +43,8 @@ Each rule below is in plain language. MATH.md has the exact version (section num
 8. **Your output** (§20). Phone speaker, USB-C and Bluetooth each get their own headroom and an optional calibration offset. Bluetooth gets extra headroom (−1.5 to −2 dBTP), because its lossy codecs can create new peaks when they re-encode.
 9. **Never full level by accident** (§22). A song that hasn't been analysed yet gets a quick analysis (about a second) before it plays. If that isn't ready in time, it starts 6 dB down and then eases to the right level.
 
+**Every artist credited.** Under every song, on album pages, lists, the mini-player and Now Playing, is its artist and everyone featured on it ("JPEGMAFIA feat. Helena Deland"). Many files write features only in the title, so Sable moves them from the title to that credit line; the files are not changed.
+
 Every song has a **Why** sheet showing the measured numbers, where the anchor is, the gain applied, every rule that fired, and a one-line explanation, e.g. *"Intimate piano piece: raised 3.1 dB, held 1 dB under target to keep it quiet."*
 
 ### 4. Context (opt-in extras)

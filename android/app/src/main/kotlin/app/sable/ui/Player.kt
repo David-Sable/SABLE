@@ -213,8 +213,8 @@ fun MiniPlayer(
             LaunchedEffect(row?.albumId) { row?.let { ArtCache.load(artContext, it.albumId, it.uri, 1024) } }
             if (row != null) AlbumArt(row.albumId, row.uri, row.album, 44.dp, Modifier.size(44.dp).coverSpot(state, mini = true), px = 128)
             Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
-                Text(row?.let(::titleOf) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(row?.let { clean(it.artist) } ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(row?.let(::songTitle) ?: "", style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(creditText(row?.let(::credit).orEmpty()), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             }
             IconButton(if (state.playing) Glyph.PAUSE else Glyph.PLAY, { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } })
@@ -328,7 +328,7 @@ fun NowPlayingScreen(
             val info: @Composable ColumnScope.() -> Unit = {
             // Tap the title for its album, the artist line for the artist; the heart keeps the song in Favourites.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(row?.let(::titleOf) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                Text(row?.let(::songTitle) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
                 if (row != null) {
                     val fav = row.mediaId in favorites
@@ -336,7 +336,7 @@ fun NowPlayingScreen(
                         color = if (fav) SableColors.accent else SableColors.textTertiary)
                 }
             }
-            Text(listOfNotNull(row?.artist, row?.album).map(::clean).filter { it.isNotBlank() }.joinToString(" · "), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
+            Text(creditText(row?.let(::songSubtitle).orEmpty()), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))
             if (shape != null) {

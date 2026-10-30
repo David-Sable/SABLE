@@ -198,9 +198,24 @@ fun nameTags(r: LibraryRow): Pair<String, String>? {
     return if (artist.isEmpty() || title.isEmpty()) null else artist to title
 }
 /** "Artist · Album", without a dangling dot when the song has no album. */
-fun songSubtitle(r: LibraryRow) = listOf(clean(r.artist).ifBlank { nameTags(r)?.first ?: "Unknown artist" }, clean(r.album)).filter { it.isNotBlank() }.joinToString(" · ")
+fun songSubtitle(r: LibraryRow) = listOf(credit(r), clean(r.album)).filter { it.isNotBlank() }.joinToString(" · ")
 fun artistOf(r: LibraryRow) = clean(r.albumArtist).ifBlank { clean(r.artist) }.ifBlank { nameTags(r)?.first ?: "Unknown artist" }
 fun titleOf(r: LibraryRow) = nameTags(r)?.second ?: unexplicit(r.title.ifBlank { r.displayName })
+/**
+ * Featured artists are often written only in the title ("Free The Frail (feat. Helena Deland)"; the artist tag says just
+ * JPEGMAFIA). For display, the title loses that part and the credit line carries it: "JPEGMAFIA feat. Helena Deland".
+ */
+private val FEAT = Regex("""\s*[(\[]\s*(?:feat\.?|ft\.?|featuring)\s+([^)\]]+?)\s*[)\]]|\s+(?:feat\.|ft\.|featuring)\s+(.+)$""", RegexOption.IGNORE_CASE)
+/** The featured names written in a title, or null. */
+fun featuredOf(title: String): String? = FEAT.find(title)?.let { m -> (m.groupValues[1].ifBlank { m.groupValues[2] }).trim().ifBlank { null } }
+/** The title as shown beside its credit line: without the "(feat. …)" part. */
+fun songTitle(r: LibraryRow): String = titleOf(r).let { t -> t.replace(FEAT, "").trim().ifEmpty { t } }
+/** The song's artist with everyone featured on it. */
+fun credit(r: LibraryRow): String {
+    val main = clean(r.artist).ifBlank { nameTags(r)?.first ?: "Unknown artist" }
+    val feat = featuredOf(titleOf(r)) ?: return main
+    return if (main.contains(feat, ignoreCase = true)) main else "$main feat. $feat"
+}
 fun mmss(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)

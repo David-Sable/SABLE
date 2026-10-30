@@ -106,12 +106,21 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
             Text("$index", style = SableType.caption, color = if (playing) SableColors.accent else SableColors.textTertiary, modifier = Modifier.width(30.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(titleOf(r), style = SableType.body, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank()) Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(songTitle(r), style = SableType.body, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(creditText(subtitle), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
         IconButton(Glyph.INFO, onWhy, size = 18.dp, color = if (r.analysed) SableColors.textTertiary else SableColors.line)
     }
+}
+
+/** A credit line with " feat. " a step quieter than the names, so every artist reads clearly and the line stays calm. */
+fun creditText(s: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
+    val i = s.indexOf(" feat. ")
+    if (i < 0) { append(s); return@buildAnnotatedString }
+    append(s.substring(0, i))
+    pushStyle(androidx.compose.ui.text.SpanStyle(color = SableColors.textTertiary)); append(" feat. "); pop()
+    append(s.substring(i + 7))
 }
 
 // ---------------- Library ----------------
@@ -251,7 +260,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
         }
         items(album.tracks.size, key = { album.tracks[it].mediaId }) { i ->
             val r = album.tracks[i]
-            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, clean(r.artist).takeIf { !it.equals(album.artist, ignoreCase = true) }.orEmpty(), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, credit(r), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
         }
     }
 }
