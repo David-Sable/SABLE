@@ -1,6 +1,4 @@
-# Baseline Profile (ART ahead-of-time hints). Compose, Media3 and the other libraries ship their own; this adds all of
-# Sable's code, which is small, so screens, gestures and the gain path run precompiled from the first frame instead of
-# being interpreted until the JIT warms up. Applied by androidx.profileinstaller; on a sideloaded install ART compiles it
-# at the next idle maintenance (or at once with: adb shell cmd package compile -f -m speed-profile app.sable).
-HSPLapp/sable/**->**(**)**
+# Sable's own code, compiled ahead of time from the first launch of an install instead of running slowly until the phone
+# gets round to it. The Compose libraries bring their own rules.
+HSPLapp/sable/**;->**(**)**
 Lapp/sable/**;

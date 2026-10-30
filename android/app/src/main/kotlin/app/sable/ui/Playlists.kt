@@ -71,10 +71,8 @@ object Playlists {
 /** Every playlist with its entries in order. */
 @Composable
 fun rememberPlaylists(): List<Pair<PlaylistEntity, List<PlaylistTrackEntity>>> {
-    val context = LocalContext.current
-    val dao = remember { SableDatabase.get(context).playlists() }
-    val lists by remember { dao.observePlaylists() }.collectAsState(initial = emptyList())
-    val entries by remember { dao.observeEntries() }.collectAsState(initial = emptyList())
+    val lists by LibraryData.playlists.collectAsState()
+    val entries by LibraryData.entries.collectAsState()
     return remember(lists, entries) { val byList = entries.groupBy { it.playlistId }; lists.map { it to byList[it.id].orEmpty() } }
 }
 

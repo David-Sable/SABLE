@@ -26,8 +26,6 @@ object Favorites {
 /** The favourite track ids, newest first (empty until the database answers). */
 @Composable
 fun rememberFavorites(): List<Long> {
-    val context = LocalContext.current
-    val flow = remember { SableDatabase.get(context).favorites().observeAll() }
-    val list by flow.collectAsState(initial = emptyList())
+    val list by LibraryData.favorites.collectAsState()
     return remember(list) { list.map { it.trackId } }
 }

@@ -52,6 +52,19 @@ class MainActivity : ComponentActivity() {
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
+    /** The launch screen stays until Home has its first real contents (at most 4 s), so opening Sable never shows an empty page. */
+    private fun holdLaunchScreenForHome() {
+        val content = findViewById<android.view.View>(android.R.id.content)
+        val since = android.os.SystemClock.uptimeMillis()
+        content.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (LibraryData.home.value == null && android.os.SystemClock.uptimeMillis() - since < 4000) return false
+                content.viewTreeObserver.removeOnPreDrawListener(this)
+                return true
+            }
+        })
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Sable is dark only (David, 2026-10-29: "it feels more respectful and lets the cover art breathe"): light bar icons always.
         enableEdgeToEdge(
@@ -65,10 +78,11 @@ class MainActivity : ComponentActivity() {
         if (needed.isNotEmpty()) askPermissions.launch(needed.toTypedArray())
         PlaybackPrefs.load(this)
         handleCommand(intent)
-        val rowsFlow = SableDatabase.get(applicationContext).library().observeRows(SableDatabase.MATH_VERSION)
+        LibraryData.start(applicationContext)
+        holdLaunchScreenForHome()
         lifecycleScope.launch(Dispatchers.Default) { LibraryScanner(applicationContext).syncMediaStore() }
         setContent {
-            val rows by rowsFlow.collectAsState(initial = emptyList())
+            val rows = LibraryData.model.collectAsState().value?.rows ?: emptyList()
             SableTheme {
                 SableApp(
                     state, rows,

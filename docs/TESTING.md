@@ -24,3 +24,6 @@ What was run in the 2026-10-27 blind-spot pass, so a later session can repeat it
 - Compare a screen's layout across gestures by finding text rows in screenshots, not by eye: `adb exec-out screencap -p`.
 - The phone sleeps after at most 10 minutes: a Shift key press every 2 minutes keeps it awake (the wake-up key alone does not reset the timer).
 - Frame numbers: GPU ms is a poor measure on the A17 (the Mali sits at a low clock under light load). Judge by recordings at 60 fps (extract with `fps=60`, not passthrough) and `tools/perf/anim_frames.sh`. Five rounds is too few to see small changes.
+
+## Frame rate: measure what David runs
+A normal install is `verify` until the phone compiles the profile when idle. `cmd package compile -m speed` hides that. Measure right after `adb install`, then again after `cmd package compile -m speed-profile -f app.sable`. Use `tools/perf/tab_frames.py` on one framestats file per gesture: the slowest frame is what the eye catches, and a late-frame share over repeats hides it.

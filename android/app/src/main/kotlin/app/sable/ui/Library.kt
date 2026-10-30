@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +33,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -156,7 +158,7 @@ fun CreditLine(s: String, style: androidx.compose.ui.text.TextStyle, color: Colo
 
 @Composable
 fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
-    val albums = remember(rows) { albumsOf(rows) }
+    val model = LibraryData.model.collectAsState().value
     val tabs = listOf("Home", "Albums", "Artists", "Songs", "Folders")
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -188,8 +190,14 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 if (!moving && swiped[0]) { swiped[0] = false; state.libraryTab = pager.settledPage }
             }
         }
+        // One slide by pixels, however far: animateScrollToPage first jumps to within three pages of the target, a full layout
+        // that froze the first frame for 100 ms on the far tabs (measured, 2026-10-30).
         androidx.compose.runtime.LaunchedEffect(state.libraryTab) {
-            if (pager.targetPage != state.libraryTab) pager.animateScrollToPage(state.libraryTab, animationSpec = Motion.page())
+            val to = state.libraryTab
+            val page = pager.layoutInfo.pageSize + pager.layoutInfo.pageSpacing
+            val by = (to - pager.currentPage - pager.currentPageOffsetFraction) * page
+            if (page > 0 && kotlin.math.abs(by) > 1f) pager.animateScrollBy(by, Motion.page())
+            if (pager.currentPage != to || pager.currentPageOffsetFraction != 0f) pager.scrollToPage(to)
         }
         val tabLeft = remember { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { 0f }) }
         Box(
@@ -205,7 +213,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
                 tabs.forEachIndexed { i, t ->
-                    TabLabel(t, pager.targetPage == i, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { swiped[0] = false; state.libraryTab = i }
+                    TabLabel(t, { (if (swiped[0]) pager.targetPage else state.libraryTab) == i }, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { swiped[0] = false; state.libraryTab = i }
                 }
             }
         }
@@ -213,8 +221,15 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         val pad = PaddingValues(bottom = bottomPad + Space.l)
         // Each tab keeps its own scroll position when you switch tabs and come back.
         val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+        // Every tab stays built, so a tap on a far tab only slides finished pages past. They are built one at a time just after the
+        // library appears, while nothing is moving; the pages between used to be built in the middle of the slide (David, 2026-10-30).
+        var built by androidx.compose.runtime.mutableIntStateOf(1)
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(500)
+            while (built < tabs.size - 1) { kotlinx.coroutines.delay(120); built++ }
+        }
         androidx.compose.foundation.pager.HorizontalPager(
-            pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1,
+            pager, Modifier.fillMaxSize(), beyondViewportPageCount = built,
             flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapAnimationSpec = Motion.page()),
         ) { page ->
         tabState.SaveableStateProvider("tab$page") {
@@ -224,19 +239,18 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 GridCells.Fixed(2), contentPadding = PaddingValues(start = Space.gutter, end = Space.gutter, top = Space.l, bottom = bottomPad + Space.l),
                 horizontalArrangement = Arrangement.spacedBy(Space.l), verticalArrangement = Arrangement.spacedBy(Space.xl),
             ) {
-                items(albums, key = { it.key }) { a -> AlbumTile(a) { state.go(Route.Album(a.key)) } }
+                items(model?.albums.orEmpty(), key = { it.key }) { a -> AlbumTile(a) { state.go(Route.Album(a.key)) } }
             }
-            2 -> {
-                val artists = remember(albums) { albums.groupBy { it.artist }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
+            2 -> if (model != null) {
                 LazyColumn(contentPadding = pad) {
-                    items(artists.keys.toList(), key = { it }) { name ->
-                        val list = artists.getValue(name)
+                    items(model.artistNames, key = { it }) { name ->
+                        val list = model.artists.getValue(name)
                         ListRow(name, "${count(list.size, "album")} · ${count(list.sumOf { it.tracks.size }, "song")}", cover = list.maxByOrNull { it.tracks.size }, round = true) { state.go(Route.Artist(name)) }
                     }
                 }
             }
-            3 -> {
-                val songs = remember(rows) { rows.sortedBy { titleOf(it).lowercase() } }
+            3 -> if (model != null) {
+                val songs = model.songs
                 LazyColumn(contentPadding = pad) {
                     item(key = "shuffle") {
                         // Every song, shuffled, each balanced in its own world.
@@ -250,13 +264,11 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     }
                 }
             }
-            else -> {
-                val folders = remember(rows) { rows.groupBy { it.relativePath }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
-                val folderCover = remember(folders) { folders.mapValues { (_, t) -> albumsOf(t).maxByOrNull { it.tracks.size } } }
+            else -> if (model != null) {
                 LazyColumn(contentPadding = pad) {
                     item(key = "organize") { OrganizeRow(rows) }
-                    items(folders.keys.toList(), key = { it }) { path ->
-                        ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(folders.getValue(path).size, "song"), cover = folderCover[path]) { state.go(Route.Folder(path)) }
+                    items(model.folderNames, key = { it }) { path ->
+                        ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(model.folders.getValue(path).size, "song"), cover = model.folderCover[path]) { state.go(Route.Folder(path)) }
                     }
                 }
             }
@@ -267,8 +279,8 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 }
 
 @Composable
-private fun TabLabel(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val c by animateColorAsState(if (selected) SableColors.textPrimary else SableColors.textTertiary, Motion.medium(), label = "tabText")
+private fun TabLabel(text: String, selected: () -> Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c by animateColorAsState(if (selected()) SableColors.textPrimary else SableColors.textTertiary, Motion.medium(), label = "tabText")
     Column(modifier.softClick(pressedScale = 0.96f, onClick = onClick)) {
         Text(text, style = SableType.headline, color = c, modifier = Modifier.padding(vertical = Space.s))
         Spacer(Modifier.height(2.dp))
@@ -307,7 +319,8 @@ internal fun ListRow(title: String, subtitle: String, cover: AlbumGroup? = null,
 
 @Composable
 fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad: Dp) {
-    val album = remember(rows, key) { albumsOf(rows).firstOrNull { it.key == key } } ?: return
+    val model = LibraryData.model.collectAsState().value
+    val album = remember(model, key) { model?.albums?.firstOrNull { it.key == key } } ?: return
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = bottomPad + Space.l)) {
         item { TopBar(null, { state.pop() }) }
         item {
@@ -339,7 +352,8 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
 
 @Composable
 fun ArtistScreen(state: AppState, rows: List<LibraryRow>, name: String, bottomPad: Dp) {
-    val albums = remember(rows, name) { albumsOf(rows).filter { it.artist == name } }
+    val model = LibraryData.model.collectAsState().value
+    val albums = remember(model, name) { model?.artists?.get(name).orEmpty() }
     LazyVerticalGrid(
         GridCells.Fixed(2), Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = Space.gutter, end = Space.gutter, bottom = bottomPad + Space.l),

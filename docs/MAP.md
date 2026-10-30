@@ -24,3 +24,4 @@ Where to look. Read the file itself for detail; keep this to one line per area.
 
 ## Tools
 See `tools/README.md`.
+- `ui/LibraryData.kt`: the library, Home, favourites and playlists, worked out once off the main thread and held for the process.

@@ -10,3 +10,4 @@ Run these from the PC after `source ~/dev/sable-toolchain/env.sh`. Most need the
 | `perceptual/` | Loudness model: `gen_tables` makes `perceptual_tables.inc`, `validate_reference` checks against the TVL 2018 code in `octave/`. |
 | `branding/` | `trace_logo.py` regenerates the icon and mark from `lion_source.webp`. |
 | `setup/` | `bootstrap-windows.ps1` sets up the toolchain. |
+- `perf/tab_frames.py`: per-gesture frame figures from framestats files (late share and slowest frame).

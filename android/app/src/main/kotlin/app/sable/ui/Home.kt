@@ -70,15 +70,12 @@ class HomeData(val recent: List<Recent>, val most: List<Pair<LibraryRow, Int>>, 
 /** Home: a short, quiet look at your own listening. Nothing here is a recommendation from anywhere else. */
 @Composable
 fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
-    val context = LocalContext.current
-    val playsFlow = remember { SableDatabase.get(context).plays().observeAll() }
-    val plays by playsFlow.collectAsState(initial = null)
-    val home = remember(plays, rows) { plays?.let { HomeData.of(it, rows) } }
+    val home by LibraryData.home.collectAsState()
     val favIds = rememberFavorites()
     val favs = remember(favIds, rows) { val byId = rows.associateBy { it.mediaId }; favIds.mapNotNull(byId::get) }
     val playlists = rememberPlaylists()
-    if (home == null) return
-    if (home.isEmpty && favs.isEmpty() && playlists.isEmpty()) {
+    val h = home ?: return
+    if (h.isEmpty && favs.isEmpty() && playlists.isEmpty()) {
         Column(Modifier.fillMaxWidth().padding(top = 96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             SableMark(64.dp)
             Text("What you play shows up here", style = SableType.body, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.l))
@@ -86,7 +83,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         return
     }
     LazyColumn(contentPadding = PaddingValues(bottom = bottomPad + Space.l)) {
-        if (home.recent.isNotEmpty()) item(key = "recent") { RecentRow(home.recent, state) }
+        if (h.recent.isNotEmpty()) item(key = "recent") { RecentRow(h.recent, state) }
         if (favs.isNotEmpty()) {
             item(key = "favHead") {
                 Row(Modifier.fillMaxWidth().padding(end = Space.gutter), verticalAlignment = Alignment.CenterVertically) {
@@ -102,11 +99,11 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 }
             }
         }
-        if (home.most.isNotEmpty()) {
+        if (h.most.isNotEmpty()) {
             item(key = "mostHead") { Heading("Most played this month") }
-            val songs = home.most.map { it.first }
-            items(home.most.size, key = { "most${home.most[it].first.mediaId}" }) { i ->
-                val (r, n) = home.most[i]
+            val songs = h.most.map { it.first }
+            items(h.most.size, key = { "most${h.most[it].first.mediaId}" }) { i ->
+                val (r, n) = h.most[i]
                 SongRow(r, null, state.currentTrackId == r.mediaId, "${artistOf(r)} · $n plays", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) {
                     state.whyTrack = r.mediaId
                 }
@@ -119,7 +116,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 ListRow(p.name, "${songs.size} song${if (songs.size == 1) "" else "s"}") { state.go(Route.Playlist(p.id)) }
             }
         }
-        if (home.rediscover.isNotEmpty()) item(key = "rediscover") { AlbumRow("Not heard in a while", home.rediscover, state) }
+        if (h.rediscover.isNotEmpty()) item(key = "rediscover") { AlbumRow("Not heard in a while", h.rediscover, state) }
     }
 }
 
