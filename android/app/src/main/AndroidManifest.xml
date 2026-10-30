@@ -17,8 +17,10 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.Sable"
         android:allowBackup="false">
+        <!-- configChanges: Sable is dark only, so the phone switching light or dark must not rebuild the screen. -->
         <activity
             android:name=".ui.MainActivity"
+            android:configChanges="uiMode"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
@@ -29,6 +31,7 @@
         <!-- The widget's settings (long-press the widget, Settings): see-through to the wallpaper. -->
         <activity
             android:name=".ui.WidgetSettingsActivity"
+            android:configChanges="uiMode"
             android:excludeFromRecents="true"
             android:exported="true"
             android:taskAffinity=""

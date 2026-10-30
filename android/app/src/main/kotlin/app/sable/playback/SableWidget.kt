@@ -101,7 +101,7 @@ class SableWidget : AppWidgetProvider() {
                 } else setViewVisibility(R.id.widget_album, View.GONE)
                 WidgetLook.apply(this, look, s?.art, square = layoutId == R.layout.widget_player_square)
                 if (layoutId == R.layout.widget_player_square) {
-                    // On a cover the text sits on the dark shade; without one, the shade goes and the text takes the theme's colours.
+                    // On a cover the text sits on the dark shade; without one, the shade goes and the text takes Sable's own colours.
                     val onArt = s?.art != null
                     setViewVisibility(R.id.widget_shade, if (onArt) View.VISIBLE else View.GONE)
                     setColorStateList(R.id.widget_title, "setTextColor", if (onArt) R.color.w_on_art else R.color.w_text)

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home-screen widget, one row: cover, title and artist (tap to open Sable), previous, play/pause, next. Colours follow light/dark (values/widget_colors.xml). -->
+<!-- Home-screen widget, one row: cover, title and artist (tap to open Sable), previous, play/pause, next. Colours: values/widget_colors.xml. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"

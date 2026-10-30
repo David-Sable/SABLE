@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home-screen widget, narrow and tall (2x2): the cover fills the card, a shade at the bottom carries the title, artist and
-     play button. Without a cover the shade is hidden and the text takes the theme's colours (SableWidget). -->
+     play button. Without a cover the shade is hidden and the text takes Sable's own colours (SableWidget). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"

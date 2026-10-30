@@ -4,11 +4,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -26,27 +22,22 @@ import androidx.compose.ui.unit.sp
 import kotlin.random.Random
 
 /**
- * SABLE design tokens (dark, and a soft light-grey light mode matching One UI that follows the phone). Every colour, type style, spacing step and motion curve in the UI comes from here.
- * True black base for AMOLED, near-black matte surfaces layered on top, one restrained accent (warm ivory; brushed
- * brass is kept as the alternate token, PLAN decision 2026-10-25).
+ * SABLE design tokens (dark only, whatever the phone is set to; David, 2026-10-29). Every colour, type style, spacing step and motion curve in the UI comes from here.
+ * True black base for AMOLED, near-black matte surfaces layered on top, warm ivory as the accent and brushed brass on the
+ * play buttons.
  */
 object SableColors {
-    /** True while the phone is in light mode (set by [SableTheme]); every colour below follows it. */
-    var light by mutableStateOf(false)
-        internal set
-
-    // Dark: true black, warm ivory accent. Light: One UI grey with near-white cards, dark ink as the accent.
-    val base get() = if (light) Color(0xFFF2F2F2) else Color(0xFF000000)
-    val surface1 get() = if (light) Color(0xFFFCFCFC) else Color(0xFF0A0A09)
-    val surface2 get() = if (light) Color(0xFFEBEBEB) else Color(0xFF121110)
-    val surface3 get() = if (light) Color(0xFFE0E0E0) else Color(0xFF1B1A17)
-    val line get() = if (light) Color(0xFFD6D6D6) else Color(0xFF24221E)
-    val textPrimary get() = if (light) Color(0xFF1A1A1A) else Color(0xFFEDE8DF)
-    val textSecondary get() = if (light) Color(0xFF5C5C5C) else Color(0xFFA39D92)
-    val textTertiary get() = if (light) Color(0xFF8A8A8A) else Color(0xFF6B665E)
-    val accent get() = if (light) Color(0xFF2B2B2B) else Color(0xFFE8E1D3)      // dark: warm ivory; light: dark ink
-    val accentAlt get() = if (light) Color(0xFF7A6330) else Color(0xFFB5975A)   // brushed brass (alternate)
-    val onAccent get() = if (light) Color(0xFFF2F2F2) else Color(0xFF0A0A09)
+    val base = Color(0xFF000000)
+    val surface1 = Color(0xFF0A0A09)
+    val surface2 = Color(0xFF121110)
+    val surface3 = Color(0xFF1B1A17)
+    val line = Color(0xFF24221E)
+    val textPrimary = Color(0xFFEDE8DF)
+    val textSecondary = Color(0xFFA39D92)
+    val textTertiary = Color(0xFF6B665E)
+    val accent = Color(0xFFE8E1D3)      // warm ivory
+    val accentAlt = Color(0xFFB5975A)   // brushed brass, Sable's signature on the play buttons
+    val onAccent = Color(0xFF0A0A09)
     val accentSoft get() = accent.copy(alpha = 0.14f)
 }
 
@@ -117,17 +108,8 @@ object Motion {
 
 @Composable
 fun SableTheme(content: @Composable () -> Unit) {
-    val light = false  // dark only (David, 2026-10-29); the light palette is kept in SableColors but never used
-    if (SableColors.light != light) SableColors.light = light
     val c = SableColors
-    val scheme = if (light) lightColorScheme(
-        primary = c.accent, onPrimary = c.onAccent,
-        background = c.base, onBackground = c.textPrimary,
-        surface = c.surface1, onSurface = c.textPrimary,
-        surfaceVariant = c.surface2, onSurfaceVariant = c.textSecondary,
-        surfaceContainerLow = c.surface1, surfaceContainer = c.surface2, surfaceContainerHigh = c.surface3,
-        outline = c.line, secondary = c.accentAlt,
-    ) else darkColorScheme(
+    val scheme = darkColorScheme(
         primary = c.accent, onPrimary = c.onAccent,
         background = c.base, onBackground = c.textPrimary,
         surface = c.surface1, onSurface = c.textPrimary,
@@ -141,33 +123,29 @@ fun SableTheme(content: @Composable () -> Unit) {
 }
 
 /** A fine, static film grain over matte surfaces (one 96 px tile, drawn at very low alpha). */
-private fun grainTileOf(ink: Int): ImageBitmap {
+private val grainTile: ImageBitmap by lazy {
     val n = 96
     val px = IntArray(n * n)
     val r = Random(1770)
     for (i in px.indices) {
         val v = r.nextInt(256)
-        px[i] = (v shl 24) or ink  // white (dark mode) or black (light mode), alpha = noise
+        px[i] = (v shl 24) or 0x00FFFFFF  // white, alpha = noise
     }
-    return android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+    android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }
-private val grainTileDark: ImageBitmap by lazy { grainTileOf(0x00FFFFFF) }
-private val grainTileLight: ImageBitmap by lazy { grainTileOf(0x00000000) }
 
 /** The same grain already blended into the base colour: one opaque tile, so a full-screen surface costs one pass, not two. */
-private fun grainOnBaseTileOf(b: Color, ink: Float): ImageBitmap {
+private val grainOnBase: ImageBitmap by lazy {
     val n = 96
     val px = IntArray(n * n)
     val r = Random(1770)
     for (i in px.indices) {
-        val a = r.nextInt(256) / 255f * 0.035f          // as drawn by grain(): ink at this alpha over the base
-        fun ch(c: Float) = ((c * (1f - a) + ink * a) * 255f + 0.5f).toInt().coerceIn(0, 255)
-        px[i] = (0xFF shl 24) or (ch(b.red) shl 16) or (ch(b.green) shl 8) or ch(b.blue)
+        val a = r.nextInt(256) / 255f * 0.035f          // as drawn by grain(): white at this alpha over black
+        val v = (a * 255f + 0.5f).toInt().coerceIn(0, 255)
+        px[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
     }
-    return android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+    android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
 }
-private val grainOnBaseDark: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFF000000), 1f) }
-private val grainOnBaseLight: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFFF2F2F2), 0f) }
 
 /**
  * Now Playing's surface: the base colour with the grain, in one pass, with its top corners rounded by [corner] (px, read at draw
@@ -175,7 +153,7 @@ private val grainOnBaseLight: ImageBitmap by lazy { grainOnBaseTileOf(Color(0xFF
  * to draw); nothing but the background reaches the corners.
  */
 fun Modifier.sheetSurface(corner: () -> Float): Modifier = drawWithCache {
-    val brush = ShaderBrush(ImageShader(if (SableColors.light) grainOnBaseLight else grainOnBaseDark, TileMode.Repeated, TileMode.Repeated))
+    val brush = ShaderBrush(ImageShader(grainOnBase, TileMode.Repeated, TileMode.Repeated))
     onDrawBehind {
         val r = corner()
         if (r > 0.5f) drawRoundRect(brush, size = androidx.compose.ui.geometry.Size(size.width, size.height + r), cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r))
@@ -184,6 +162,6 @@ fun Modifier.sheetSurface(corner: () -> Float): Modifier = drawWithCache {
 }
 
 fun Modifier.grain(alpha: Float = 0.035f): Modifier = drawWithCache {
-    val brush = ShaderBrush(ImageShader(if (SableColors.light) grainTileLight else grainTileDark, TileMode.Repeated, TileMode.Repeated))  // built once per size, not per frame
+    val brush = ShaderBrush(ImageShader(grainTile, TileMode.Repeated, TileMode.Repeated))  // built once per size, not per frame
     onDrawBehind { drawRect(brush, alpha = alpha) }
 }

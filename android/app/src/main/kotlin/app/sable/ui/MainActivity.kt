@@ -60,7 +60,6 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         app.sable.work.BackupWorker.schedule(applicationContext)
-        app.sable.ui.theme.SableColors.light = false
         val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) askPermissions.launch(needed.toTypedArray())

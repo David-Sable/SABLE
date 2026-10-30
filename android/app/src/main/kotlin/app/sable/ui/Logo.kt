@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
-import app.sable.ui.theme.SableColors
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -21,6 +19,5 @@ fun SableMark(height: Dp = 28.dp, modifier: Modifier = Modifier) {
     Image(
         painterResource(R.drawable.lion_mark), contentDescription = "SABLE",
         modifier = modifier.height(height).aspectRatio(1784f / 1428f),
-        colorFilter = if (SableColors.light) ColorFilter.tint(SableColors.textPrimary) else null,  // the ivory lion would vanish on paper
     )
 }

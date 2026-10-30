@@ -641,7 +641,7 @@ private fun MoodCaption(state: AppState, mood: SongMood) {
             }
         }
     }
-    Text(mood.caption(i), style = SableType.caption, color = if (SableColors.light) SableColors.textSecondary else mood.tint(i).copy(alpha = 0.9f))  // the ivory tint is unreadable on paper
+    Text(mood.caption(i), style = SableType.caption, color = mood.tint(i).copy(alpha = 0.9f))
 }
 
 @Composable

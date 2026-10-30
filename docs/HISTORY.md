@@ -94,6 +94,12 @@ Every past session in detail, moved out of NOTES on 2026-10-30 so NOTES stays qu
 - **2026-10-29 0.35.0:** feature credits under every song (display only); tests pass; seen on the phone.
 - **2026-10-29 0.34.3:** thoughts line shortened (no repeated figure, short character words in `WhyText.shortCharacter`); tests pass; seen on the phone.
 
+### 2026-10-30 0.45.1: light mode residue removed
+- David saw a white launch screen with the phone in light mode, and the album cover going away when the phone switched theme.
+- Causes: `windowSplashScreenBackground` was never set, so Android painted its own white launch screen; and a theme switch rebuilt the activity. Fixes: black splash background in `values/themes.xml`; `configChanges="uiMode"` on both activities. The light palette, `SableColors.light`, the light grain tiles and every branch on them are deleted; the colours are now plain values.
+- Verified on the phone with the system in light mode: cold start filmed at 30 fps, black from the first frame with no white frame; switching dark and light with Sable open kept the same process and the same activity, with covers on screen. Phone put back to dark.
+- Noticed, not changed: after a cold start Home shows "What you play shows up here" and "Looking for music..." for over 3 s before the library appears (seen right after an install and speed compile, so it may be shorter normally).
+
 ### 2026-10-29 (PC) 0.34.0: hold to hear the original, thoughts line, anchor glow, Home songs
 - David: songs "not counted" on Home. The diag log showed they were (Most played had Smoke Don't Clear ×3); the gap was Recently played showing only albums. Last night's note was half wrong: repeat one already counted again (any item transition reset it); only Previous/scrubber restarts did not. Fixed both, with `PlayCounterTest` and `HomeDataTest`.
 - David picked four Now Playing ideas and left the call to Claude: built three (above), dropped the gauge. Found while testing: in Quiet his loud albums (EXPERIMENTAL RAP, −5 LUFS) play at −15 dB or lower, so an unbounded original would jump 16 dB: bounded to +6 dB (MATH-1.34 §23.6). Sink tests for the crossfade, the bound and a plan change while held. Phone left paused where it was (0:50 of $ (Money)), repeat untouched.

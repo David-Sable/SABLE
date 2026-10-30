@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.45.0, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.45.1, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** frame rate work (ROADMAP 0), Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
@@ -26,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.45.1:** light mode residue gone: black launch screen with the phone in light mode, the phone switching theme no longer rebuilds the screen, light palette deleted from the code; filmed on the phone.
 - **2026-10-30 0.45.0:** brass is the signature: the play button on Now Playing, the mini player and the widget, no colour option; the mini player lost its skip button (swipe does that).
 - **2026-10-30 0.44.4:** Why sheet: Hide details is one slide into place; it used to drop off the screen and climb back.
 - **2026-10-30 0.44.3:** David chose the framed look from his own screenshot: NOW PLAYING bar back, cover 344 dp with rounded corners on black; edge-to-edge dropped.
