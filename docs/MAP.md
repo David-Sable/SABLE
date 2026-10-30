@@ -15,7 +15,7 @@ Where to look. Read the file itself for detail; keep this to one line per area.
 - `library/`: `LibraryScanner`, `TrackAnalyzer`, `ContentHasher` (cache key), `GainTags`, `FileText` (names from file names), `Organizer`.
 - `data/`: `SableDatabase` (Room; schemas in `android/app/schemas/`), `Backup`.
 - `decode/`: `AudioDecoder`, `PerfBoost`. `engine/`: `SableEngine` (JNI). `work/`: background scan (`ScanWorker`), weekly backup (`BackupWorker`).
-- `ui/`: `SableApp` (root, layers, cover flight), `AppState`, `MainActivity` (debug commands listed at its top), `Player` (Now Playing, mini player), `Home`, `Library` (tabs, `CreditLine`, tiles), `WhySheet` + `WhyText`, `Sheet` (`SableSheet`), `Reveal`, `SongMenu`, `Playlists`, `Favorites`, `Organize`, `Search*`, `SleepSheet`, `WidgetSettingsActivity`, `Art`, `Icons`, `Logo`, `LoudnessShape`, `Touch`, `theme/Tokens.kt`.
+- `ui/`: `SableApp` (root, layers, cover flight), `AppState`, `MainActivity` (debug commands listed at its top), `Player` (Now Playing, mini player), `Home`, `Library` (tabs, `CreditLine`, tiles), `WhySheet` + `WhyText`, `Sheet` (`SableSheet`), `Reveal`, `SongMenu`, `Playlists`, `Favorites`, `Organize`, `Search*`, `SleepSheet`, `WidgetSettingsActivity`, `Art`, `AlbumFlight`, `Icons`, `Logo`, `LoudnessShape`, `Touch`, `theme/Tokens.kt`.
 
 ## Docs (`docs/`)
 - `NOTES.md`: current state, read first. `ROADMAP.md`: what is next. `HISTORY.md`: every past session in detail; search it, do not read it through.

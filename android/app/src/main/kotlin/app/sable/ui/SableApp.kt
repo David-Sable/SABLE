@@ -3,6 +3,7 @@
 package app.sable.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.runtime.snapshotFlow
@@ -86,13 +87,17 @@ import app.sable.ui.theme.Space
 fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val current = state.currentTrackId?.let { byId[it] }
-    BackHandler(enabled = state.back.size > 1 && state.route !is Route.NowPlaying) { state.pop() }
-    androidx.activity.compose.PredictiveBackHandler(enabled = state.route is Route.NowPlaying) { gesture ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = state.back.size > 1) { gesture ->
+        val sheet = state.route is Route.NowPlaying
+        if (!sheet) state.backing = state.route
+        fun clear() { state.backing = null; state.backP = 0f }
         try {
-            gesture.collect { state.backSheet(it.progress) }
+            gesture.collect { if (sheet) state.backSheet(it.progress) else state.backP = it.progress }
             state.pop()
+            if (!sheet) state.sheetScope?.launch { kotlinx.coroutines.delay(320); clear() }
         } catch (e: kotlinx.coroutines.CancellationException) {
-            state.cancelBackSheet()
+            if (sheet) state.cancelBackSheet()
+            else state.sheetScope?.launch { androidx.compose.animation.core.animate(state.backP, 0f, animationSpec = app.sable.ui.theme.Motion.page()) { v, _ -> state.backP = v }; clear() }
             throw e
         }
     }
@@ -126,25 +131,34 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             // Every screen is solid and only the one on top moves or fades: going forward the new screen comes in over the
             // old one, which stays put; going back the leaving screen goes away over the one it uncovers.
             val leaving = initialState != null && initialState !in state.back  // going back: the screen we are on is leaving for good
-            // Screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
+            // Screens rise a little (about 26 dp) as they arrive and sink as they leave.
             // Pages are the quickest of Now Playing's spring family (Motion.page): no timed curve, no overshoot.
-            val enter = if (leaving || targetState == null) EnterTransition.None else slideInVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 50 }
-            val exit = if (leaving) slideOutVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
-            val t = enter togetherWith exit
+            val enter = if (leaving || targetState == null) EnterTransition.None else slideInVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 32 }
+            val exit = if (leaving) slideOutVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 32 } else ExitTransition.KeepUntilTransitionsFinished
+            val t = (enter togetherWith exit) using null  // no size animation: a page opening over Now Playing grew out of the top-left corner as a rectangle
             t.targetContentZIndex = if (initialState != null && initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
             t
         }
         val screen: @Composable AnimatedContentScope.(Route?, Boolean) -> Unit = { r, beneathSheet ->
             if (r != null && r !is Route.NowPlaying) {
                 val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
-                val a by transition.animateFloat(transitionSpec = { Motion.page(0.001f) }, label = "screen") {
+                val a by transition.animateFloat(transitionSpec = { spring(dampingRatio = 1f, stiffness = 1600f, visibilityThreshold = 0.001f) }, label = "screen") {  // solid within about 130 ms: longer, a page's words sat see-through over the covers beneath
                     when (it) {
                         EnterExitState.Visible -> 1f
                         EnterExitState.PreEnter -> if (revealed) 1f else 0f
                         EnterExitState.PostExit -> if (r in state.back) 1f else 0f  // covered: stays; left for good: fades away
                     }
                 }
-                Box(Modifier.graphicsLayer { alpha = a }.then(if (beneathSheet) Modifier.stepBack(state) else Modifier).background(SableColors.base)) {  // inside the step-back clip: covered by the sheet, it is not painted
+                Box(Modifier.graphicsLayer {
+                    alpha = a
+                    if (r == state.backing) {  // the back gesture: this page steps back with the thumb, its corners rounding
+                        val s = 1f - 0.07f * state.backP
+                        scaleX = s; scaleY = s
+                        translationX = 24.dp.toPx() * state.backP
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp * state.backP)
+                        clip = true
+                    }
+                }.then(if (beneathSheet) Modifier.stepBack(state) else Modifier).background(SableColors.base)) {  // inside the step-back clip: covered by the sheet, it is not painted
                     saved.SaveableStateProvider(r.toString()) {
                         when (r) {
                             Route.Library -> LibraryScreen(state, rows, pad)
@@ -163,6 +177,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             }
         }
         AnimatedContent(baseRoute, transitionSpec = spec, label = "route") { r -> screen(r, true) }
+        AlbumFlightLayer(Modifier.zIndex(0.5f))
         // The sheet is built once and kept, hidden below the screen while closed (and not drawn), so opening it is only a slide:
         // measured on the A17, building it in the slide's first frame took 35-55 ms. It slides up from the bottom and back down (also
         // after a swipe, from where the finger left it) and paints its own background. Its enter/exit state drives the cover's
@@ -257,11 +272,15 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         // up), so a swipe up from it holds its fade too; nothing slides against the sheet at the bottom of the screen. The bar itself
         // stays solid: while the whole bar faded, the words of the page beneath it (an album's name under the last row of covers)
         // showed through it during every open and close (David, 2026-10-30: "LALISA in the background").
+        // A page opened from Now Playing (the queue): the bar slides up with it instead of appearing over the sheet at once.
+        val overSheet by androidx.compose.animation.core.animateFloatAsState(if (aboveRoute != null) 1f else 0f, Motion.page(0.001f), label = "barOverSheet")
         if (current != null) Box(
-            Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f).background(SableColors.surface1),
+            Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f)
+                .graphicsLayer { if (aboveRoute != null) translationY = size.height * (1f - overSheet) }
+                .background(SableColors.surface1),
         ) {
             Box(Modifier.graphicsLayer { alpha = if (aboveRoute != null) 1f else (1f - state.sheet.value / 0.25f).coerceIn(0f, 1f) }) {
-                MiniPlayer(state, current, shared = sharedScope)
+                MiniPlayer(state, current, shared = sharedScope, rowOf = { byId[it] })
             }
         }
         Box(Modifier.zIndex(5f)) {  // the sheets cover everything, Now Playing included

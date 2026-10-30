@@ -38,7 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -174,7 +177,17 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         // The tabs are pages side by side: swipe between them or tap a name. One underline travels between the names with the page,
         // stretching a little as it goes.
         val pager = androidx.compose.foundation.pager.rememberPagerState(state.libraryTab) { tabs.size }
-        androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { state.libraryTab = it } }
+        // state.libraryTab says where we are going; only a finger's swipe writes it from the pager. Writing every settled page back
+        // made a quick second tap stop the first scroll halfway, and that halfway page then won (David, 2026-10-30: landed on Songs).
+        val swiped = remember { booleanArrayOf(false) }
+        androidx.compose.runtime.LaunchedEffect(pager) {
+            pager.interactionSource.interactions.collect { if (it is androidx.compose.foundation.interaction.DragInteraction.Start) swiped[0] = true }
+        }
+        androidx.compose.runtime.LaunchedEffect(pager) {
+            androidx.compose.runtime.snapshotFlow { pager.isScrollInProgress }.collect { moving ->
+                if (!moving && swiped[0]) { swiped[0] = false; state.libraryTab = pager.settledPage }
+            }
+        }
         androidx.compose.runtime.LaunchedEffect(state.libraryTab) {
             if (pager.targetPage != state.libraryTab) pager.animateScrollToPage(state.libraryTab, animationSpec = Motion.page())
         }
@@ -192,7 +205,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
                 tabs.forEachIndexed { i, t ->
-                    TabLabel(t, pager.targetPage == i, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { state.libraryTab = i }
+                    TabLabel(t, pager.targetPage == i, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { swiped[0] = false; state.libraryTab = i }
                 }
             }
         }
@@ -264,8 +277,11 @@ private fun TabLabel(text: String, selected: Boolean, modifier: Modifier = Modif
 
 @Composable
 internal fun AlbumTile(a: AlbumGroup, captionLines: Int = 1, onClick: () -> Unit) {
-    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
-        AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
+    val spot = remember { arrayOfNulls<androidx.compose.ui.geometry.Rect>(1) }
+    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false) { AlbumFlight.open(a.key, a.albumId, a.coverUri, spot[0]); onClick() }) {
+        AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f)
+            .onGloballyPositioned { spot[0] = it.boundsInRoot() }
+            .graphicsLayer { alpha = if (AlbumFlight.hides(a.key)) 0f else 1f }, px = 384)
         Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
         Text(if (a.single) "${a.artist} · Single" else a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = captionLines, minLines = captionLines, overflow = TextOverflow.Ellipsis)
     }
@@ -296,7 +312,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
         item { TopBar(null, { state.pop() }) }
         item {
             Column(Modifier.padding(horizontal = Space.gutter)) {
-                AlbumArt(album.albumId, album.coverUri, album.title, 300.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 1024)
+                AlbumArt(album.albumId, album.coverUri, album.title, 300.dp, Modifier.fillMaxWidth().aspectRatio(1f).albumHeader(album.key), px = 1024)
                 Text(album.title, style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(top = Space.xl))
                 Text(album.artist, style = SableType.headline, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.xs))
                 Text(if (album.single) "Single · ${mmss(album.tracks.sumOf { it.durationMs })}" else "${album.tracks.size} songs · ${mmss(album.tracks.sumOf { it.durationMs })}", style = SableType.caption, color = SableColors.textTertiary,

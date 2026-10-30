@@ -85,7 +85,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         }
         return
     }
-    LazyColumn(contentPadding = PaddingValues(top = Space.l, bottom = bottomPad + Space.l)) {
+    LazyColumn(contentPadding = PaddingValues(bottom = bottomPad + Space.l)) {
         if (home.recent.isNotEmpty()) item(key = "recent") { RecentRow(home.recent, state) }
         if (favs.isNotEmpty()) {
             item(key = "favHead") {

@@ -73,6 +73,9 @@ class AppState {
         sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo(1f - 0.3f * progress) }
     }
     fun cancelBackSheet() { sheetScope?.launch { sheet.animateTo(1f, app.sable.ui.theme.Motion.sheetSpring) } }
+    /** Android's back gesture on any other page: the page being left steps back with the thumb (0 .. 1), then goes. */
+    var backing by mutableStateOf<Route?>(null)
+    var backP by androidx.compose.runtime.mutableFloatStateOf(0f)
     /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */
     fun releaseSheet(vpx: Float) {
         val v = vpx / sheetTravel
@@ -124,7 +127,10 @@ class AppState {
         if (r is Route.NowPlaying && r in back) while (route !is Route.NowPlaying) back.removeAt(back.lastIndex)
         else if (route != r) back.add(r)
     }
-    fun pop(): Boolean = if (back.size > 1) { back.removeAt(back.lastIndex); true } else false
+    fun pop(): Boolean = if (back.size > 1) {
+        (route as? Route.Album)?.let { AlbumFlight.close(it.key) }
+        back.removeAt(back.lastIndex); true
+    } else false
 
     fun withController(action: (MediaController) -> Unit) {
         controller?.let(action) ?: pending.add(action)
