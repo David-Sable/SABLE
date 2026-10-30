@@ -38,21 +38,24 @@ class WhyTextTest {
     /** 2026-10-29: babygirl (one rule) ran out of lines after 12 s; every song now has its reason and its own figure. */
     @Test fun thoughtsSayOnlyWhatHappened() {
         assertEquals(
-            listOf("turned down 12.4 dB · dense, loud master", "measures −2 LUFS · Normal aims for −14", "song world · Phone speaker"),
+            listOf("turned down · dense, loud master", "measures −2 LUFS · Normal aims for −14", "song world · Phone speaker"),
             WhyText.thoughts(WhyText.Facts("song world · Phone speaker", -12.4, listOf("ANCHOR_MATCH" to -12.4), "full",
                 character = "sustained and dense", bodyLufs = -1.6, hint = false)),
         )
         assertEquals(
-            listOf("lifted 1.2 dB · steady song", "measures −22 LUFS · Quiet aims for −19", "peaks kept clean: 2.4 dB under the rest",
+            listOf("lifted · steady song", "measures −22 LUFS · Quiet aims for −19", "peaks kept clean: 2.4 dB under the rest",
                 "+2.0 dB, as you set it here before", "a little bass kept for quiet listening", "song world · JBL", "hold the number to hear the original"),
             WhyText.thoughts(WhyText.Facts("song world · JBL", 1.2, listOf("ANCHOR_MATCH" to 3.6, "PEAK_CAP" to -2.4), "full", learnedDb = 2.0,
                 contourOn = true, character = "steady", modeLabel = "Quiet", targetLufs = -19.0, bodyLufs = -22.4)),
         )
         assertEquals(
-            listOf("turned down 15.3 dB · flows into its neighbour, one album gain", "keeps the album's own loud and quiet", "flowing album tracks · JBL"),
+            listOf("turned down · flows into the next track", "keeps the album's own loud and quiet", "flowing album tracks · JBL"),
             WhyText.thoughts(WhyText.Facts("flowing album tracks · JBL", -15.3, listOf("ALBUM" to -15.3, "FLOW" to 0.0), "full",
                 bodyLufs = -2.8, albumRun = true, hint = false)),
         )
+        // 2026-10-29: Hustle Bones' first line was cut off; every line fits the phone's one line.
+        assertEquals("turned down · wide dynamic arc",
+            WhyText.thoughts(WhyText.Facts("song world · Phone speaker", -8.4, listOf("ANCHOR_MATCH" to -8.4), "full", character = "dynamic arc")).first())
         assertEquals(listOf("listening…"), WhyText.thoughts(WhyText.Facts("listening…", -6.0, emptyList(), "provisional")))
     }
 }

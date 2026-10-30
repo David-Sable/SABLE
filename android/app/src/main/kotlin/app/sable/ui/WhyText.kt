@@ -49,15 +49,17 @@ object WhyText {
     fun thoughts(x: Facts): List<String> {
         if (x.source == "provisional" || x.source == "jit") return listOf(x.world)
         val r = x.rules.toMap()
+        // The figure sits right beside this line, so the line gives the direction and the reason, not the number again,
+        // and stays within one line on the phone (~42 characters; "a song with a wide dynamic arc" was cut off).
         val verb = when {
             abs(x.gainDb) < 0.05 -> "left as it is"
-            x.gainDb > 0 -> "lifted ${f(x.gainDb)} dB"
-            else -> "turned down ${f(x.gainDb)} dB"
+            x.gainDb > 0 -> "lifted"
+            else -> "turned down"
         }
         val why = when {
-            "FLOW" in r -> "flows into its neighbour, one album gain"
-            x.albumRun -> "one gain for the whole album"
-            else -> characterPhrase(x.character).takeIf { it != "This song" }?.replaceFirstChar { it.lowercase(Locale.US) }
+            "FLOW" in r -> "flows into the next track"
+            x.albumRun -> "one gain for the album"
+            else -> shortCharacter(x.character)
         }
         return buildList {
             add(if (why == null) verb else "$verb · $why")
@@ -72,6 +74,16 @@ object WhyText {
             add(x.world)
             if (x.hint) add("hold the number to hear the original")
         }
+    }
+
+    /** The song's character in a few words, for the one-line thoughts (the Why sheet keeps the full sentence). */
+    private fun shortCharacter(character: String?): String? = when (character) {
+        "quiet and intimate" -> "intimate, quiet piece"
+        "build and release" -> "builds and releases"
+        "dynamic arc" -> "wide dynamic arc"
+        "sustained and dense" -> "dense, loud master"
+        "steady" -> "steady song"
+        else -> null
     }
 
     /** A whole-number LUFS figure with a true minus sign: −14, −1.6 → −2. */
