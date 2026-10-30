@@ -62,6 +62,7 @@ import app.sable.data.SableDatabase
 import app.sable.playback.NowPlaying
 import app.sable.playback.QueueId
 import app.sable.ui.theme.Motion
+import app.sable.ui.theme.Radius
 import app.sable.ui.theme.SableColors
 import app.sable.ui.theme.SableType
 import app.sable.ui.theme.Space
@@ -93,6 +94,12 @@ import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 
@@ -141,7 +148,7 @@ fun analysisJson(trackId: Long?): JSONObject? {
 /**
  * Swipe sideways to change songs: left for the next one, right for the previous one (or the start of the first). The
  * content follows the finger in the draw phase, leaves on the side it was pushed, and the new song comes in from the
- * other side on a spring that carries the finger's speed. Used by the Now Playing cover and the mini player.
+ * other side on a spring that carries the finger's speed. Used by the mini player; Now Playing's cover has [CoverDeck].
  */
 @Composable
 fun songSwipe(state: AppState): Modifier {
@@ -177,6 +184,111 @@ fun songSwipe(state: AppState): Modifier {
                 }
             },
         )
+}
+
+/**
+ * Now Playing's cover and the two beside it. The next cover waits just off the right edge and the previous one off the left: a
+ * swipe brings the neighbour in with the finger, smaller and in shadow, while the playing cover steps back into shadow, and the
+ * gap between them stays one even width. Let go past a quarter (or with a flick) and the neighbour lands exactly where the cover
+ * sits, then the song changes; let go sooner and both return. The offset belongs to the song ([dragX] is new for each), so the
+ * swap happens in one frame with nothing to see. Nothing past the queue's ends: the cover resists, and pulling the first song
+ * back starts it again. A short window (compact) keeps the neighbours inside the cover's own square, off the controls.
+ */
+@Composable
+fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pressScale: Float, compact: Boolean, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val gap = with(density) { Space.xl.toPx() }  // the page's margin: at rest a neighbour is just out of sight
+    val corner = with(density) { Radius.art.toPx() }
+    var width by remember { mutableIntStateOf(1) }
+    val step = width + gap
+    val dragX = remember(state.currentQueueId, state.queueIndex) { Animatable(0f) }
+    var leaving by remember { mutableIntStateOf(0) }  // the side a released cover is on its way out to (+1 next, -1 previous)
+    fun neighbour(i: Int) = if (i == state.queueIndex) null else state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf)
+    val next = neighbour(state.nextIndex)
+    val previous = neighbour(state.previousIndex)
+    fun change(dir: Int) = state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else c.seekToPreviousMediaItem() }
+    // A critically damped spring overshoots when it starts faster than this: a hard flick lands as gently as a slow one.
+    fun carry(v: Float, left: Float) = v.coerceIn(-22f * abs(left), 22f * abs(left))
+    fun Modifier.shade(dark: () -> Float) = drawWithContent {
+        drawContent()
+        drawRoundRect(Color.Black, alpha = dark(), cornerRadius = CornerRadius(corner))
+    }
+    Box(
+        modifier.then(if (compact) Modifier.clipToBounds() else Modifier)
+            .onSizeChanged { width = maxOf(1, it.width) }
+            .draggable(
+                orientation = Orientation.Horizontal,
+                onDragStarted = { if (leaving != 0) { change(leaving); leaving = 0 } },  // a second swipe before the first landed
+                state = rememberDraggableState { d ->
+                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        val x = dragX.value
+                        val free = if (x + d < 0f) next != null else previous != null
+                        dragX.snapTo(if (free) (x + d).coerceIn(-step, step) else (x + d * 0.3f).coerceIn(-width * 0.2f, width * 0.2f))
+                    }
+                },
+                onDragStopped = { velocity ->
+                    val x = dragX.value
+                    val target = if (x < 0f) next else previous
+                    val dir = when {
+                        abs(velocity) > 1500f -> if (velocity < 0f) 1 else -1
+                        x < -width * (if (next != null) 0.25f else 0.1f) -> 1
+                        x > width * (if (previous != null) 0.25f else 0.1f) -> -1
+                        else -> 0
+                    }
+                    if (dir != 0 && (if (dir > 0) next else previous) != null) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)  // the song changes: a soft tick
+                        leaving = dir
+                        val to = -dir * step
+                        dragX.animateTo(to, Motion.page(0.5f), initialVelocity = carry(velocity, to - x))
+                        if (leaving == dir) { leaving = 0; change(dir) }
+                        delay(1000)  // normally the song has changed and this offset is gone; if the player refused, come back
+                        dragX.animateTo(0f, Motion.page(0.5f))
+                    } else {
+                        if (dir < 0 && target == null) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            state.withController { it.seekTo(0L) }
+                        }
+                        dragX.animateTo(0f, Motion.page(0.5f), initialVelocity = carry(velocity, x))
+                    }
+                },
+            ),
+    ) {
+        for ((side, other) in listOf(-1 to previous, 1 to next)) if (other != null) key(other.albumId) {
+            AlbumArt(
+                other.albumId, other.uri, other.album, 320.dp,
+                Modifier.fillMaxSize()
+                    .graphicsLayer {
+                        val p = (abs(dragX.value) / step).coerceIn(0f, 1f)
+                        alpha = if (dragX.value * side < 0f) 1f else 0f  // only the side the finger is opening
+                        translationX = side * step + dragX.value
+                        val s = 0.86f + 0.14f * p
+                        scaleX = s; scaleY = s
+                        transformOrigin = TransformOrigin(if (side > 0) 0f else 1f, 0.5f)  // the near edge stays with the finger
+                    }
+                    .scale(pressScale)
+                    .shade { 0.55f * (1f - (abs(dragX.value) / step).coerceIn(0f, 1f)) },
+                px = 1024,
+            )
+        }
+        key(row.albumId) {  // a new cover is there in its first frame, not one frame after
+            AlbumArt(
+                row.albumId, row.uri, row.album, 320.dp,
+                Modifier.fillMaxSize()
+                    .graphicsLayer {
+                        val s = 1f - 0.08f * (abs(dragX.value) / step).coerceIn(0f, 1f)
+                        translationX = dragX.value
+                        scaleX = s; scaleY = s
+                        transformOrigin = TransformOrigin(if (dragX.value < 0f) 1f else 0f, 0.5f)  // the gap between the covers stays even
+                    }
+                    .scale(pressScale)
+                    .coverSpot(state, mini = false)  // measured after the pause shrink: the flight lands on the cover as shown
+                    .shade { 0.5f * (abs(dragX.value) / step).coerceIn(0f, 1f) },
+                px = 1024,
+            )
+        }
+    }
 }
 
 /**
@@ -269,11 +381,9 @@ fun NowPlayingScreen(
         state = rememberDraggableState { d -> state.dragSheet(-d, leaving = true) },
         onDragStopped = { velocity -> state.releaseSheet(-velocity) },
     )
-    // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
-    val artSwipe = songSwipe(state)
     // Decode the neighbours' covers ahead of time, so a swipe never shows a blank square while the new one loads.
-    LaunchedEffect(state.queueIndex, state.queueIds) {
-        for (i in listOf(state.queueIndex + 1, state.queueIndex - 1)) {
+    LaunchedEffect(state.nextIndex, state.previousIndex, state.queueIds) {
+        for (i in listOf(state.nextIndex, state.previousIndex)) {
             val r = state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf) ?: continue
             ArtCache.load(context, r.albumId, r.uri, 1024)
         }
@@ -366,7 +476,7 @@ fun NowPlayingScreen(
             }
             if (compact) {
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
+                    CoverDeck(state, row, rowOf, pressScale, compact = true, Modifier.weight(0.3f).aspectRatio(1f))
                     Column(
                         Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { alpha = arrive(0.55f) },
                         verticalArrangement = Arrangement.Center, content = info,
@@ -374,7 +484,7 @@ fun NowPlayingScreen(
                 }
             } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
+                    CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.fillMaxWidth().aspectRatio(1f))
                     Spacer(Modifier.height(gap))
                     Column(Modifier.graphicsLayer { alpha = arrive(0.55f) }) { info() }  // arrives after the cover
                 }

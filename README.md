@@ -67,7 +67,7 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Queue**: **Clear** empties everything after the playing song (which keeps playing); the ✕ on a song removes just that one.
 - **Long-press a song** for Play next, Add to queue, Go to album or Why. **Shuffle all** sits at the top of the Songs tab. On Now Playing, tap the title to open its album, the artist line to open the artist.
 - **Repeat**: the loop left of the controls. Tap once to repeat the queue, again to repeat this song, again to turn it off. Sable plans the gain across the jump from the last song back to the first, so the wrap sounds as smooth as any other change.
-- **Swipe the cover** on Now Playing to change songs: left for the next, right for the previous.
+- **Swipe the cover** on Now Playing to change songs: left for the next, right for the previous. The next or previous album cover comes in beside it with your finger, so a small swipe shows what is coming; let go early and it goes back with nothing changed.
 
 ## Repository layout
 ```

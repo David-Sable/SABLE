@@ -108,6 +108,9 @@ class AppState {
     private var positionAt = 0L
     var queueIds by mutableStateOf<List<String>>(emptyList())
     var queueIndex by mutableIntStateOf(0)
+    /** The songs a swipe reaches, as the player sees them (repeat wraps round); -1 when there is none. */
+    var nextIndex by mutableIntStateOf(-1)
+    var previousIndex by mutableIntStateOf(-1)
     var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
 
     fun go(r: Route) {
@@ -139,6 +142,8 @@ class AppState {
         positionAt = SystemClock.elapsedRealtime()
         queueIds = List(p.mediaItemCount) { p.getMediaItemAt(it).mediaId }
         queueIndex = p.currentMediaItemIndex
+        nextIndex = p.nextMediaItemIndex
+        previousIndex = p.previousMediaItemIndex
         repeatMode = p.repeatMode
     }
 
