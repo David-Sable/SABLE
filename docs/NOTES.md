@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.42.0, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.42.1, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** the rest of the premium motion pass (ROADMAP 3), Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
@@ -26,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.42.1:** Now Playing's cover at 28 dp margins with air above it (David to judge the size); the signature landing back on every song change; song changes after the cover lands.
 - **2026-10-30 0.42.0:** premium pass, batch 1: every song change moves as one, Library tabs swipe, back gesture on Now Playing, quiet press, steady Now Playing layout; filmed and measured on the phone.
 - **2026-10-30 0.41.0:** Now Playing's swipe shows the next and previous album covers beside the playing one (`CoverDeck`); checked on the phone, 5.0 % late frames in cover swipes.
 - **2026-10-30 0.40.0:** Quieter / Louder on the notification, lock screen and Android Auto; automatic weekly backups; the lion as the notification icon; checked on the phone.

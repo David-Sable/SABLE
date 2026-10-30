@@ -209,6 +209,9 @@ fun songSwipe(state: AppState): Modifier {
         )
 }
 
+/** The air either side of Now Playing's cover: 4 dp more than the page's margin, so it sits inside the words rather than level with them. */
+private val COVER_MARGIN = 28.dp
+
 /**
  * Now Playing's cover and the two beside it. The next cover waits just off the right edge and the previous one off the left: a
  * swipe brings the neighbour in with the finger, smaller and in shadow, while the playing cover steps back into shadow, and the
@@ -222,20 +225,25 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
-    val gap = with(density) { Space.xl.toPx() }  // the page's margin: at rest a neighbour is just out of sight
+    val gap = with(density) { COVER_MARGIN.toPx() }  // the cover's margin: at rest a neighbour is just out of sight
     val corner = with(density) { Radius.art.toPx() }
     var width by remember { mutableIntStateOf(1) }
     val step = width + gap
     // Every song change moves the same way: the new offset is the old one plus one step along the queue, so a landed swipe arrives at
     // rest and Next, Previous or a song ending glide the new cover in with the old one going out beside it.
+    // The arrival is Sable's signature landing: the same soft spring as the mini player, a touch past and back, carrying the speed.
     val last = remember { arrayOfNulls<Animatable<Float, *>>(1) }
+    val arrive = remember { floatArrayOf(0f) }
+    val landing = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+    val landingSwipe = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = 1f)
     val onScreen = LocalOnScreen.current
     val dragX = remember(state.currentQueueId, state.queueIndex) {
         val from = last[0]?.value ?: 0f
+        arrive[0] = last[0]?.velocity ?: 0f
         Animatable(if (onScreen.value && last[0] != null) (from + state.songStep * step).coerceIn(-step, step) else 0f)
     }
     SideEffect { last[0] = dragX }
-    LaunchedEffect(dragX) { if (dragX.value != 0f) dragX.animateTo(0f, Motion.panel(0.5f)) }
+    LaunchedEffect(dragX) { if (dragX.value != 0f) dragX.animateTo(0f, landing, initialVelocity = arrive[0]) }
     var leaving by remember { mutableIntStateOf(0) }  // the side a released cover is on its way out to (+1 next, -1 previous)
     fun neighbour(i: Int) = if (i == state.queueIndex) null else state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf)
     val next = neighbour(state.nextIndex)
@@ -273,7 +281,9 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)  // the song changes: a soft tick
                         leaving = dir
                         val to = -dir * step
-                        dragX.animateTo(to, Motion.page(0.5f), initialVelocity = carry(velocity, to - x))
+                        // Sable's landing: a touch past its place and back. The song changes once it has landed: changing it in
+                        // flight stalled the cover for 3-4 frames (filmed on the phone), and at rest that cost cannot be seen.
+                        dragX.animateTo(to, landingSwipe, initialVelocity = velocity)
                         if (leaving == dir) { leaving = 0; change(dir) }
                         delay(1000)  // normally the song has changed and this offset is gone; if the player refused, come back
                         dragX.animateTo(0f, Motion.page(0.5f))
@@ -401,7 +411,7 @@ fun NowPlayingScreen(
     val anchorLit by animateFloatAsState(if (inAnchor) 1f else 0f, androidx.compose.animation.core.tween(900), label = "anchorLit")
     val onScreen = LocalOnScreen.current
     LaunchedEffect(state.playing) { whileOnScreen(onScreen) { while (true) { state.syncPosition(); delay(1000) } } }
-    val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, Motion.slow(), label = "art")
+    val pressScale by animateFloatAsState(if (state.playing) 1f else 0.96f, Motion.slow(), label = "art")
     // Gestures move only in the draw phase (graphicsLayer translation: no relayout per frame), follow the finger the
     // same frame (undispatched), and settle on a spring that carries the finger's speed, so nothing jumps or stalls.
     val scope = rememberCoroutineScope()
@@ -489,7 +499,7 @@ fun NowPlayingScreen(
                 }
             }
             CreditLine(row?.let(::songSubtitle).orEmpty(), SableType.body, SableColors.textSecondary,
-                Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
+                Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } }, maxLines = 2)
             }
             }
             }
@@ -539,12 +549,12 @@ fun NowPlayingScreen(
                 }
             } else {
                 // The cover stays at the top and the controls at the bottom whatever the song; the words sit centred in what is left,
-                // which always holds the longest case (two title lines, three credit lines). Before, a long credit pushed everything
+                // which always holds the longest case (two title lines, two credit lines; the cover at full width comes first, David, 2026-10-30). Before, a long credit pushed everything
                 // and squeezed the play button into an oval. Only a phone too short for that gets a smaller cover.
-                val longestWords = with(LocalDensity.current) { (SableType.title.lineHeight * 2).toDp() + (SableType.body.lineHeight * 3).toDp() } + 2.dp
+                val longestWords = with(LocalDensity.current) { (SableType.title.lineHeight * 2).toDp() + (SableType.body.lineHeight * 2).toDp() } + 2.dp
                 val controls = shapeH + 21.dp + Space.l + 72.dp  // the shape, the clock line, the play row
-                val side = minOf(maxWidth - Space.xl * 2, maxHeight - Space.m - controls - longestWords)
-                Column(Modifier.fillMaxSize().padding(horizontal = Space.xl).padding(top = Space.m)) {
+                val side = minOf(maxWidth - COVER_MARGIN * 2, maxHeight - Space.gutter - controls - longestWords)
+                Column(Modifier.fillMaxSize().padding(horizontal = Space.xl).padding(top = Space.gutter)) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.size(side))
                     }

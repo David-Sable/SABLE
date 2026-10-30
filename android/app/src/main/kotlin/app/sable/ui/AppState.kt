@@ -148,8 +148,8 @@ class AppState {
         val id = p.currentMediaItem?.mediaId
         val index = p.currentMediaItemIndex
         if (id != currentQueueId || index != queueIndex) songStep = when {
-            index == nextIndex && queueIds.getOrNull(index) == id -> 1
-            index == previousIndex && queueIds.getOrNull(index) == id -> -1
+            index == nextIndex && p.mediaItemCount == queueIds.size -> 1
+            index == previousIndex && p.mediaItemCount == queueIds.size -> -1
             else -> 0
         }
         playing = p.isPlaying
