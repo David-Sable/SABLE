@@ -6,7 +6,7 @@ The player exists to serve the **Sable Intent Engine**. By default the engine ma
 
 > Status: **all seven milestones complete** (2026-10-26): the engine (MATH-1.22), library analysis, playback with per-song gain, the designed app with the Why sheet, and the context features (Quiet contour, per-output settings, learning). Install it with [docs/INSTALL.md](docs/INSTALL.md). The app starts in **Easy mode** (just Normal or Quiet); one switch in Settings opens the advanced controls. See [PLAN.md](PLAN.md) for milestones and [MATH.md](MATH.md) for the precise math. If this README and MATH.md ever disagree, MATH.md wins and the README is wrong.
 >
-> **Look:** true black with warm ivory, always (dark only, so the cover art breathes). The home-screen widget matches.
+> **Look:** true black with warm ivory and one brass play button, always (dark only, so the cover art breathes). The home-screen widget matches.
 
 ---
 
@@ -59,7 +59,7 @@ Every song has a **Why** sheet showing the measured numbers, where the anchor is
 - **Quieter / Louder away from the app**: the same two buttons sit on the media notification, the lock screen and Android Auto, so you can teach Sable a song without opening it. A short message says what happened.
 - **Search**: the magnifier at the top of the library. Type part of a title, album or artist (accents and capitals don't matter); tapping a song plays it and the songs listed after it.
 - **Sleep timer**: the moon on Now Playing (right of the controls). Choose "End of this song" or a time; when the time is up, Sable stops at the end of the song that is playing, never in the middle and never with a fade.
-- **Swipe the mini player** (the bar at the bottom) left or right to change songs from any page, with the next or previous song beside it; tap it, or swipe it up, to open Now Playing (it follows your finger, and swiping Now Playing down takes it back the same way).
+- **Swipe the mini player** (the bar at the bottom) left or right to change songs from any page, with the next or previous song beside it (it has one button, the brass play); tap it, or swipe it up, to open Now Playing (it follows your finger, and swiping Now Playing down takes it back the same way).
 - **Picks up where you left off**: if the phone closes Sable, or you swipe it away, it comes back paused on the same song, at the same spot, with the same queue. A play button in the car, on headphones or in the phone's media controls wakes Sable and carries on, even when Sable was not running.
 - **Organize**: in the Folders tab, if your songs are scattered (a Google Drive download, for example), tap **Organize**. Sable asks first, then Android asks too; each song moves into Music → Artist → Album. The music itself is never changed, and everything Sable knows about it stays. **Undo organize** puts every file back.
 - **Home-screen widget**: long-press the home screen → Widgets → Sable. It shows the cover, title, artist and album, with previous, play/pause and next; tap the cover or title to open Sable. Resize it to taste: one row, a 2x2 square where the cover fills the card, or two rows and more with a big cover. Long-press the widget and tap **Settings** to choose its look over your own wallpaper: from clear to solid, Sable black or a soft glow taken from the album cover, an ivory or brass play button, and whether the album name shows.

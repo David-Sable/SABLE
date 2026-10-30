@@ -92,7 +92,6 @@ private fun WidgetSettings(look: WidgetLook.Look, change: (WidgetLook.Look) -> U
                 colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
             )
             Choice("Card", listOf("Sable black" to !look.glow, "Cover glow" to look.glow)) { change(look.copy(glow = it == 1)) }
-            Choice("Play button", listOf("Ivory" to !look.brass, "Brass" to look.brass)) { change(look.copy(brass = it == 1)) }
             Choice("Album name", listOf("Show" to look.album, "Hide" to !look.album)) { change(look.copy(album = it == 0)) }
             Row(Modifier.fillMaxWidth().padding(top = Space.xl), horizontalArrangement = Arrangement.End) { Pill("Done", selected = true, onClick = done) }
         }
@@ -134,7 +133,7 @@ private fun Preview(look: WidgetLook.Look) {
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(painterResource(R.drawable.ic_w_prev), null, Modifier.size(44.dp).padding(10.dp))
-                    Box(Modifier.padding(horizontal = 6.dp).size(44.dp).clip(CircleShape).background(if (look.brass) Color(0xFFB5975A) else Color(0xFFE8E1D3)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.padding(horizontal = 6.dp).size(44.dp).clip(CircleShape).background(Color(0xFFB5975A)), contentAlignment = Alignment.Center) {
                         Image(painterResource(if (s?.playing == true) R.drawable.ic_w_pause else R.drawable.ic_w_play), null, Modifier.size(24.dp))
                     }
                     Image(painterResource(R.drawable.ic_w_next), null, Modifier.size(44.dp).padding(10.dp))

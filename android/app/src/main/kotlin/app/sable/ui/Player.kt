@@ -362,8 +362,7 @@ fun MiniPlayer(
                 }
                 key(row?.mediaId) { MiniSong(row, Modifier.graphicsLayer { translationX = deck.dragX.value }, Modifier.coverSpot(state, mini = true)) }
             }
-            IconButton(if (state.playing) Glyph.PAUSE else Glyph.PLAY, { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } })
-            IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 20.dp)
+            IconButton(if (state.playing) Glyph.PAUSE else Glyph.PLAY, { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } }, color = SableColors.accentAlt)
         }
     }
 }
@@ -526,7 +525,7 @@ fun NowPlayingScreen(
                 IconButton(Glyph.PREV, { state.withController { it.seekToPrevious() } }, size = 26.dp)
                 Box(
                     Modifier.size(if (compact) 48.dp else 72.dp).softClick(pressedScale = 0.93f) { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } }
-                        .background(SableColors.accent, CircleShape),
+                        .background(SableColors.accentAlt, CircleShape),  // brass: Sable's signature, the same as the widget (David, 2026-10-30)
                     contentAlignment = Alignment.Center,
                 ) {
                     AnimatedContent(state.playing, label = "playPause", transitionSpec = {

@@ -10,32 +10,31 @@ import app.sable.R
 
 /**
  * How each home-screen widget looks, chosen on its settings screen (long-press the widget, Settings): the card's opacity from
- * clear (the wallpaper) to solid, Sable black or the cover's own glow, the play button in ivory or brass, and the album line.
+ * clear (the wallpaper) to solid, Sable black or the cover's own glow and the album line. The play button is always Sable's brass.
  * Kept per widget; a new widget starts from the last look chosen. Display only.
  */
 object WidgetLook {
-    data class Look(val opacity: Int = 100, val glow: Boolean = false, val album: Boolean = true, val brass: Boolean = false)
+    data class Look(val opacity: Int = 100, val glow: Boolean = false, val album: Boolean = true)
 
     private const val PREFS = "sable_widget"
     private const val BLACK = 0x0A0A09  // SableColors.base for the card (w_card)
     private const val BRASS = 0xFFB5975A.toInt()
-    private const val IVORY = 0xFFE8E1D3.toInt()
 
     fun get(context: Context, id: Int): Look {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val k = if (p.contains("$id.opacity")) "$id" else "last"
-        return Look(p.getInt("$k.opacity", 100), p.getBoolean("$k.glow", false), p.getBoolean("$k.album", true), p.getBoolean("$k.brass", false))
+        return Look(p.getInt("$k.opacity", 100), p.getBoolean("$k.glow", false), p.getBoolean("$k.album", true))
     }
 
     fun set(context: Context, id: Int, look: Look) {
         val e = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
         for (k in listOf("$id", "last")) {
-            e.putInt("$k.opacity", look.opacity).putBoolean("$k.glow", look.glow).putBoolean("$k.album", look.album).putBoolean("$k.brass", look.brass)
+            e.putInt("$k.opacity", look.opacity).putBoolean("$k.glow", look.glow).putBoolean("$k.album", look.album)
         }
         e.apply()
     }
 
-    /** The card behind the widget: Sable black, or the cover's glow, at the chosen opacity; the play button's colour. */
+    /** The card behind the widget: Sable black, or the cover's glow, at the chosen opacity; the brass play button. */
     fun apply(rv: RemoteViews, look: Look, art: Bitmap?, square: Boolean) {
         val alpha = (look.opacity.coerceIn(0, 100) * 255 + 50) / 100
         val glow = if (look.glow && art != null && !square) glowOf(art) else null
@@ -48,7 +47,7 @@ object WidgetLook {
             rv.setViewVisibility(R.id.widget_ambient, View.GONE)
             rv.setColorStateList(R.id.widget_root, "setBackgroundTintList", ColorStateList.valueOf((alpha shl 24) or BLACK))
         }
-        rv.setColorStateList(R.id.widget_play, "setBackgroundTintList", ColorStateList.valueOf(if (look.brass) BRASS else IVORY))
+        rv.setColorStateList(R.id.widget_play, "setBackgroundTintList", ColorStateList.valueOf(BRASS))
     }
 
     @Volatile private var glowFor: Bitmap? = null

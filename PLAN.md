@@ -7,6 +7,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 
 | # | Milestone | Exit criteria | Status |
 |---|---|---|---|
+| 2026-10-30 | Brass `#B5975A` is Sable's signature: every play button (Now Playing, mini player, widget), no colour option; ivory stays the accent elsewhere | David: one colour that is ours |
 | M0 | Toolchain | Host clang + ASan/UBSan works, NDK r30, SDK 36/37, JDK 21, FFmpeg, Python validation stack | ✅ done 2026-10-25 |
 | M1 | MATH.md + independent review | Reviewer findings resolved or answered in writing | ✅ done 2026-10-26 (MATH-1.2, two reviews) |
 | M2 | Engine baseline (BS.1770, LRA, TP), host + NDK | EBU 3341/3342 pass; corpus agrees with libebur128 / FFmpeg / pyloudnorm within 0.1 LU (differences explained); property + golden tests; sanitizers + clang-tidy clean; golden files bit-identical on the A17; A17 benchmark reported | ✅ done 2026-10-26 (docs/reports/M2-report.md); perf fix carried to M3 |
