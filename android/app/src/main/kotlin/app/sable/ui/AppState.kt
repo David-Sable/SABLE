@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import app.sable.data.LibraryRow
 import app.sable.playback.QueueId
+import kotlinx.coroutines.launch
 
 sealed interface Route {
     data object Library : Route
@@ -46,9 +47,32 @@ class AppState {
      *  by this, i.e. where it will rest: aiming at the cover as it rose with the sheet bent the path down and up again, a bounce
      *  (David, 2026-10-29). Written while placing the sheet, read while drawing the flight. */
     var npSheetOffset = 0f
-    var sheetProgress: () -> Float = { 0f }
-    /** Closing: where Now Playing's cover was when the sheet started to leave (it flies from there, while the sheet falls away). */
-    var flightFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    /**
+     * Now Playing's one motion (0 away .. 1 open): the sheet, the cover, the words, the mini player and the screen behind all follow
+     * this single value. The finger holds it (swipe up on the mini player, down on Now Playing) and lets go onto a spring that keeps
+     * the finger's speed and never overshoots; a tap or Back runs the same spring from rest. Before, the sheet, the cover's flight and
+     * the finger's leftover offset ran on three clocks and drifted apart mid-way (David, 2026-10-29: "our signature").
+     */
+    val sheet = androidx.compose.animation.core.Animatable(0f)
+    fun sheetProgress(): Float = sheet.value
+    /** The finger's speed (progress per second) handed to the spring that the next open/close starts (SableApp). */
+    var sheetVelocity = 0f
+    /** Set by SableApp: the coroutine scope that moves the sheet and the sheet's full travel in px. */
+    var sheetScope: kotlinx.coroutines.CoroutineScope? = null
+    var sheetTravel = 1f
+    /** The finger moved the sheet by [dpx] px (up is positive). */
+    fun dragSheet(dpx: Float) {
+        sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo((sheet.value + dpx / sheetTravel).coerceIn(0f, 1f)) }
+    }
+    /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */
+    fun releaseSheet(vpx: Float) {
+        val v = vpx / sheetTravel
+        val p = sheet.value
+        val open = if (kotlin.math.abs(v) > 1f) v > 0f else p + 0.15f * v > 0.5f
+        val isOpen = back.any { it is Route.NowPlaying }
+        if (open != isOpen) { sheetVelocity = v; if (open) go(Route.NowPlaying) else pop() }
+        else sheetScope?.launch { sheet.animateTo(if (open) 1f else 0f, app.sable.ui.theme.Motion.sheetSpring, initialVelocity = v) }
+    }
     fun coverFlying(): Boolean = !debugNoFlight && miniCover != null && npCover != null && sheetProgress().let { it > 0f && it < 1f }
     var whyTrack by mutableStateOf<Long?>(null)
     var searchQuery by mutableStateOf("")  // kept while browsing from a result and back

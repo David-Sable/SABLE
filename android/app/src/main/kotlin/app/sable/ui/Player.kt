@@ -199,7 +199,13 @@ fun MiniPlayer(
     shared: androidx.compose.animation.SharedTransitionScope? = null, visibility: androidx.compose.animation.AnimatedVisibilityScope? = null,
 ) {
     val tick by frameTick(state.playing, state.durationMs, 1080)
-    Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().clickable { state.go(Route.NowPlaying) }) {
+    // Tap to open, or swipe up: Now Playing rises with the finger and is let go onto the same spring as a tap.
+    val lift = Modifier.draggable(
+        orientation = Orientation.Vertical,
+        state = rememberDraggableState { d -> state.dragSheet(-d) },
+        onDragStopped = { velocity -> state.releaseSheet(-velocity) },
+    )
+    Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().then(lift).clickable { state.go(Route.NowPlaying) }) {
         Canvas(Modifier.fillMaxWidth().height(2.dp).graphicsLayer()) {  // own layer: the 150 ms progress redraw stays here
             tick
             drawRect(SableColors.line)
@@ -257,25 +263,12 @@ fun NowPlayingScreen(
     val scope = rememberCoroutineScope()
     fun follow(a: Animatable<Float, *>, to: Float) { scope.launch(start = CoroutineStart.UNDISPATCHED) { a.snapTo(to) } }
     val settle = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-    // Swipe down to close: the screen follows the finger, then either slides away or settles back.
-    val dragY = remember { Animatable(0f) }
-    val closeAt = with(LocalDensity.current) { 140.dp.toPx() }
-    // The sheet follows the finger by its layout position (not a draw-only translation), so the cover knows where it is when the
-    // finger lets go and flies from there into the mini player (a shared element measures layout bounds).
-    val swipe = Modifier
-        .offset { androidx.compose.ui.unit.IntOffset(0, dragY.value.roundToInt()) }
-        .draggable(
-            orientation = Orientation.Vertical,
-            state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
-            onDragStopped = { velocity ->
-                // Closing after a swipe is the tap's close, started from where the finger let go: the drag offset runs out on the sheet's
-                // own curve and timing, so the two add up to one motion (offset d0 -> full height). Before, the drag kept the finger's speed
-                // on its own decay on top of the sheet's slide: a fast flick shot the sheet away ahead of the cover's flight, which looked
-                // messy at 1x; a slow swipe had no speed to add, which is why it looked right (David, 2026-10-29).
-                if (dragY.value > closeAt || velocity > 2500f) { state.pop(); dragY.animateTo(0f, Motion.sheetOut(state.animDur)) }
-                else dragY.animateTo(0f, settle, initialVelocity = velocity)
-            },
-        )
+    // Swipe down to close: the finger holds the sheet's one progress value (AppState.sheet) and lets go onto its spring.
+    val swipe = Modifier.draggable(
+        orientation = Orientation.Vertical,
+        state = rememberDraggableState { d -> state.dragSheet(-d) },
+        onDragStopped = { velocity -> state.releaseSheet(-velocity) },
+    )
     // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
     val artSwipe = songSwipe(state)
     // Decode the neighbours' covers ahead of time, so a swipe never shows a blank square while the new one loads.
@@ -303,20 +296,19 @@ fun NowPlayingScreen(
     // nothing jumps): clearing it as soon as the sheet's top left the screen pulled the sheet back into view mid-slide, where it
     // showed as a faded copy sliding out a second time (David, 2026-10-29).
     LaunchedEffect(Unit) {
-        snapshotFlow { onScreen.value }.collectLatest { open ->
-            if (open) dragY.snapTo(0f) else state.sleepSheet = false
-        }
+        snapshotFlow { onScreen.value }.collectLatest { open -> if (!open) state.sleepSheet = false }
     }
     val corner = with(LocalDensity.current) { 28.dp.toPx() }
-    val rise = with(LocalDensity.current) { 18.dp.toPx() }
-    // 0 until the sheet is `from` of the way up, then 1 by the time it is open: later pieces arrive after the cover.
-    fun arrive(from: Float): Float = if (!state.animStagger) 1f else ((state.sheetP - from) / (1f - from)).coerceIn(0f, 1f)
+    // The words and controls fade with the sheet's progress (0 below `from`, 1 when open, on a smooth curve) and never move on the
+    // sheet: going down they are gone before the cover leaves the sheet, so nothing passes over or under it (David, 2026-10-29:
+    // "2099 goes where it shouldn't"); coming up they arrive after the cover.
+    fun arrive(from: Float): Float = ((state.sheetP - from) / (1f - from)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
     Column(
         Modifier.fillMaxSize().then(swipe)
             .onPlaced { if (!state.npPrewarm) state.sheetP = (1f - it.positionInRoot().y / screenH).coerceIn(0f, 1f) }
             .sheetSurface { if (state.animCorners) corner * (1f - state.sheetP) else 0f },
     ) {
-        Box(Modifier.graphicsLayer { alpha = arrive(0.15f) }) {
+        Box(Modifier.graphicsLayer { alpha = arrive(0.5f) }) {
         TopBar("NOW PLAYING", { state.pop() }) {
             IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
         }
@@ -376,7 +368,7 @@ fun NowPlayingScreen(
                 Row(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalAlignment = Alignment.CenterVertically) {
                     AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.weight(0.3f).aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
                     Column(
-                        Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise },
+                        Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { alpha = arrive(0.55f) },
                         verticalArrangement = Arrangement.Center, content = info,
                     )
                 }
@@ -384,14 +376,14 @@ fun NowPlayingScreen(
                 Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
                     AlbumArt(row.albumId, row.uri, row.album, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f).then(artSwipe).scale(pressScale).coverSpot(state, mini = false), px = 1024)  // measured after the pause shrink: the flight lands on the cover as shown
                     Spacer(Modifier.height(gap))
-                    Column(Modifier.graphicsLayer { val a = arrive(0.3f); alpha = a; translationY = (1f - a) * rise }) { info() }  // arrives after the cover
+                    Column(Modifier.graphicsLayer { alpha = arrive(0.55f) }) { info() }  // arrives after the cover
                 }
             }
         }
         // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
         // The gain and its reason on one line; with the Quieter / Louder buttons on, those sit on their own row under it.
         Column(
-            Modifier.fillMaxWidth().graphicsLayer { val a = arrive(0.5f); alpha = a; translationY = (1f - a) * rise }
+            Modifier.fillMaxWidth().graphicsLayer { alpha = arrive(0.6f) }
                 .navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

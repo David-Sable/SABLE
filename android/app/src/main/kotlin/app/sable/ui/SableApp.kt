@@ -159,11 +159,12 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         val npOpen = np >= 0
         val npTransition = updateTransition(if (npOpen) EnterExitState.Visible else EnterExitState.PostExit, label = "nowPlaying")
         val npScope = remember(npTransition) { object : AnimatedVisibilityScope { override val transition = npTransition } }
-        val sheetState = npTransition.animateFloat(
-            transitionSpec = { if (targetState == EnterExitState.Visible) Motion.sheetIn(state.animDur) else Motion.sheetOut(state.animDur) }, label = "sheet",
-        ) { if (it == EnterExitState.Visible) 1f else 0f }
-        val sheet by sheetState
-        state.sheetProgress = { sheetState.value }
+        // One spring to the open or closed place, from wherever the sheet is (the finger may have moved it) and at the finger's speed.
+        state.sheetScope = androidx.compose.runtime.rememberCoroutineScope()
+        LaunchedEffect(npOpen) {
+            val v = state.sheetVelocity; state.sheetVelocity = 0f
+            state.sheet.animateTo(if (npOpen) 1f else 0f, Motion.sheetSpring, initialVelocity = v)
+        }
         // The first opening after a start (or a new song) drew the sheet for the first time: its cover upload and first draw stalled
         // about five frames while the mini player's cover had already gone. So it is drawn once, invisibly, as soon as a song is there.
         LaunchedEffect(current?.mediaId) {
@@ -176,14 +177,15 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             Modifier.fillMaxSize().zIndex(2f)  // over the mini player: the sheet rises out of it instead of behind it
                 .layout { m, c ->
                     val p = m.measure(c)
+                    state.sheetTravel = p.height.toFloat()
                     layout(p.width, p.height) {
-                        val y = if (state.npPrewarm && !npOpen) 0 else ((1f - sheet) * p.height).roundToInt()
+                        val y = if (state.npPrewarm && !npOpen) 0 else ((1f - state.sheet.value) * p.height).roundToInt()
                         state.npSheetOffset = y.toFloat()
                         p.place(0, y)
                     }
                 }
                 .graphicsLayer { alpha = if (state.npPrewarm && !npOpen) 0.004f else 1f }
-                .drawWithContent { if (sheet > 0f || state.npPrewarm) drawContent() },
+                .drawWithContent { if (state.sheet.value > 0f || state.npPrewarm) drawContent() },
         ) {
             saved.SaveableStateProvider(Route.NowPlaying.toString()) {
                 val onScreen = rememberUpdatedState(npOpen)
@@ -195,17 +197,31 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         // The cover's flight: drawn between the mini player's cover and Now Playing's at the sheet's progress, over both (draw phase
         // only: nothing is laid out or rebuilt per frame). At 0 it is exactly the mini player's cover, at 1 exactly Now Playing's.
         val flyArt = current?.let { c -> remember(c.albumId) { c.albumId } }
-        // Opening follows the rising sheet's cover (it lands exactly on it); closing starts from where that cover was when the close
-        // began and flies into the corner while the sheet falls away (after a swipe the sheet keeps the finger's speed off the screen).
-        LaunchedEffect(npOpen) { state.flightFrom = if (npOpen) null else state.npCover }
+        // The cover rides on the sheet (exactly where Now Playing's cover sits on it) for the upper part of the travel, so the words
+        // under it never pass over or under it. Below RIDE_FROM it leaves the sheet on one smooth curve (cubic Hermite: it leaves at
+        // the sheet's own speed, so no kink, and never passes the mini player's cover, so no dip and rise) and lands on it exactly.
         Spacer(Modifier.fillMaxSize().zIndex(2.5f).drawBehind {
             if (!state.coverFlying() || flyArt == null) return@drawBehind
             val img = ArtCache.peekAny(flyArt, 1024) ?: return@drawBehind
             val a = state.miniCover ?: return@drawBehind
-            val b = state.flightFrom ?: state.npCover?.translate(0f, -state.npSheetOffset) ?: return@drawBehind
-            val f = state.sheetProgress().coerceIn(0f, 1f)
-            val l = a.left + (b.left - a.left) * f; val t = a.top + (b.top - a.top) * f
-            val w = a.width + (b.width - a.width) * f; val h = a.height + (b.height - a.height) * f
+            val rest = state.npCover?.translate(0f, -state.npSheetOffset) ?: return@drawBehind
+            val p = state.sheetProgress().coerceIn(0f, 1f)
+            val travel = state.sheetTravel
+            val l: Float; val t: Float; val w: Float; val h: Float
+            if (p >= RIDE_FROM) {
+                l = rest.left; t = rest.top + (1f - p) * travel; w = rest.width; h = rest.height  // on the sheet
+            } else {
+                val u = p / RIDE_FROM
+                val leave = rest.top + (1f - RIDE_FROM) * travel  // where it leaves the sheet
+                // From the mini player's cover (u = 0, heading straight at the leave point) to the leave point (u = 1, moving with the
+                // sheet: -travel per unit of progress, x and size not changing).
+                fun hermite(from: Float, to: Float, endSlope: Float): Float {
+                    val u2 = u * u; val u3 = u2 * u
+                    return (2 * u3 - 3 * u2 + 1) * from + (u3 - 2 * u2 + u) * (to - from) + (-2 * u3 + 3 * u2) * to + (u3 - u2) * endSlope
+                }
+                l = hermite(a.left, rest.left, 0f); t = hermite(a.top, leave, -travel * RIDE_FROM)
+                w = hermite(a.width, rest.width, 0f); h = hermite(a.height, rest.height, 0f)
+            }
             val side = minOf(img.width, img.height)  // the cover's centre square, as the covers crop it
             val path = androidx.compose.ui.graphics.Path().apply {
                 addRoundRect(androidx.compose.ui.geometry.RoundRect(l, t, l + w, t + h, androidx.compose.ui.geometry.CornerRadius(app.sable.ui.theme.Radius.art.toPx())))
@@ -220,11 +236,12 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             }
         })
         AnimatedContent(aboveRoute, transitionSpec = spec, label = "above", modifier = Modifier.zIndex(3f)) { r -> screen(r, false) }
-        AnimatedVisibility(
-            showMini, Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f),  // under the sheet, over screens opened from it
-            // A plain fade: sliding up while the sheet slides down put two things moving against each other at the bottom of the screen.
-            enter = fadeIn(Motion.sheetOut(state.animDur)), exit = fadeOut(Motion.sheetOut(state.animDur)),  // fully there when the cover lands in it
-        ) { MiniPlayer(state, current, shared = sharedScope, visibility = this) }
+        // Under the sheet, over screens opened from it. It fades with the sheet's own progress (gone by a quarter of the way up), so a
+        // swipe up from it holds its fade too; nothing slides against the sheet at the bottom of the screen.
+        if (current != null) Box(
+            Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f)
+                .graphicsLayer { alpha = if (aboveRoute != null) 1f else (1f - state.sheet.value / 0.25f).coerceIn(0f, 1f) },
+        ) { MiniPlayer(state, current, shared = sharedScope) }
         Box(Modifier.zIndex(5f)) {  // the sheets cover everything, Now Playing included
             state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
             state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
@@ -235,6 +252,8 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
     }
 }
 
+/** Above this much of the way open the cover rides on the sheet; below it, it eases into the mini player's cover. */
+private const val RIDE_FROM = 0.55f
 private const val BACK_SHRINK = 0f  // the screen behind only dims: shrinking it as the sheet rose read as bouncing (David, 2026-10-29)
 private const val BACK_DIM = 0.5f
 
