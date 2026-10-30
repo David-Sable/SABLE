@@ -256,7 +256,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             }
             val side = minOf(img.width, img.height)  // the cover's centre square, as the covers crop it
             val path = androidx.compose.ui.graphics.Path().apply {
-                addRoundRect(androidx.compose.ui.geometry.RoundRect(l, t, l + w, t + h, androidx.compose.ui.geometry.CornerRadius(app.sable.ui.theme.Radius.art.toPx() * (1f - state.sheetProgress()))))  // square by the time it lands: the cover there runs edge to edge
+                addRoundRect(androidx.compose.ui.geometry.RoundRect(l, t, l + w, t + h, androidx.compose.ui.geometry.CornerRadius(app.sable.ui.theme.Radius.art.toPx())))
             }
             clipPath(path) {
                 drawImage(

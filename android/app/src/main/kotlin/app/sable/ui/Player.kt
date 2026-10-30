@@ -57,7 +57,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.sable.data.LibraryRow
 import app.sable.data.SableDatabase
 import app.sable.playback.NowPlaying
@@ -161,11 +160,9 @@ fun analysisJson(trackId: Long?): JSONObject? {
     return v
 }
 
-/** Now Playing's title: a step above the app's, to stand under a cover this size. */
-private val NP_TITLE = SableType.title.copy(fontSize = 26.sp, lineHeight = 32.sp)
-
-/** The gap between Now Playing's covers on a swipe. The cover itself runs edge to edge. */
-private val COVER_GAP = 12.dp
+/** The black either side of Now Playing's cover. David's settled look (2026-10-30, from his own screenshot, then "maybe a little bigger"):
+ *  a framed cover on black under the plain bar. Larger, and running it to the screen's edges, was tried and felt like too much. */
+private val COVER_MARGIN = Space.gutter
 
 /** The moving parts shared by Now Playing's cover and the mini player: see [rememberSongDeck]. */
 class SongDeck(val dragX: Animatable<Float, *>, val step: Float, val next: LibraryRow?, val previous: LibraryRow?, val modifier: Modifier)
@@ -260,12 +257,11 @@ fun rememberSongDeck(state: AppState, rowOf: (Long) -> LibraryRow?, gap: Float):
 @Composable
 fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pressScale: Float, compact: Boolean, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
-    val deck = rememberSongDeck(state, rowOf, with(density) { COVER_GAP.toPx() })
+    val deck = rememberSongDeck(state, rowOf, with(density) { COVER_MARGIN.toPx() })
     val dragX = deck.dragX
     val step = deck.step
     val next = deck.next
     val previous = deck.previous
-    val round = if (compact) Radius.art else Radius.art * ((1f - pressScale) / 0.06f).coerceIn(0f, 1f)  // square at the edges; a paused cover, inside them, rounds
     // Every song change, however it came, ends with one soft dip and rebound of the new cover: it starts from full size, so nothing jumps.
     val pulse = remember { Animatable(1f) }
     val seen = remember { arrayOfNulls<Any>(1) }
@@ -275,16 +271,9 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
         seen[0] = dragX
         if (changed && onScreen.value) pulse.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 320f), initialVelocity = -0.9f)
     }
-    val corner = with(density) { round.toPx() }
-    val topShade = with(density) { 120.dp.toPx() }
+    val corner = with(density) { Radius.art.toPx() }
     fun Modifier.shade(dark: () -> Float) = drawWithContent {
         drawContent()
-        // A soft shade at the very top keeps the clock and the two icons readable on a pale cover. It belongs to the art and moves
-        // with it, so a paused cover floats on plain black: over the page it darkened a band around the cover (David, 2026-10-30).
-        if (!compact) drawRoundRect(
-            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.3f), Color.Transparent), endY = topShade),
-            size = size.copy(height = topShade), cornerRadius = CornerRadius(corner),
-        )
         drawRoundRect(Color.Black, alpha = dark(), cornerRadius = CornerRadius(corner))
     }
     Box(modifier.then(if (compact) Modifier.clipToBounds() else Modifier).then(deck.modifier)) {
@@ -302,7 +291,7 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
                     }
                     .scale(pressScale)
                     .shade { 0.55f * (1f - (abs(dragX.value) / step).coerceIn(0f, 1f)) },
-                px = 1024, corner = round,
+                px = 1024,
             )
         }
         key(row.albumId) {  // a new cover is there in its first frame, not one frame after
@@ -318,7 +307,7 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
                     .scale(pressScale)
                     .coverSpot(state, mini = false)  // measured after the pause shrink: the flight lands on the cover as shown
                     .shade { 0.5f * (abs(dragX.value) / step).coerceIn(0f, 1f) },
-                px = 1024, corner = round,
+                px = 1024,
             )
         }
     }
@@ -470,20 +459,17 @@ fun NowPlayingScreen(
             .onPlaced { if (!state.npPrewarm) state.sheetP = (1f - it.positionInRoot().y / screenH).coerceIn(0f, 1f) }
             .sheetSurface { if (state.animCorners) corner * (1f - state.sheetP) else 0f },
     ) {
-        // The cover starts at the very top of the screen on a normal phone: the world of the album begins at the glass, with nothing
-        // cut from the art and only the two icons floating on it (David, 2026-10-30: "live in the music world"). A short window keeps
-        // the plain bar and puts the cover beside the controls.
-        val compact = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 640
-        if (compact) {
-            Box(Modifier.graphicsLayer { alpha = arrive(0.5f) }) {
-                TopBar("NOW PLAYING", { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
-            }
-            sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
+        Box(Modifier.graphicsLayer { alpha = arrive(0.5f) }) {
+        TopBar("NOW PLAYING", { state.pop() }) {
+            IconButton(Glyph.QUEUE, { state.go(Route.Queue) })
         }
+        }
+        sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(horizontal = Space.xl)) }
         // A short window (split screen, a small pane) puts the cover beside the controls instead of above them.
         BoxWithConstraints(Modifier.weight(1f)) {
+            val compact = maxHeight < 440.dp
             val gap = if (compact) Space.s else Space.xl
-            val shapeH = if (compact) 40.dp else 72.dp
+            val shapeH = if (compact) 40.dp else 56.dp
             val words: @Composable ColumnScope.() -> Unit = {
             // The words change with the cover, moving the same way: the old ones leave quickly, the new ones settle in behind them.
             AnimatedContent(
@@ -497,7 +483,7 @@ fun NowPlayingScreen(
             Column {
             // Tap the title for its album, the artist line for the artist; the heart keeps the song in Favourites.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(row?.let(::songTitle) ?: "", style = if (compact) SableType.title else NP_TITLE, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                Text(row?.let(::songTitle) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
                 if (row != null) {
                     val fav = row.mediaId in favorites
@@ -533,7 +519,7 @@ fun NowPlayingScreen(
                 Spacer(Modifier.weight(1f))
                 Text(mmss(state.durationMs), style = SableType.caption, color = SableColors.textTertiary)
             }
-            Row(Modifier.fillMaxWidth().padding(top = if (compact) Space.s else Space.xl), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = if (compact) Space.s else Space.l), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 // Repeat on the left, sleep on the right: both lit in the accent while on.
                 IconButton(if (state.repeatMode == Player.REPEAT_MODE_ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, { state.cycleRepeat() }, size = 22.dp,
                     color = if (state.repeatMode == Player.REPEAT_MODE_OFF) SableColors.textTertiary else SableColors.accent)
@@ -563,19 +549,15 @@ fun NowPlayingScreen(
                 // The cover stays at the top and the controls at the bottom whatever the song; the words sit centred in what is left,
                 // which always holds the longest case (two title lines, two credit lines; the cover at full width comes first, David, 2026-10-30). Before, a long credit pushed everything
                 // and squeezed the play button into an oval. Only a phone too short for that gets a smaller cover.
-                val longestWords = with(LocalDensity.current) { (NP_TITLE.lineHeight * 2).toDp() + (SableType.body.lineHeight * 2).toDp() } + 2.dp
-                val controls = shapeH + 21.dp + Space.xl + 72.dp  // the shape, the clock line, the play row
-                val side = minOf(maxWidth, maxHeight - controls - longestWords - Space.l)
-                Column(Modifier.fillMaxSize()) {
+                val longestWords = with(LocalDensity.current) { (SableType.title.lineHeight * 2).toDp() + (SableType.body.lineHeight * 2).toDp() } + 2.dp
+                val controls = shapeH + 21.dp + Space.l + 72.dp  // the shape, the clock line, the play row
+                val side = minOf(maxWidth - COVER_MARGIN * 2, maxHeight - Space.s - controls - longestWords)
+                Column(Modifier.fillMaxSize().padding(top = Space.s)) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.size(side))
                     }
-                    sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(start = Space.xl, end = Space.xl, top = Space.m)) }
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.xl).graphicsLayer { alpha = arrive(0.55f) }, verticalArrangement = Arrangement.Center, content = words)  // arrives after the cover
                     Column(Modifier.padding(horizontal = Space.xl).graphicsLayer { alpha = arrive(0.55f) }, content = playback)
-                }
-                Box(Modifier.fillMaxWidth().graphicsLayer { alpha = arrive(0.5f) }) {  // only the two icons, floating on the art
-                    TopBar(null, { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
                 }
             }
         }
@@ -583,7 +565,7 @@ fun NowPlayingScreen(
         // The gain and its reason on one line; with the Quieter / Louder buttons on, those sit on their own row under it.
         Column(
             Modifier.fillMaxWidth().graphicsLayer { alpha = arrive(0.6f) }
-                .navigationBarsPadding().padding(start = Space.xl, end = Space.xl, top = Space.s, bottom = Space.m),
+                .navigationBarsPadding().padding(horizontal = Space.xl, vertical = Space.l),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Hold the number to hear the file as it is (no gain, no contour); let go and Sable's balance is back.

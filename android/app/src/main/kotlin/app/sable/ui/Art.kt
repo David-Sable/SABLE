@@ -74,17 +74,17 @@ object ArtCache {
 }
 
 @Composable
-fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier: Modifier = Modifier, px: Int = 512, corner: Dp = Radius.art) {
+fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier: Modifier = Modifier, px: Int = 512) {
     val context = LocalContext.current
     val img by produceState(ArtCache.peekAny(albumId, px), albumId, px) { value = ArtCache.load(context, albumId, trackUri, px) }
     val shown by animateFloatAsState(if (img != null) 1f else 0f, Motion.slow(), label = "art")
     Box(
-        modifier.clip(RoundedCornerShape(corner))
+        modifier.clip(RoundedCornerShape(Radius.art))
             .background(Brush.linearGradient(listOf(SableColors.surface3, SableColors.surface1))),
         contentAlignment = Alignment.Center,
     ) {
         if (img == null) {  // no cover: a quiet tile with an edge line and, when big enough, the lion at low strength (no letter)
-            Box(Modifier.matchParentSize().border(0.75.dp, SableColors.line, RoundedCornerShape(corner)))
+            Box(Modifier.matchParentSize().border(0.75.dp, SableColors.line, RoundedCornerShape(Radius.art)))
             if (size >= 100.dp) SableMark(size * 0.2f, Modifier.alpha(0.16f))
         }
         img?.let { Image(it, null, contentScale = ContentScale.Crop, alpha = shown, modifier = Modifier.matchParentSize()) }  // paint alpha: no offscreen copy
