@@ -244,12 +244,17 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             }
         })
         AnimatedContent(aboveRoute, transitionSpec = spec, label = "above", modifier = Modifier.zIndex(3f)) { r -> screen(r, false) }
-        // Under the sheet, over screens opened from it. It fades with the sheet's own progress (gone by a quarter of the way up), so a
-        // swipe up from it holds its fade too; nothing slides against the sheet at the bottom of the screen.
+        // Under the sheet, over screens opened from it. Its contents fade with the sheet's own progress (gone by a quarter of the way
+        // up), so a swipe up from it holds its fade too; nothing slides against the sheet at the bottom of the screen. The bar itself
+        // stays solid: while the whole bar faded, the words of the page beneath it (an album's name under the last row of covers)
+        // showed through it during every open and close (David, 2026-10-30: "LALISA in the background").
         if (current != null) Box(
-            Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f)
-                .graphicsLayer { alpha = if (aboveRoute != null) 1f else (1f - state.sheet.value / 0.25f).coerceIn(0f, 1f) },
-        ) { MiniPlayer(state, current, shared = sharedScope) }
+            Modifier.align(Alignment.BottomCenter).zIndex(if (aboveRoute != null) 4f else 1f).background(SableColors.surface1),
+        ) {
+            Box(Modifier.graphicsLayer { alpha = if (aboveRoute != null) 1f else (1f - state.sheet.value / 0.25f).coerceIn(0f, 1f) }) {
+                MiniPlayer(state, current, shared = sharedScope)
+            }
+        }
         Box(Modifier.zIndex(5f)) {  // the sheets cover everything, Now Playing included
             state.menuTrack?.let { id -> byId[id]?.let { SongMenu(state, it) { state.menuTrack = null } } }
             state.playlistTrack?.let { id -> AddToPlaylistSheet(id) { state.playlistTrack = null } }
