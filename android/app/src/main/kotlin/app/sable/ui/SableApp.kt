@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -117,8 +118,9 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             // old one, which stays put; going back the leaving screen goes away over the one it uncovers.
             val leaving = initialState != null && initialState !in state.back  // going back: the screen we are on is leaving for good
             // Screens rise a hair (about 17 dp) as they fade in and sink as they fade out.
-            val enter = if (leaving || targetState == null) EnterTransition.None else slideInVertically(Motion.medium()) { it / 50 }
-            val exit = if (leaving) slideOutVertically(Motion.medium()) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
+            // Pages are the quickest of Now Playing's spring family (Motion.page): no timed curve, no overshoot.
+            val enter = if (leaving || targetState == null) EnterTransition.None else slideInVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 50 }
+            val exit = if (leaving) slideOutVertically(Motion.page(androidx.compose.ui.unit.IntOffset.VisibilityThreshold)) { it / 50 } else ExitTransition.KeepUntilTransitionsFinished
             val t = enter togetherWith exit
             t.targetContentZIndex = if (initialState != null && initialState !in state.back) -1f else 1f  // going back: the newcomer goes underneath
             t
@@ -126,7 +128,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         val screen: @Composable AnimatedContentScope.(Route?, Boolean) -> Unit = { r, beneathSheet ->
             if (r != null && r !is Route.NowPlaying) {
                 val revealed = remember { r.toString() in known }  // back to a screen that was already there: it is simply uncovered
-                val a by transition.animateFloat(transitionSpec = { Motion.medium() }, label = "screen") {
+                val a by transition.animateFloat(transitionSpec = { Motion.page(0.001f) }, label = "screen") {
                     when (it) {
                         EnterExitState.Visible -> 1f
                         EnterExitState.PreEnter -> if (revealed) 1f else 0f
@@ -325,19 +327,19 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("Off", !s.contour) { PlaybackPrefs.update(context) { it.copy(contour = false) } }
                         Pill("On", s.contour) { PlaybackPrefs.update(context) { it.copy(contour = true) } }
                     }
-                    Hint("At low volume your ears lose bass first. In Quiet mode this adds a gentle lift (about +2 dB below 200 Hz, a touch of air) from the ISO 226 equal-loudness contours, so the balance sounds like it does at normal level. The only processing Sable does besides gain; peaks stay protected. On by default; turn it off for level changes only.")
+                    Hint("Quiet mode lifts the bass a little (about 2 dB) so songs still sound full at low volume. Off means level changes only.")
                     Group("Quieter / Louder buttons")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         Pill("Off", !s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = false) } }
                         Pill("On", s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = true) } }
                     }
-                    Hint("Two small buttons on Now Playing for places where the volume knob is invisible to the phone, like a car stereo. A tap tells Sable this song should be a little quieter or louder here; the same rule as turning the volume at the start of a song: one tap is a hint, the same tap on another day is a lesson. Nothing happens unless you tap.")
+                    Hint("For places where the phone can't see the volume knob, like a car stereo. A tap teaches Sable the same way the volume keys do.")
                     Group("Mood colours")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         Pill("Off", !s.mood) { PlaybackPrefs.update(context) { it.copy(mood = false) } }
                         Pill("On", s.mood) { PlaybackPrefs.update(context) { it.copy(mood = true) } }
                     }
-                    Hint("The strip on Now Playing is tinted by how the song sounds at each moment, against that song's own usual: warm brass where it is brighter and sharper, cool blue where it is darker and bassier, ivory in between, a little brighter where it is fuller. The two words under the strip say the same for right now (soft, steady or full; dark, even or bright). Display only; it never changes the sound.")
+                    Hint("Tints the strip on Now Playing: brass where the song is brighter, blue where it is darker. Display only; the sound never changes.")
                     Group("Albums")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }
@@ -359,7 +361,9 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                     Hint("Quiet, intimate songs stay a little quieter than the rest, as they were meant to be. 0 turns this off.")
                     Group("Output")
                     val route by OutputState.route.collectAsState()
-                    Text("Now: ${route.label}", style = SableType.body, color = SableColors.textPrimary)
+                    // The device by name ("Bluetooth · JBL Charge 5"), as the learning names it; the offset below applies to every output of this kind.
+                    val placeName = remember(route) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).currentPlace().label }
+                    Text("Now: $placeName", style = SableType.body, color = SableColors.textPrimary)
                     Text("Level offset %+.1f dB".format(s.cal(route)), style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.m))
                     Slider(
                         value = s.cal(route).toFloat(), valueRange = -3f..3f, steps = 11,
@@ -372,12 +376,12 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         onValueChange = { v -> PlaybackPrefs.update(context) { it.copy(routeCeiling = it.routeCeiling + (route.key to Math.round(v * 2) / 2.0)) } },
                         colors = SliderDefaults.colors(thumbColor = SableColors.accent, activeTrackColor = SableColors.accent, inactiveTrackColor = SableColors.line),
                     )
-                    Hint("Each output keeps its own settings. Use the level offset if this output sounds louder or quieter than your others. The ceiling keeps peaks clean; Bluetooth starts lower because the phone re-encodes the audio.")
+                    Hint("Each kind of output keeps its own offset and ceiling. Bluetooth starts 1 dB lower because the phone re-encodes the audio.")
                     Row(Modifier.padding(top = Space.s)) {
                         Pill("Reset ${route.label}", false) { PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal - route.key, routeCeiling = it.routeCeiling - route.key) } }
                     }
                     Group("Learning")
-                    Hint("If you turn the volume up or down in the first 20 seconds of a song, Sable takes it as a hint. It learns a small offset (at most 2 dB) for that song. When you have turned two songs by one artist the same way, their other songs follow; a song you taught yourself always keeps its own. Offsets fade by half every 30 days and apply from the next play. See and reset them on each song's Why sheet.")
+                    Hint("Turning the volume in a song's first 20 seconds teaches Sable, up to 2 dB per song, separately for each place. It halves each month; each song's Why sheet shows and resets it.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
                     Group("About")
                     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }
@@ -386,7 +390,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Spacer(Modifier.width(Space.m))
                         Text("SABLE $version · Intent Engine $MATH_DOC_VERSION", style = SableType.body, color = SableColors.textPrimary)
                     }
-                    Hint("Every number Sable shows comes from the engine described in MATH.md. Sound effects the phone adds after Sable (Dolby Atmos, EQ, Adapt Sound) still apply.")
+                    Hint("Every number comes from the engine in MATH.md. The phone's own effects (Dolby Atmos, EQ, Adapt Sound) still apply after Sable.")
                 }
             }
             Spacer(Modifier.height(Space.xxxl + endPad(bottomPad)))  // the last lines stay clear of the mini player

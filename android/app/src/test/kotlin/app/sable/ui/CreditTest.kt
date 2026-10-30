@@ -23,6 +23,17 @@ class CreditTest {
         assertEquals("DOTS FREESTYLE REMIX", songTitle(row("DOTS FREESTYLE REMIX [feat. Buzzy Lee & Abdu Ali]", "JPEGMAFIA")))
     }
 
+    /** 2026-10-29: RINA's Tunnel Vision is tagged "Rina Sawayama feat. Shamir & Shamir"; EXPERIMENTAL RAP has "1. 投影の芸術". */
+    @Test fun eachNameOnceAndNoTrackNumberInTitles() {
+        assertEquals("Rina Sawayama feat. Shamir", credit(row("Tunnel Vision", "Rina Sawayama feat. Shamir & Shamir")))
+        assertEquals("Charli XCX & Christine and the Queens", credit(row("Gone", "Charli XCX & Christine and the Queens")))
+        assertEquals("JPEGMAFIA x Danny Brown feat. redveil", credit(row("Kingdom Hearts Key (ft. redveil)", "JPEGMAFIA x Danny Brown")))
+        assertEquals("A, B", onceEach("A, B, a"))
+        assertEquals("投影の芸術", songTitle(row("1. 投影の芸術", "JPEGMAFIA")))
+        assertEquals("1999", songTitle(row("1999", "Charli XCX & Troye Sivan")))
+        assertEquals("10-20-40", songTitle(row("10-20-40", "Rina Sawayama")))
+    }
+
     @Test fun plainSongsKeepTheirArtist() {
         val r = row("Hustle Bones", "Death Grips")
         assertEquals("Hustle Bones", songTitle(r))

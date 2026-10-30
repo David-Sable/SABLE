@@ -235,14 +235,36 @@ fun titleOf(r: LibraryRow) = nameTags(r)?.second ?: unexplicit(r.title.ifBlank {
 private val FEAT = Regex("""\s*[(\[]\s*(?:feat\.?|ft\.?|featuring)\s+([^)\]]+?)\s*[)\]]|\s+(?:feat\.|ft\.|featuring)\s+(.+)$""", RegexOption.IGNORE_CASE)
 /** The featured names written in a title, or null. */
 fun featuredOf(title: String): String? = FEAT.find(title)?.let { m -> (m.groupValues[1].ifBlank { m.groupValues[2] }).trim().ifBlank { null } }
-/** The title as shown beside its credit line: without the "(feat. …)" part. */
-fun songTitle(r: LibraryRow): String = titleOf(r).let { t -> t.replace(FEAT, "").trim().ifEmpty { t } }
-/** The song's artist with everyone featured on it. */
+/**
+ * The title as shown beside its credit line: without the "(feat. …)" part, and without a track number written into the title
+ * itself ("1. 投影の芸術"; a number with no dot after it, like "1999", stays).
+ */
+fun songTitle(r: LibraryRow): String = titleOf(r).let { t -> t.replace(FEAT, "").replace(TRACK_NO, "").trim().ifEmpty { t } }
+private val TRACK_NO = Regex("""^\d{1,3}\.\s+""")
+/** The song's artist with everyone featured on it, each name once. */
 fun credit(r: LibraryRow): String {
     val main = clean(r.artist).ifBlank { nameTags(r)?.first ?: "Unknown artist" }
-    val feat = featuredOf(titleOf(r)) ?: return main
-    return if (main.contains(feat, ignoreCase = true)) main else "$main feat. $feat"
+    val feat = featuredOf(titleOf(r)) ?: return onceEach(main)
+    return onceEach(if (main.contains(feat, ignoreCase = true)) main else "$main feat. $feat")
 }
+/**
+ * A credit with each name once: some files spell a name twice ("Rina Sawayama feat. Shamir & Shamir"). A repeated name goes
+ * with the separator before it; display only, the file keeps its tag.
+ */
+fun onceEach(s: String): String {
+    val seen = HashSet<String>()
+    val out = StringBuilder()
+    var sep = ""
+    var from = 0
+    for (m in NAME_SEP.findAll(s) + sequenceOf(null)) {
+        val name = s.substring(from, m?.range?.first ?: s.length).trim()
+        if (name.isNotEmpty() && seen.add(name.lowercase())) out.append(sep).append(name)
+        if (m == null) break
+        sep = m.value; from = m.range.last + 1
+    }
+    return out.toString().ifEmpty { s }
+}
+private val NAME_SEP = Regex("""\s*,\s*|\s+&\s+|\s+and\s+|\s+feat\.\s+|\s+x\s+""")
 fun mmss(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(s / 60, s % 60)

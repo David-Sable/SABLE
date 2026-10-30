@@ -126,7 +126,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (open) "Hide details" else "Details", style = SableType.label, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
-                Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, app.sable.ui.theme.Motion.reveal(), label = "arrow").value))
+                Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, app.sable.ui.theme.Motion.panel(0.1f), label = "arrow").value))
             }
             Reveal(open, riseWithSheet = true) {
                 Column {
@@ -181,7 +181,7 @@ private fun Learned(row: LibraryRow) {
     val o = remember(t, version) { learning.offsets(t, place) }
     if (o.trackDb == 0.0 && o.artistDb == 0.0) return
     Section("Learned for ${place.label}")
-    if (o.trackDb != 0.0) Measure("This song (set %.0f days ago)".format(ListenerLearning.nowDays() - o.trackDays), "%+.1f dB".format(o.trackDb))
+    if (o.trackDb != 0.0) Measure("This song (set ${daysAgo(ListenerLearning.nowDays() - o.trackDays)})", "%+.1f dB".format(o.trackDb))
     if (o.trackDb != 0.0 && o.trackConfirmed == false) Text("A first hint: it counts up to 1 dB until you do the same on another day.", style = SableType.caption, color = SableColors.textTertiary)
     if (o.artistDb != 0.0) {
         Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(o.artistDb))
@@ -221,6 +221,9 @@ private fun FileTags(row: LibraryRow) {
     Section("Tags in the file (not used)")
     for (t in tags) Measure(t.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }, GainTags.describe(t))
 }
+
+/** "today", "yesterday", "3 days ago" (was "set 0 days ago"). */
+internal fun daysAgo(days: Double): String = when (val d = days.toInt().coerceAtLeast(0)) { 0 -> "today"; 1 -> "yesterday"; else -> "$d days ago" }
 
 private fun effectsOnPhone(): List<String> = runCatching {
     android.media.audiofx.AudioEffect.queryEffects().map { it.name }

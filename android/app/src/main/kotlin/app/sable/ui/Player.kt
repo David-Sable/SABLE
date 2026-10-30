@@ -514,9 +514,9 @@ fun QueueScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 ) {
                     if (r != null) AlbumArt(r.albumId, r.uri, r.album, 40.dp, Modifier.size(40.dp), px = 128)
                     Column(Modifier.weight(1f).padding(horizontal = Space.m)) {
-                        Text(r?.let(::titleOf) ?: "", style = SableType.body, color = if (current) SableColors.accent else SableColors.textPrimary,
+                        Text(r?.let(::songTitle) ?: "", style = SableType.body, color = if (current) SableColors.accent else SableColors.textPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(r?.artist ?: "", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(creditText(r?.let(::credit).orEmpty()), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     val g = plan[id]
                     if (advanced) {

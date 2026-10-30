@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,7 +194,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                 LazyColumn(contentPadding = pad) {
                     items(artists.keys.toList(), key = { it }) { name ->
                         val list = artists.getValue(name)
-                        ListRow(name, "${count(list.size, "album")} · ${count(list.sumOf { it.tracks.size }, "song")}") { state.go(Route.Artist(name)) }
+                        ListRow(name, "${count(list.size, "album")} · ${count(list.sumOf { it.tracks.size }, "song")}", cover = list.maxByOrNull { it.tracks.size }, round = true) { state.go(Route.Artist(name)) }
                     }
                 }
             }
@@ -214,9 +215,10 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             }
             else -> {
                 val folders = remember(rows) { rows.groupBy { it.relativePath }.toSortedMap(String.CASE_INSENSITIVE_ORDER) }
+                val folderCover = remember(folders) { folders.mapValues { (_, t) -> albumsOf(t).maxByOrNull { it.tracks.size } } }
                 LazyColumn(contentPadding = pad) {
                     items(folders.keys.toList(), key = { it }) { path ->
-                        ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(folders.getValue(path).size, "song")) { state.go(Route.Folder(path)) }
+                        ListRow(unexplicit(path.trimEnd('/').substringAfterLast('/').ifBlank { path }), count(folders.getValue(path).size, "song"), cover = folderCover[path]) { state.go(Route.Folder(path)) }
                     }
                 }
             }
@@ -246,10 +248,18 @@ internal fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun ListRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.gutter, vertical = 14.dp)) {
-        Text(title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+internal fun ListRow(title: String, subtitle: String, cover: AlbumGroup? = null, round: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.gutter, vertical = if (cover != null) 8.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // A cover beside the name, as in search (round for an artist: a face, not an album), so a list of names is not a bare column.
+        if (cover != null) AlbumArt(cover.albumId, cover.coverUri, cover.title, 48.dp,
+            Modifier.size(48.dp).then(if (round) Modifier.clip(androidx.compose.foundation.shape.CircleShape) else Modifier), px = 128)
+        Column(Modifier.weight(1f).padding(start = if (cover != null) Space.m else 0.dp)) {
+            Text(title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

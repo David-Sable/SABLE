@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import app.sable.ui.theme.Motion
@@ -35,11 +36,11 @@ fun Reveal(visible: Boolean, expand: Boolean = true, riseWithSheet: Boolean = fa
     AnimatedVisibility(
         visible,
         // Inside a SableSheet the sheet itself rises to the new height (draw position only), so the section only fades in.
-        enter = if (expand && !riseWithSheet) expandVertically(Motion.reveal()) else EnterTransition.None,
-        exit = if (expand) shrinkVertically(Motion.medium()) else fadeOut(Motion.medium(), targetAlpha = 1f),  // kept on screen while the light fade runs
+        enter = if (expand && !riseWithSheet) expandVertically(Motion.panel(androidx.compose.ui.unit.IntSize.VisibilityThreshold)) else EnterTransition.None,
+        exit = if (expand) shrinkVertically(Motion.panel(androidx.compose.ui.unit.IntSize.VisibilityThreshold)) else fadeOut(Motion.panel(0.001f), targetAlpha = 1f),  // kept on screen while the light fade runs
     ) {
         val a by transition.animateFloat(
-            transitionSpec = { if (targetState == EnterExitState.Visible) (if (expand) Motion.reveal() else Motion.slow()) else Motion.medium() }, label = "reveal",
+            transitionSpec = { Motion.panel(0.001f) }, label = "reveal",  // Now Playing's family, a step quicker (Motion.panel)
         ) { if (it == EnterExitState.Visible) 1f else 0f }
         Box(Modifier.lightAlpha { a }) { content() }
     }

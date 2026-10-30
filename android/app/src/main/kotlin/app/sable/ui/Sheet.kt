@@ -64,14 +64,15 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
     val grow = remember { Animatable(0f) }   // px still to rise after the content grew
     var height by remember { mutableIntStateOf(0) }
     var closing by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown.animateTo(1f, Motion.sheetIn(1f)) }  // Now Playing's pace: at 0.8x it read as rushed (David, 2026-10-29)
-    fun close() {
+    // Now Playing's family (Motion.panel): one no-overshoot spring in and out; a pull that lets go keeps the finger's speed.
+    LaunchedEffect(Unit) { shown.animateTo(1f, Motion.panel(0.0005f)) }
+    fun close(velocity: Float = 0f) {
         if (closing) return
         closing = true
-        scope.launch { shown.animateTo(0f, Motion.sheetOut(0.8f)); onDismiss() }
+        scope.launch { shown.animateTo(0f, Motion.panel(0.0005f), initialVelocity = -velocity / maxOf(1, height)); onDismiss() }
     }
     fun settle(velocity: Float) {
-        if (pull.value > height * 0.25f || velocity > 1800f) close() else scope.launch { pull.animateTo(0f, Motion.medium()) }
+        if (pull.value > height * 0.25f || velocity > 1800f) close(velocity) else scope.launch { pull.animateTo(0f, Motion.panel(0.5f), initialVelocity = velocity) }
     }
     BackHandler { close() }
     // A pull down that a scrolled list did not use (it is at its top) moves the sheet; scrolling back up takes the pull back first.
@@ -113,7 +114,7 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
                         val p = m.measure(c)
                         val old = height
                         if (old > 0 && p.height > old && !closing && shown.value >= 1f) scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                            grow.snapTo(grow.value + (p.height - old)); grow.animateTo(0f, Motion.reveal())
+                            grow.snapTo(grow.value + (p.height - old)); grow.animateTo(0f, Motion.panel(0.5f))
                         }
                         height = p.height
                         layout(p.width, p.height) { p.place(0, ((1f - shown.value) * p.height + pull.value + grow.value).roundToInt()) }

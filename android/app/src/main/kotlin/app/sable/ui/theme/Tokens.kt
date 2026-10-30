@@ -102,6 +102,13 @@ object Motion {
     /** Now Playing's open and close: critically damped (no overshoot, so no bounce), about 350 ms from rest, and it takes the finger's
      *  speed when a swipe lets go. The tiny threshold keeps the last pixels from snapping into place. */
     val sheetSpring = androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = 280f, visibilityThreshold = 0.0005f)
+    /** One family (David, 2026-10-29: the whole app should move like Now Playing): every larger motion is a critically damped
+     *  spring, no overshoot, and the smaller the thing the quicker it settles. Now Playing 280 (~350 ms); a sheet over it (Why, the
+     *  song menu, playlists, sleep) and a section opening 380 (~300 ms); a page coming in or going back 520 (~250 ms). */
+    const val PANEL = 380f
+    const val PAGE = 520f
+    fun <T> panel(threshold: T? = null) = androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = PANEL, visibilityThreshold = threshold)
+    fun <T> page(threshold: T? = null) = androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = PAGE, visibilityThreshold = threshold)
     /** A tall section opening (the Why sheet's details): the sheet's pace with an even curve. The shared easing put most of a
      *  long list's height into the first tenth of a second, so it popped open faster than everything else (David, 2026-10-29). */
     val revealEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
