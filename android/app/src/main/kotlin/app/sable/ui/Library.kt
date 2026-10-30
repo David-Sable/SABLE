@@ -107,7 +107,7 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
         }
         Column(Modifier.weight(1f)) {
             Text(songTitle(r), style = SableType.body, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank()) Text(creditText(subtitle), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) CreditLine(subtitle, SableType.caption, SableColors.textSecondary)
         }
         Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
         IconButton(Glyph.INFO, onWhy, size = 18.dp, color = if (r.analysed) SableColors.textTertiary else SableColors.line)
@@ -116,11 +116,33 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
 
 /** A credit line with " feat. " a step quieter than the names, so every artist reads clearly and the line stays calm. */
 fun creditText(s: String): androidx.compose.ui.text.AnnotatedString = androidx.compose.ui.text.buildAnnotatedString {
-    val i = s.indexOf(" feat. ")
+    val i = Regex("""(?<=[ \n])feat\. """).find(s)?.range?.first ?: -1
     if (i < 0) { append(s); return@buildAnnotatedString }
     append(s.substring(0, i))
-    pushStyle(androidx.compose.ui.text.SpanStyle(color = SableColors.textTertiary)); append(" feat. "); pop()
-    append(s.substring(i + 7))
+    pushStyle(androidx.compose.ui.text.SpanStyle(color = SableColors.textTertiary)); append("feat."); pop()
+    append(s.substring(i + 5))
+}
+
+/**
+ * "Credit · Album" on one line when it fits. When it does not (30 of David's 392 songs credit features, some four names
+ * long), the album moves to the next line and the credit may take two, so no name is cut off (David, 2026-10-29).
+ * A credit alone breaks before "feat." rather than inside a name.
+ */
+@Composable
+fun CreditLine(s: String, style: androidx.compose.ui.text.TextStyle, color: Color, modifier: Modifier = Modifier, maxLines: Int = 3) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+        val maxPx = constraints.maxWidth
+        val text = remember(s, maxPx, style) {
+            val fits = measurer.measure(s, style, maxLines = 1, softWrap = false).size.width <= maxPx
+            when {
+                fits -> s
+                " · " in s -> s.replaceFirst(" · ", "\n")
+                else -> s.replaceFirst(" feat. ", "\nfeat. ")
+            }
+        }
+        Text(creditText(text), style = style, color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 // ---------------- Library ----------------

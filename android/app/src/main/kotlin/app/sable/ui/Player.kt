@@ -336,8 +336,8 @@ fun NowPlayingScreen(
                         color = if (fav) SableColors.accent else SableColors.textTertiary)
                 }
             }
-            Text(creditText(row?.let(::songSubtitle).orEmpty()), style = SableType.body, color = SableColors.textSecondary, maxLines = 1,
-                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
+            CreditLine(row?.let(::songSubtitle).orEmpty(), SableType.body, SableColors.textSecondary,
+                Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
             Spacer(Modifier.height(gap))
             if (shape != null) {
                 LoudnessShape(shape, { tick; state.progress() }, anchorLit = { anchorLit }, modifier = Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood, view = view) { state.seekFraction(it) }  // own layer

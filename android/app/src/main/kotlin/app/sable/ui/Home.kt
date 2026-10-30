@@ -151,7 +151,7 @@ private fun SongTile(r: LibraryRow, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(r.albumId, r.uri, r.album, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(songTitle(r), style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
-        Text(creditText(credit(r)), style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        CreditLine(credit(r), SableType.caption, SableColors.textSecondary, maxLines = 2)
     }
 }
 
