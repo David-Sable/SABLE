@@ -2,7 +2,7 @@
 
 Device: Galaxy A17 5G (Android 16), app 0.5.0-m5, MATH-1.11, Media3 1.11.1.
 
-## Design (details: docs/M5-design.md, MATH §23.1)
+## Design (details: docs/reports/M5-design.md, MATH §23.1)
 - **Gain stage in the audio sink.** Media3 1.11 runs custom AudioProcessors only on its 16-bit path. So the gain is
   applied by `SableAudioSink`, which wraps `DefaultAudioSink` (float output enabled). Every PCM buffer is converted to
   float, multiplied by the item's gain, and handed on. If a device cannot take float, the stage writes 16-bit with

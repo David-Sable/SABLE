@@ -6,13 +6,13 @@ SABLE is a local Android music player built around the Sable Intent Engine. Made
 chats, so:
 
 ## 1. Start of every session
-1. Read **docs/NOTES.md** ("Now" = current state and open items, then the newest log entries).
+1. Read **docs/NOTES.md** (short: current state and recent log) and **docs/ROADMAP.md** (what is next). **docs/MAP.md** says where code and docs live. **docs/HISTORY.md** holds every past session in detail: search it, never read it through.
 2. Skim **PLAN.md** (milestones, decisions log, risks). Read the **MATH.md** sections for anything you will touch.
 3. `git pull`, then check the latest CI run (section 5). If `main` is red, fixing it comes first.
 
 ## 2. End of every session (and whenever the chat is getting long)
 David may need to start a new chat when the context fills up, so never leave state only in the conversation:
-1. Rewrite "Now" in docs/NOTES.md and add a short log entry at the top (what changed, how it was verified, what is left).
+1. Rewrite "Now" in docs/NOTES.md (keep it under 30 lines), add one line to its log, and put the full entry at the top of docs/HISTORY.md (what changed, how it was verified, what is left). Move anything lasting to where it belongs (a rule here, phone know-how in docs/TESTING.md, a plan in docs/ROADMAP.md).
 2. Update whatever the change touched (table below). Commit and push. Check that CI is green and tell David which
    release to install, if the app changed.
 3. If a better way of working emerged, update this file too. It is the guide for the next session.
@@ -25,6 +25,7 @@ David may need to start a new chat when the context fills up, so never leave sta
 | The app's version | `versionName` in `android/app/build.gradle.kts` (versionCode is automatic) |
 | Analysis output (the cached JSON or anything that changes per-track results) | `SableDatabase.MATH_VERSION` (forces a full rescan of the library, ~40 min on the phone; only when results really change). Gain rules and planner changes do NOT need it: decisions are made at play time |
 | Planner JSON (inputs/outputs) | docs/plan-json.md |
+| Added, moved or finished something big | docs/MAP.md, docs/ROADMAP.md, `tools/README.md` |
 
 ## 3. Rules that do not bend
 - **MATH.md is the source of truth.** Every engine function cites its section. If code and MATH.md disagree, fix the

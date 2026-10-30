@@ -16,3 +16,11 @@ What was run in the 2026-10-27 blind-spot pass, so a later session can repeat it
 - Push audio with `adb push` (Windows-style path), index with `adb shell content call --uri content://media/ --method scan_volume --arg external_primary`, then `--es cmd sync` / `scan`.
 - Cleanup: `--es cmd purgeplace --es place speaker --ei hours 3` removes only what that place learned in the last 3 hours; `forgetsong` / `forgetartist` act on every place, so never use them on a real artist who has lessons elsewhere. Delete the test folder, rescan, `sync`, check the song count.
 - **Is learning working?** `--es cmd scoreboard [--ei weeks N]` (tag `SablePlay`, lines start with `SCOREBOARD`). Per week and place: plays that could teach, corrections (up/down) and what became of them, plays that could not teach. Read the correction rate of songs already taught against new songs: the first should be lower over time. Counters start at 0.22.0 and survive `forget`; touches outside the 20 s window are approximate (Android does not always report volume presses; the car's knob is never seen).
+
+**Phone know-how** (learned the hard way; CLAUDE.md section 6 has the rules)
+- `adb` needs `source ~/dev/sable-toolchain/env.sh`. With `MSYS_NO_PATHCONV=1`, `adb install` needs a Windows-style path (`C:/Users/...`).
+- After `adb install` the app is only "verify"-compiled: run `adb shell cmd package compile -m speed -f app.sable` before measuring.
+- versionCode is minutes-based, so a local build is older than the CI build made from the same code and David can still update from the release. Never leave an experimental build on the phone.
+- Compare a screen's layout across gestures by finding text rows in screenshots, not by eye: `adb exec-out screencap -p`.
+- The phone sleeps after at most 10 minutes: a Shift key press every 2 minutes keeps it awake (the wake-up key alone does not reset the timer).
+- Frame numbers: GPU ms is a poor measure on the A17 (the Mali sits at a low clock under light load). Judge by recordings at 60 fps (extract with `fps=60`, not passthrough) and `tools/perf/anim_frames.sh`. Five rounds is too few to see small changes.

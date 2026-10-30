@@ -1,3 +1,5 @@
+*Finished plan, kept for reference. What is next now: `docs/ROADMAP.md`.*
+
 # Next level: the brief for the next (PC) sessions
 
 Written 2026-10-28 after reading the whole repo, at David's request ("where's the next level? premium is the goal").
