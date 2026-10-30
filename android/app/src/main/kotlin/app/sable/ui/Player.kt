@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -181,8 +183,8 @@ fun rememberSongDeck(state: AppState, rowOf: (Long) -> LibraryRow?, gap: Float):
     val step = width + gap
     val last = remember { arrayOfNulls<Animatable<Float, *>>(1) }
     val arrive = remember { floatArrayOf(0f) }
-    val landing = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-    val landingSwipe = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = 1f)
+    val landing = spring<Float>(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow)
+    val landingSwipe = spring<Float>(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = 1f)
     val onScreen = LocalOnScreen.current
     val dragX = remember(state.currentQueueId, state.queueIndex) {
         val from = last[0]?.value ?: 0f
@@ -261,7 +263,16 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
     val step = deck.step
     val next = deck.next
     val previous = deck.previous
-    val round = if (compact) Radius.art else 0.dp  // edge to edge there is no corner to round
+    val round = if (compact) Radius.art else Radius.art * ((1f - pressScale) / 0.06f).coerceIn(0f, 1f)  // square at the edges; a paused cover, inside them, rounds
+    // Every song change, however it came, ends with one soft dip and rebound of the new cover: it starts from full size, so nothing jumps.
+    val pulse = remember { Animatable(1f) }
+    val seen = remember { arrayOfNulls<Any>(1) }
+    val onScreen = LocalOnScreen.current
+    LaunchedEffect(dragX) {
+        val changed = seen[0] != null
+        seen[0] = dragX
+        if (changed && onScreen.value) pulse.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 320f), initialVelocity = -0.9f)
+    }
     val corner = with(density) { round.toPx() }
     fun Modifier.shade(dark: () -> Float) = drawWithContent {
         drawContent()
@@ -290,7 +301,7 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
                 row.albumId, row.uri, row.album, 320.dp,
                 Modifier.fillMaxSize()
                     .graphicsLayer {
-                        val s = 1f - 0.08f * (abs(dragX.value) / step).coerceIn(0f, 1f)
+                        val s = (1f - 0.08f * (abs(dragX.value) / step).coerceIn(0f, 1f)) * pulse.value
                         translationX = dragX.value
                         scaleX = s; scaleY = s
                         transformOrigin = TransformOrigin(if (dragX.value < 0f) 1f else 0f, 0.5f)  // the gap between the covers stays even
@@ -419,7 +430,8 @@ fun NowPlayingScreen(
     val anchorLit by animateFloatAsState(if (inAnchor) 1f else 0f, androidx.compose.animation.core.tween(900), label = "anchorLit")
     val onScreen = LocalOnScreen.current
     LaunchedEffect(state.playing) { whileOnScreen(onScreen) { while (true) { state.syncPosition(); delay(1000) } } }
-    val pressScale by animateFloatAsState(if (state.playing) 1f else 0.97f, Motion.slow(), label = "art")
+    // Pause: the cover settles back a little on a soft spring and comes forward again on play. Part of Sable's feel (David, 2026-10-30).
+    val pressScale by animateFloatAsState(if (state.playing) 1f else 0.94f, spring(dampingRatio = 0.68f, stiffness = 240f), label = "art")
     // Gestures move only in the draw phase (graphicsLayer translation: no relayout per frame), follow the finger the
     // same frame (undispatched), and settle on a spring that carries the finger's speed, so nothing jumps or stalls.
     val scope = rememberCoroutineScope()
@@ -564,11 +576,13 @@ fun NowPlayingScreen(
                 // and squeezed the play button into an oval. Only a phone too short for that gets a smaller cover.
                 val longestWords = with(LocalDensity.current) { (SableType.title.lineHeight * 2).toDp() + (SableType.body.lineHeight * 2).toDp() } + 2.dp
                 val controls = shapeH + 21.dp + Space.l + 72.dp  // the shape, the clock line, the play row
-                val side = minOf(maxWidth, maxHeight - controls - longestWords - Space.l)
-                CoverWash(row, side, Modifier.graphicsLayer { alpha = arrive(0.55f) })
-                Column(Modifier.fillMaxSize()) {
+                // The cover starts just under the clock (David, 2026-10-30): from the very top it left a loose band of space beneath it.
+                val drop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + Space.s
+                val side = minOf(maxWidth, maxHeight - drop - controls - longestWords - Space.l)
+                CoverWash(row, drop + side, Modifier.graphicsLayer { alpha = arrive(0.55f) })
+                Column(Modifier.fillMaxSize().padding(top = drop)) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CoverDeck(state, row, rowOf, 1f, compact = false, Modifier.size(side))  // edge to edge a paused cover stays put: shrinking it opened a black frame round the art
+                        CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.size(side))
                     }
                     sleepStatus(sleep)?.let { Text(it, style = SableType.caption, color = SableColors.accent, modifier = Modifier.padding(start = Space.xl, end = Space.xl, top = Space.m)) }
                     Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Space.xl).graphicsLayer { alpha = arrive(0.55f) }, verticalArrangement = Arrangement.Center, content = words)  // arrives after the cover
@@ -577,7 +591,7 @@ fun NowPlayingScreen(
                 // Only what is needed, floating on the art: a soft shade at the very top keeps the clock and the two icons readable
                 // on a pale cover, and fades out well before the picture's subject.
                 Box(Modifier.fillMaxWidth().graphicsLayer { alpha = arrive(0.5f) }) {
-                    Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.42f), Color.Transparent))))
+                    Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.3f), Color.Transparent))))
                     TopBar(null, { state.pop() }) { IconButton(Glyph.QUEUE, { state.go(Route.Queue) }) }
                 }
             }

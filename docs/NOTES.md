@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.44.0, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.44.1, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
@@ -26,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.44.1:** cover moved just under the clock; pause shrink (94 %, soft spring, corners rounding) and the song-change bounce are back and stronger.
 - **2026-10-30 0.44.0:** Now Playing edge to edge from the top of the screen with a faint album colour beneath; sheets slide away on every action; all sheets, Search and Settings filmed.
 - **2026-10-30 0.43.0:** premium pass, batch 2: Now Playing cover 360 dp, album cover flight, back gesture on pages, mini player neighbours (fixes the stuck bar), wrong-tab bug, Home top, solid page arrival, queue opening; filmed and measured.
 - **2026-10-30 0.42.1:** Now Playing's cover at 28 dp margins with air above it (David to judge the size); the signature landing back on every song change; song changes after the cover lands.
