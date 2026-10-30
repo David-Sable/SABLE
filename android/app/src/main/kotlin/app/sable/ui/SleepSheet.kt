@@ -45,6 +45,7 @@ fun sleepStatus(s: SleepTimer.State?): String? = when {
 fun SleepSheet(onDismiss: () -> Unit) {
     val st by SleepTimer.state.collectAsState()
     SableSheet(onDismiss) {
+        val close = LocalSheetClose.current
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text("SLEEP TIMER", style = SableType.overline, color = SableColors.textTertiary, modifier = Modifier.padding(top = Space.m))
             Text(sleepStatus(st) ?: "Off", style = SableType.title, color = if (st != null) SableColors.accent else SableColors.textPrimary,
@@ -53,12 +54,12 @@ fun SleepSheet(onDismiss: () -> Unit) {
                 modifier = Modifier.padding(top = Space.xs))
             Spacer(Modifier.height(Space.l))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
-                Pill("End of this song", selected = st != null && st?.minutes == 0) { SleepTimer.endOfSong(); onDismiss() }
+                Pill("End of this song", selected = st != null && st?.minutes == 0) { SleepTimer.endOfSong(); close() }
                 for (m in SleepTimer.choices) {
                     val label = if (m < 60) "$m min" else if (m % 60 == 0) "${m / 60} h" else "${m / 60} h ${m % 60}"
-                    Pill(label, selected = st?.minutes == m) { SleepTimer.after(m); onDismiss() }
+                    Pill(label, selected = st?.minutes == m) { SleepTimer.after(m); close() }
                 }
-                if (st != null) Pill("Turn off", selected = false) { SleepTimer.cancel(); onDismiss() }
+                if (st != null) Pill("Turn off", selected = false) { SleepTimer.cancel(); close() }
             }
             Spacer(Modifier.height(Space.xl))
         }

@@ -33,6 +33,7 @@ fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
     val favorites = rememberFavorites()
     val context = androidx.compose.ui.platform.LocalContext.current
     SableSheet(onDismiss) {
+        val close = LocalSheetClose.current
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.xl).navigationBarsPadding()) {
             Text(titleOf(r), style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Space.m))
@@ -40,13 +41,13 @@ fun SongMenu(state: AppState, r: LibraryRow, onDismiss: () -> Unit) {
                 color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(Space.l))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s), verticalArrangement = Arrangement.spacedBy(Space.s)) {
-                Pill("Play next", selected = true) { state.playNext(r); onDismiss() }
-                Pill("Add to queue", selected = false) { state.addToQueue(r); onDismiss() }
-                if (r.album.isNotBlank()) Pill("Go to album", selected = false) { onDismiss(); state.go(Route.Album(albumKey(r))) }
-                Pill("Why", selected = false) { onDismiss(); state.whyTrack = r.mediaId }
+                Pill("Play next", selected = true) { state.playNext(r); close() }
+                Pill("Add to queue", selected = false) { state.addToQueue(r); close() }
+                if (r.album.isNotBlank()) Pill("Go to album", selected = false) { state.go(Route.Album(albumKey(r))); close() }
+                Pill("Why", selected = false) { state.whyTrack = r.mediaId; close() }
                 val fav = r.mediaId in favorites
-                Pill(if (fav) "Remove from Favourites" else "Add to Favourites", selected = false) { Favorites.set(context, r.mediaId, !fav); onDismiss() }
-                Pill("Add to playlist", selected = false) { onDismiss(); state.playlistTrack = r.mediaId }
+                Pill(if (fav) "Remove from Favourites" else "Add to Favourites", selected = false) { Favorites.set(context, r.mediaId, !fav); close() }
+                Pill("Add to playlist", selected = false) { state.playlistTrack = r.mediaId; close() }
             }
             Text("Added songs play in their own world, balanced on their own.", style = SableType.caption, color = SableColors.textTertiary,
                 modifier = Modifier.padding(top = Space.m))

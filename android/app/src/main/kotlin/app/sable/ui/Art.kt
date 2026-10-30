@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -73,18 +74,34 @@ object ArtCache {
     }
 }
 
+/** A cover shrunk to a few pixels: only its colours are left. Stretched out, it is a soft wash of the album (Now Playing). */
+object ArtWash {
+    private val cache = LruCache<Long, ImageBitmap>(32)
+    fun peek(albumId: Long): ImageBitmap? = cache.get(albumId)
+    suspend fun load(context: Context, albumId: Long, trackUri: String?): ImageBitmap? {
+        peek(albumId)?.let { return it }
+        val art = ArtCache.load(context, albumId, trackUri, 128) ?: return null
+        return withContext(Dispatchers.Default) {
+            runCatching {
+                val soft = art.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                android.graphics.Bitmap.createScaledBitmap(soft, 6, 3, true).asImageBitmap()
+            }.getOrNull()?.also { cache.put(albumId, it) }
+        }
+    }
+}
+
 @Composable
-fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier: Modifier = Modifier, px: Int = 512) {
+fun AlbumArt(albumId: Long, trackUri: String?, title: String, size: Dp, modifier: Modifier = Modifier, px: Int = 512, corner: Dp = Radius.art) {
     val context = LocalContext.current
     val img by produceState(ArtCache.peekAny(albumId, px), albumId, px) { value = ArtCache.load(context, albumId, trackUri, px) }
     val shown by animateFloatAsState(if (img != null) 1f else 0f, Motion.slow(), label = "art")
     Box(
-        modifier.clip(RoundedCornerShape(Radius.art))
+        modifier.clip(RoundedCornerShape(corner))
             .background(Brush.linearGradient(listOf(SableColors.surface3, SableColors.surface1))),
         contentAlignment = Alignment.Center,
     ) {
         if (img == null) {  // no cover: a quiet tile with an edge line and, when big enough, the lion at low strength (no letter)
-            Box(Modifier.matchParentSize().border(0.75.dp, SableColors.line, RoundedCornerShape(Radius.art)))
+            Box(Modifier.matchParentSize().border(0.75.dp, SableColors.line, RoundedCornerShape(corner)))
             if (size >= 100.dp) SableMark(size * 0.2f, Modifier.alpha(0.16f))
         }
         img?.let { Image(it, null, contentScale = ContentScale.Crop, alpha = shown, modifier = Modifier.matchParentSize()) }  // paint alpha: no offscreen copy

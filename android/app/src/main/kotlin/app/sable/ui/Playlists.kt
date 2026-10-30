@@ -86,10 +86,11 @@ fun AddToPlaylistSheet(trackId: Long, onDismiss: () -> Unit) {
     val playlists = rememberPlaylists()
     var name by remember { mutableStateOf("") }
     SableSheet(onDismiss) {
+        val close = LocalSheetClose.current
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Text("Add to playlist", style = SableType.title, color = SableColors.textPrimary, modifier = Modifier.padding(horizontal = Space.xl, vertical = Space.m))
             for ((p, songs) in playlists) {
-                ListRow(p.name, "${songs.size} song${if (songs.size == 1) "" else "s"}") { Playlists.add(context, p.id, trackId); onDismiss() }
+                ListRow(p.name, "${songs.size} song${if (songs.size == 1) "" else "s"}") { Playlists.add(context, p.id, trackId); close() }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = Space.xl, vertical = Space.m), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
@@ -98,10 +99,10 @@ fun AddToPlaylistSheet(trackId: Long, onDismiss: () -> Unit) {
                         name, { name = it }, Modifier.fillMaxWidth(), singleLine = true,
                         textStyle = SableType.body.copy(color = SableColors.textPrimary), cursorBrush = SolidColor(SableColors.accent),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) { Playlists.create(context, name, trackId); onDismiss() } }),
+                        keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) { Playlists.create(context, name, trackId); close() } }),
                     )
                 }
-                Pill("Create", selected = name.isNotBlank()) { if (name.isNotBlank()) { Playlists.create(context, name, trackId); onDismiss() } }
+                Pill("Create", selected = name.isNotBlank()) { if (name.isNotBlank()) { Playlists.create(context, name, trackId); close() } }
             }
             Spacer(Modifier.height(Space.xl))
         }

@@ -48,6 +48,9 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/** Slides the sheet away, for an action inside it. Calling onDismiss directly removed the sheet in one frame, and the page flashed bright; a sheet opened from it (song menu to Add to playlist) now rises as this one leaves. */
+val LocalSheetClose = androidx.compose.runtime.staticCompositionLocalOf<() -> Unit> { {} }
+
 /**
  * Sable's bottom sheet (Why, the song menu, the sleep timer, Add to playlist), drawn in the app's own window. Material's
  * ModalBottomSheet opens a window of its own every time: measured on the A17 that froze one frame for 70-75 ms when it opened and
@@ -131,7 +134,7 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(Modifier.padding(top = Space.m).size(36.dp, 4.dp).background(SableColors.line, RoundedCornerShape(2.dp)))
-                Column(Modifier.fillMaxWidth(), content = content)
+                androidx.compose.runtime.CompositionLocalProvider(LocalSheetClose provides { close() }) { Column(Modifier.fillMaxWidth(), content = content) }
                 // The window already shrinks above the keyboard; a little room so a text field does not sit right on it.
                 if (WindowInsets.isImeVisible) Spacer(Modifier.size(1.dp, 28.dp))
             }
