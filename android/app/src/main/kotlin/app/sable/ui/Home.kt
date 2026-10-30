@@ -130,15 +130,17 @@ private fun Heading(text: String) =
 @Composable
 private fun RecentRow(recent: List<Recent>, state: AppState) {
     val songs = recent.filterIsInstance<RecentSong>().map { it.row }
+    // A song's credit may take two lines: every tile keeps room for them, or the page below moves as such a tile scrolls past.
+    val captionLines = if (songs.isEmpty()) 1 else 2
     Column {
         Heading("Recently played")
         LazyRow(contentPadding = PaddingValues(horizontal = Space.gutter), horizontalArrangement = Arrangement.spacedBy(Space.l)) {
             items(recent, key = { it.key }) { item ->
                 Box(Modifier.width(136.dp)) {
                     when (item) {
-                        is RecentAlbum -> AlbumTile(item.album) { state.go(Route.Album(item.album.key)) }
+                        is RecentAlbum -> AlbumTile(item.album, captionLines) { state.go(Route.Album(item.album.key)) }
                         // A song plays from here, with the other recent songs after it (each in its own world).
-                        is RecentSong -> SongTile(item.row) { state.playSongWorld(songs, songs.indexOf(item.row)) }
+                        is RecentSong -> SongTile(item.row, captionLines) { state.playSongWorld(songs, songs.indexOf(item.row)) }
                     }
                 }
             }
@@ -147,11 +149,11 @@ private fun RecentRow(recent: List<Recent>, state: AppState) {
 }
 
 @Composable
-private fun SongTile(r: LibraryRow, onClick: () -> Unit) {
+private fun SongTile(r: LibraryRow, captionLines: Int, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(r.albumId, r.uri, r.album, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(songTitle(r), style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
-        CreditLine(credit(r), SableType.caption, SableColors.textSecondary, maxLines = 2)
+        CreditLine(credit(r), SableType.caption, SableColors.textSecondary, maxLines = 2, minLines = captionLines)
     }
 }
 

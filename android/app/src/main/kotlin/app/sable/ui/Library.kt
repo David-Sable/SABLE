@@ -130,7 +130,7 @@ fun creditText(s: String): androidx.compose.ui.text.AnnotatedString = androidx.c
  * A credit alone breaks before "feat." rather than inside a name.
  */
 @Composable
-fun CreditLine(s: String, style: androidx.compose.ui.text.TextStyle, color: Color, modifier: Modifier = Modifier, maxLines: Int = 3) {
+fun CreditLine(s: String, style: androidx.compose.ui.text.TextStyle, color: Color, modifier: Modifier = Modifier, maxLines: Int = 3, minLines: Int = 1) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
         val measurer = androidx.compose.ui.text.rememberTextMeasurer()
         val maxPx = constraints.maxWidth
@@ -142,7 +142,7 @@ fun CreditLine(s: String, style: androidx.compose.ui.text.TextStyle, color: Colo
                 else -> s.replaceFirst(" feat. ", "\nfeat. ")
             }
         }
-        Text(creditText(text), style = style, color = color, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
+        Text(creditText(text), style = style, color = color, maxLines = maxLines, minLines = minLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -240,11 +240,11 @@ private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun AlbumTile(a: AlbumGroup, onClick: () -> Unit) {
+internal fun AlbumTile(a: AlbumGroup, captionLines: Int = 1, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
         Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
-        Text(if (a.single) "${a.artist} · Single" else a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(if (a.single) "${a.artist} · Single" else a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = captionLines, minLines = captionLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
