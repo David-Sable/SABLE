@@ -64,6 +64,9 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
     val json = analysisJson(row.mediaId)
     val live by NowPlaying.gain.collectAsState()
     val settings by PlaybackPrefs.settings.collectAsState()
+    // Asked once, off the main thread, while the sheet slides up: the call goes to the audio server and, made while composing the
+    // details, it stalled the frames of their opening for 100-200 ms (David, 2026-10-29).
+    val effects by produceState(emptyList<String>()) { value = withContext(Dispatchers.IO) { effectsOnPhone() } }
     val isPlaying = state.currentTrackId == row.mediaId && live.mediaId == state.currentQueueId
     // Scrolling past the end of the details must not lift the sheet (the content moved up and bounced back): the leftover upward scroll stops here;
     // pulling down still reaches the sheet, so swiping it away works.
@@ -123,9 +126,9 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(if (open) "Hide details" else "Details", style = SableType.label, color = SableColors.textSecondary, modifier = Modifier.weight(1f))
-                Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(if (open) 180f else 0f))
+                Icon(Glyph.DOWN, size = 16.dp, color = SableColors.textTertiary, modifier = Modifier.rotate(androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, app.sable.ui.theme.Motion.reveal(), label = "arrow").value))
             }
-            Reveal(open) {
+            Reveal(open, riseWithSheet = true) {
                 Column {
                 Section("What Sable heard")
                 Measure("Loudness (BS.1770)", lufs(json, "integratedLufs"))
@@ -152,7 +155,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                     if (settings.mode == PlaybackPrefs.Mode.QUIET) add("Quiet mode lowers the same balance by 5 dB. Perceived balance is not re-measured at the lower level.")
                     add("Peaks are kept under the output's ceiling: -1 dBTP on the speaker and wired/USB, -2 dBTP on Bluetooth (codec not visible to apps).")
                     add("Sable measures what it plays; effects after it (Dolby Atmos, Adapt Sound, EQ) can change what you hear." +
-                        effectsOnPhone().let { if (it.isEmpty()) "" else " This phone has: ${it.joinToString(", ")}." })
+                        effects.let { if (it.isEmpty()) "" else " This phone has: ${it.joinToString(", ")}." })
                 }
                 for (n in notes) Text("· $n", style = SableType.caption, color = SableColors.textSecondary, modifier = Modifier.padding(bottom = Space.xs))
                 }

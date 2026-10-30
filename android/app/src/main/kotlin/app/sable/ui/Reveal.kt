@@ -31,14 +31,15 @@ fun Modifier.lightAlpha(alpha: () -> Float): Modifier = graphicsLayer {
  * its page fades in place.
  */
 @Composable
-fun Reveal(visible: Boolean, expand: Boolean = true, content: @Composable () -> Unit) {
+fun Reveal(visible: Boolean, expand: Boolean = true, riseWithSheet: Boolean = false, content: @Composable () -> Unit) {
     AnimatedVisibility(
         visible,
-        enter = if (expand) expandVertically(Motion.slow()) else EnterTransition.None,
+        // Inside a SableSheet the sheet itself rises to the new height (draw position only), so the section only fades in.
+        enter = if (expand && !riseWithSheet) expandVertically(Motion.reveal()) else EnterTransition.None,
         exit = if (expand) shrinkVertically(Motion.medium()) else fadeOut(Motion.medium(), targetAlpha = 1f),  // kept on screen while the light fade runs
     ) {
         val a by transition.animateFloat(
-            transitionSpec = { if (targetState == EnterExitState.Visible) Motion.slow() else Motion.medium() }, label = "reveal",
+            transitionSpec = { if (targetState == EnterExitState.Visible) (if (expand) Motion.reveal() else Motion.slow()) else Motion.medium() }, label = "reveal",
         ) { if (it == EnterExitState.Visible) 1f else 0f }
         Box(Modifier.lightAlpha { a }) { content() }
     }

@@ -99,6 +99,10 @@ object Motion {
      *  320 ms creeping the last few millimetres into the mini player's corner, which read as delayed (David, 2026-10-29). */
     val exitEasing = CubicBezierEasing(0.1f, 0.4f, 0.6f, 1f)
     fun <T> sheetOut(m: Float) = tween<T>((SHEET_OUT * m).toInt().coerceAtLeast(80), easing = exitEasing)
+    /** A tall section opening (the Why sheet's details): the sheet's pace with an even curve. The shared easing put most of a
+     *  long list's height into the first tenth of a second, so it popped open faster than everything else (David, 2026-10-29). */
+    val revealEasing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+    fun <T> reveal() = tween<T>(SHEET_IN, easing = revealEasing)
 }
 
 @Composable

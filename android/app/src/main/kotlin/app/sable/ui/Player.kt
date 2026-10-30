@@ -268,9 +268,11 @@ fun NowPlayingScreen(
             orientation = Orientation.Vertical,
             state = rememberDraggableState { d -> follow(dragY, (dragY.value + d).coerceAtLeast(0f)) },
             onDragStopped = { velocity ->
-                // Closing keeps the finger's momentum from this very frame (the close itself starts a frame or two later; before, the
-                // sheet stood still for those frames, 50 ms at 60 fps).
-                if (dragY.value > closeAt || velocity > 2500f) { state.pop(); dragY.animateDecay(velocity.coerceAtLeast(0f), androidx.compose.animation.core.exponentialDecay()) }
+                // Closing after a swipe is the tap's close, started from where the finger let go: the drag offset runs out on the sheet's
+                // own curve and timing, so the two add up to one motion (offset d0 -> full height). Before, the drag kept the finger's speed
+                // on its own decay on top of the sheet's slide: a fast flick shot the sheet away ahead of the cover's flight, which looked
+                // messy at 1x; a slow swipe had no speed to add, which is why it looked right (David, 2026-10-29).
+                if (dragY.value > closeAt || velocity > 2500f) { state.pop(); dragY.animateTo(0f, Motion.sheetOut(state.animDur)) }
                 else dragY.animateTo(0f, settle, initialVelocity = velocity)
             },
         )

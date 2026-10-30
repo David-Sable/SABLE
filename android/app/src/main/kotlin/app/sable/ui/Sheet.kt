@@ -38,13 +38,13 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import app.sable.ui.theme.Motion
 import app.sable.ui.theme.SableColors
 import app.sable.ui.theme.Space
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -61,9 +61,10 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
     val scope = rememberCoroutineScope()
     val shown = remember { Animatable(0f) }  // 0 below the screen .. 1 up
     val pull = remember { Animatable(0f) }   // px pulled down by the finger
+    val grow = remember { Animatable(0f) }   // px still to rise after the content grew
     var height by remember { mutableIntStateOf(0) }
     var closing by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown.animateTo(1f, Motion.sheetIn(0.8f)) }
+    LaunchedEffect(Unit) { shown.animateTo(1f, Motion.sheetIn(1f)) }  // Now Playing's pace: at 0.8x it read as rushed (David, 2026-10-29)
     fun close() {
         if (closing) return
         closing = true
@@ -105,8 +106,18 @@ fun SableSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Uni
         Box(Modifier.fillMaxSize().statusBarsPadding().padding(top = Space.xl)) {
             Column(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .onSizeChanged { height = it.height }
-                    .offset { IntOffset(0, ((1f - shown.value) * height + pull.value).roundToInt()) }
+                    // Growing (the Why sheet's details opening) takes the new height at once and slides the panel up into it: only its
+                    // place changes per frame. Opening the height frame by frame re-measured the whole sheet, 10-14 ms a frame on the A17
+                    // against 11 ms at 90 Hz, and skipped frames made it jump (David, 2026-10-29). Shrinking keeps its own animation.
+                    .layout { m, c ->
+                        val p = m.measure(c)
+                        val old = height
+                        if (old > 0 && p.height > old && !closing && shown.value >= 1f) scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                            grow.snapTo(grow.value + (p.height - old)); grow.animateTo(0f, Motion.reveal())
+                        }
+                        height = p.height
+                        layout(p.width, p.height) { p.place(0, ((1f - shown.value) * p.height + pull.value + grow.value).roundToInt()) }
+                    }
                     .draggable(
                         orientation = Orientation.Vertical,
                         state = rememberDraggableState { d -> scope.launch { pull.snapTo((pull.value + d).coerceAtLeast(0f)) } },
