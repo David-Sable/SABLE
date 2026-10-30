@@ -39,7 +39,7 @@ David may need to start a new chat when the context fills up, so never leave sta
   on the PC (`~/.android/debug.keystore`) and in the GitHub secret `SABLE_KEYSTORE_B64`. Never print, copy or move it.
 - Commit identity: `David-Sable <327186142+David-Sable@users.noreply.github.com>` (the account was renamed from craigdavid209-design on 2026-10-29; GitHub forwards the old address, but use the new one).
 - **Ask David first** before a major new dependency or a change to the product's philosophy: one static gain per song by
-  default; the Quiet contour (on by default in Quiet, switchable in Advanced) is the only non-flat processing; files are never modified (their audio and tags; since 2026-10-30 David allows Organize to move files into Music/Artist/Album, only after Sable's question and Android's permission, with Undo).
+  default; the Quiet contour (on by default in Quiet, switchable in Advanced) is the only non-flat processing; the music in files is never modified (audio and tags; the gain is applied at play time). Files may only be moved, by Organize into Music/Artist/Album, when the owner asks: Sable's question, then Android's permission, always with Undo (David, 2026-10-30).
 
 ## 4. Owner decisions to respect (details in PLAN.md)
 - Targets: Normal (MATH "Standard") −14 LUFS, Quiet **−19** LUFS (not −18).
