@@ -163,6 +163,7 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         state.sheetScope = androidx.compose.runtime.rememberCoroutineScope()
         LaunchedEffect(npOpen) {
             val v = state.sheetVelocity; state.sheetVelocity = 0f
+            state.sheetLeaving = !npOpen
             state.sheet.animateTo(if (npOpen) 1f else 0f, Motion.sheetSpring, initialVelocity = v)
         }
         // The first opening after a start (or a new song) drew the sheet for the first time: its cover upload and first draw stalled
@@ -208,7 +209,12 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
             val p = state.sheetProgress().coerceIn(0f, 1f)
             val travel = state.sheetTravel
             val l: Float; val t: Float; val w: Float; val h: Float
-            if (p >= RIDE_FROM) {
+            if (!state.sheetLeaving) {
+                // Opening: straight from the mini player's corner to where the cover rests, growing all the way (David, 2026-10-29: "come
+                // from the side like it was"). The two paths meet at both ends, so switching between them never jumps.
+                l = a.left + (rest.left - a.left) * p; t = a.top + (rest.top - a.top) * p
+                w = a.width + (rest.width - a.width) * p; h = a.height + (rest.height - a.height) * p
+            } else if (p >= RIDE_FROM) {
                 l = rest.left; t = rest.top + (1f - p) * travel; w = rest.width; h = rest.height  // on the sheet
             } else {
                 val u = p / RIDE_FROM

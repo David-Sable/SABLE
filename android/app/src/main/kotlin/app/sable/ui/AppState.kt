@@ -60,8 +60,11 @@ class AppState {
     /** Set by SableApp: the coroutine scope that moves the sheet and the sheet's full travel in px. */
     var sheetScope: kotlinx.coroutines.CoroutineScope? = null
     var sheetTravel = 1f
-    /** The finger moved the sheet by [dpx] px (up is positive). */
-    fun dragSheet(dpx: Float) {
+    /** Which path the cover takes: closing rides the sheet down; opening flies straight out of the mini player (SableApp). */
+    var sheetLeaving = false
+    /** The finger moved the sheet by [dpx] px (up is positive), from Now Playing ([leaving]) or from the mini player. */
+    fun dragSheet(dpx: Float, leaving: Boolean) {
+        sheetLeaving = leaving
         sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo((sheet.value + dpx / sheetTravel).coerceIn(0f, 1f)) }
     }
     /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */

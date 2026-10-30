@@ -202,7 +202,7 @@ fun MiniPlayer(
     // Tap to open, or swipe up: Now Playing rises with the finger and is let go onto the same spring as a tap.
     val lift = Modifier.draggable(
         orientation = Orientation.Vertical,
-        state = rememberDraggableState { d -> state.dragSheet(-d) },
+        state = rememberDraggableState { d -> state.dragSheet(-d, leaving = false) },
         onDragStopped = { velocity -> state.releaseSheet(-velocity) },
     )
     Column(modifier.fillMaxWidth().background(SableColors.surface1).grain().navigationBarsPadding().then(lift).clickable { state.go(Route.NowPlaying) }) {
@@ -266,7 +266,7 @@ fun NowPlayingScreen(
     // Swipe down to close: the finger holds the sheet's one progress value (AppState.sheet) and lets go onto its spring.
     val swipe = Modifier.draggable(
         orientation = Orientation.Vertical,
-        state = rememberDraggableState { d -> state.dragSheet(-d) },
+        state = rememberDraggableState { d -> state.dragSheet(-d, leaving = true) },
         onDragStopped = { velocity -> state.releaseSheet(-velocity) },
     )
     // Swipe the cover sideways to change songs: left for the next one, right for the previous one.
