@@ -14,9 +14,10 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.39.2, MATH-1.34. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.40.0, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
-- **Next:** see `docs/ROADMAP.md`. David picks with Claude.
+- **Next:** Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
+- **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
 - **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
 - **Keep as they are (David approved):** Now Playing's open and close, the mood colours, targets -14 and -19.
 - **Learning so far (2026-10-29):** corrected plays: JBL 19 %, car 7 %, speaker 7 %. The JBL figure is largely David riding the volume in the garage on purpose. Too few taught songs replayed to judge yet.
@@ -25,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.40.0:** Quieter / Louder on the notification, lock screen and Android Auto; automatic weekly backups; the lion as the notification icon; checked on the phone.
 - **2026-10-30 0.39.2:** Recently played keeps a steady height, so the page below stays still while swiping; measured on the phone.
 - **2026-10-30 0.39.1:** mini player bar stays solid while its contents fade (page words no longer show through on open/close).
 - **2026-10-30 0.39.0:** Organize (Folders tab): moves songs into Music/Artist/Album after Sable's question and Android's permission, with Undo; done on the phone, nothing lost.

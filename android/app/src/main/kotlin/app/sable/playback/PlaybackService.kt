@@ -17,12 +17,19 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import app.sable.R
 import app.sable.data.SableDatabase
 import androidx.compose.ui.graphics.asAndroidBitmap
 import app.sable.ui.MainActivity
+import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +37,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import android.os.SystemClock
 
@@ -132,7 +141,18 @@ class PlaybackService : MediaLibraryService() {
         restoreResume()
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         session = MediaLibrarySession.Builder(this, player, callback).setSessionActivity(open).build()
+        setMediaNotificationProvider(DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(R.drawable.lion_mark) })
+        // MATH §19.4: Quieter / Louder on the notification, lock screen and Android Auto; the Advanced switch covers them too.
+        scope.launch {
+            PlaybackPrefs.settings.map { it.carTap }.distinctUntilChanged().collect { on ->
+                session.setMediaButtonPreferences(if (on) ImmutableList.of(nudgeButton(QUIETER, "Quieter"), nudgeButton(LOUDER, "Louder")) else ImmutableList.of())
+            }
+        }
     }
+
+    private fun nudgeButton(command: SessionCommand, name: String) =
+        CommandButton.Builder(if (command == LOUDER) CommandButton.ICON_VOLUME_UP else CommandButton.ICON_VOLUME_DOWN)
+            .setDisplayName(name).setSessionCommand(command).setSlots(CommandButton.SLOT_OVERFLOW).build()
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = session
 
@@ -227,6 +247,22 @@ class PlaybackService : MediaLibraryService() {
 
     /** Controllers send request ids ("<trackId>:<A|S>"); the service resolves them to playable items with unique ids. */
     private val callback = object : MediaLibrarySession.Callback {
+        override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(QUIETER).add(LOUDER).build())
+                .build()
+
+        // The tap away from the app: same lesson as the buttons on Now Playing, and the words come as a short toast.
+        override fun onCustomCommand(
+            session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: android.os.Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand != QUIETER && customCommand != LOUDER) return super.onCustomCommand(session, controller, customCommand, args)
+            val say = this@PlaybackService.controller.nudge(customCommand == LOUDER)
+            PlaybackDiag.log("COMMAND ${customCommand.customAction.substringAfterLast('.')} from ${controller.packageName}: $say")
+            android.widget.Toast.makeText(this@PlaybackService, say, android.widget.Toast.LENGTH_SHORT).show()
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+
         // Android Auto and other media browsers: Albums, Artists, Songs (LibraryTree).
         override fun onGetLibraryRoot(
             session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?,
@@ -305,11 +341,12 @@ class PlaybackService : MediaLibraryService() {
 
     companion object {
         @Volatile private var current: PlaybackService? = null
+        private val QUIETER = SessionCommand("app.sable.QUIETER", android.os.Bundle.EMPTY)
+        private val LOUDER = SessionCommand("app.sable.LOUDER", android.os.Bundle.EMPTY)
 
         /** Debug: the change-of-place path without a real device (GainController.simulatePlaceChange). */
         fun debugReroute() { val s = current ?: return; s.main.post { s.controller.simulatePlaceChange() } }
 
-        /** The "quieter / louder for this song" tap on Now Playing (MATH-1.32 §19.4); [done] gets the words to show, on the main thread. */
         /** Hold to hear the original (Now Playing): on while held; lets go by itself after 30 s in case the release is lost. */
         fun holdOriginal(on: Boolean) {
             val s = current ?: return
@@ -322,6 +359,7 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
+        /** The "quieter / louder for this song" tap on Now Playing (MATH-1.32 §19.4); [done] gets the words to show, on the main thread. */
         fun nudge(up: Boolean, done: (String) -> Unit) {
             val s = current ?: return done("Nothing playing")
             s.main.post { done(s.controller.nudge(up)) }

@@ -380,7 +380,7 @@ fun NowPlayingScreen(
                 }
             }
         }
-        // The engine at work, in words: the applied gain and why (hidden during a blind A/B round).
+        // The engine at work, in words: the applied gain and why.
         // The gain and its reason on one line; with the Quieter / Louder buttons on, those sit on their own row under it.
         Column(
             Modifier.fillMaxWidth().graphicsLayer { alpha = arrive(0.6f) }

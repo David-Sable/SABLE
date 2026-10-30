@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.34 (2026-10-29)
+**Version:** MATH-1.35 (2026-10-30)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -669,6 +669,7 @@ A car stereo's volume knob is invisible to Android (the phone's media volume sta
 - The rules that decide whether a *press* was meant for the song do **not** apply, because a tap is: the 20 s window, "from the beginning", the full-analysis requirement is kept (a tap on a provisional gain still teaches, since the listener heard it), the section-aware correction `e` (§19.1), the mute and `|Δv| ≤ 12 dB` checks, and the paused and route-change ignores.
 - It acts on the playing song **now**, smoothly (the user-initiated in-track change of §23.3), because the tap is the listener's own correction; §28's "no double correction" does not apply (nothing else corrected this play).
 - The stored "previous event" for the environment filter records the tap and leaves the "level the previous event ended at" at the current volume (nothing was pressed).
+- **[MATH-1.35]** The same two buttons also sit on the media notification, the lock screen and Android Auto, under the same switch. Same `N`, same rules, same update; only the place the finger lands changes, and a short message replaces the words on Now Playing.
 
 
 ### 19.3 Places [DESIGN, owner decision 2026-10-26]

@@ -289,7 +289,7 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.34"
+const val MATH_DOC_VERSION = "MATH-1.35"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -338,7 +338,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("Off", !s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = false) } }
                         Pill("On", s.carTap) { PlaybackPrefs.update(context) { it.copy(carTap = true) } }
                     }
-                    Hint("For places where the phone can't see the volume knob, like a car stereo. A tap teaches Sable the same way the volume keys do.")
+                    Hint("On Now Playing, the lock screen and Android Auto, for places where the phone can't see the volume knob, like a car stereo. A tap teaches Sable the same way the volume keys do.")
                     Group("Mood colours")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         Pill("Off", !s.mood) { PlaybackPrefs.update(context) { it.copy(mood = false) } }
@@ -441,6 +441,8 @@ private fun BackupRow() {
         Pill("Restore…", false) { pick.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }
     }
     note?.let { Text(it, style = SableType.body, color = SableColors.accent, modifier = Modifier.padding(top = Space.m)) }
+    val days = remember(note) { app.sable.data.Backup.lastSavedAt(context).takeIf { it > 0 }?.let { ((System.currentTimeMillis() - it) / 86_400_000L).toInt() } }
+    Hint("Sable saves a copy by itself every week. Last saved: ${when (days) { null -> "not yet"; 0 -> "today"; 1 -> "yesterday"; else -> "$days days ago" }}.")
     Hint("One small file with your settings, what Sable learned, your history, favourites and playlists (never music). Restore replaces those on this phone with the file's.")
 }
 

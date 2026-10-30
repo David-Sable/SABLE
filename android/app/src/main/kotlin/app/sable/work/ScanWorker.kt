@@ -62,7 +62,7 @@ class ScanWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         val nm = applicationContext.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "Library analysis", NotificationManager.IMPORTANCE_LOW))
         val n = Notification.Builder(applicationContext, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setSmallIcon(app.sable.R.drawable.lion_mark)
             .setContentTitle("Sable is listening to your library")
             .setContentText(text)
             .setOngoing(true)

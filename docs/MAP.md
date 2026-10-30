@@ -14,7 +14,7 @@ Where to look. Read the file itself for detail; keep this to one line per area.
 - `playback/`: `PlaybackService` (Media3, car browsing via `LibraryTree`), `GainController` (asks the planner, applies the plan), `SableAudioSink` + `GainKernel` (gain in float), `ListenerLearning`, `LearningScoreboard`, `PlayCounter`, `PlaybackDiag` (the `diag` log), `SleepTimer`, `SableWidget` + `WidgetLook`, `ArtProvider`.
 - `library/`: `LibraryScanner`, `TrackAnalyzer`, `ContentHasher` (cache key), `GainTags`, `FileText` (names from file names), `Organizer`.
 - `data/`: `SableDatabase` (Room; schemas in `android/app/schemas/`), `Backup`.
-- `decode/`: `AudioDecoder`, `PerfBoost`. `engine/`: `SableEngine` (JNI). `work/`: background scan (`ScanWorker`).
+- `decode/`: `AudioDecoder`, `PerfBoost`. `engine/`: `SableEngine` (JNI). `work/`: background scan (`ScanWorker`), weekly backup (`BackupWorker`).
 - `ui/`: `SableApp` (root, layers, cover flight), `AppState`, `MainActivity` (debug commands listed at its top), `Player` (Now Playing, mini player), `Home`, `Library` (tabs, `CreditLine`, tiles), `WhySheet` + `WhyText`, `Sheet` (`SableSheet`), `Reveal`, `SongMenu`, `Playlists`, `Favorites`, `Organize`, `Search*`, `SleepSheet`, `WidgetSettingsActivity`, `Art`, `Icons`, `Logo`, `LoudnessShape`, `Touch`, `theme/Tokens.kt`.
 
 ## Docs (`docs/`)

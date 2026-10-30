@@ -25,9 +25,15 @@ import java.util.Locale
 object Backup {
     private const val FORMAT = 1
     private val PREFS = listOf("sable", "sable_learning", LearningScoreboard.PREFS, "sable_player")
+    private const val AUTO_PREFIX = "sable-auto-"
+    private const val AUTO_KEPT = 4
+    private const val FOLDER = "Sable"
 
-    /** Saves the backup; returns where it went, for the screen. */
-    suspend fun save(context: Context): String = withContext(Dispatchers.IO) {
+    /** When anything was last saved (ms), 0 if never. Kept apart from the backed-up prefs, so a restore does not rewind it. */
+    fun lastSavedAt(context: Context) = context.getSharedPreferences("sable_backup", Context.MODE_PRIVATE).getLong("lastAt", 0L)
+
+    /** Saves the backup; returns where it went, for the screen. [auto]: the weekly copy (BackupWorker), of which the newest few stay. */
+    suspend fun save(context: Context, auto: Boolean = false): String = withContext(Dispatchers.IO) {
         val db = SableDatabase.get(context)
         val plays = db.plays().all()
         val favs = db.favorites().all()
@@ -51,15 +57,29 @@ object Backup {
             }))
         })
 
-        val name = "sable-backup-" + SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date()) + ".json"
+        val name = (if (auto) AUTO_PREFIX else "sable-backup-") + SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date()) + ".json"
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
             put(MediaStore.Downloads.MIME_TYPE, "application/json")
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Sable")
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + FOLDER)
         }
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("could not create the file")
         context.contentResolver.openOutputStream(uri)!!.use { it.write(root.toString().toByteArray()) }
-        "Downloads/Sable/$name"
+        context.getSharedPreferences("sable_backup", Context.MODE_PRIVATE).edit().putLong("lastAt", System.currentTimeMillis()).apply()
+        if (auto) pruneAuto(context)
+        "Downloads/$FOLDER/$name"
+    }
+
+    /** Only the weekly copies, and only the older ones; a backup saved by hand is never touched. */
+    private fun pruneAuto(context: Context) {
+        val found = ArrayList<Pair<String, Uri>>()
+        context.contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.DISPLAY_NAME),
+            "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?", arrayOf("$AUTO_PREFIX%"), null,
+        )?.use { c ->
+            while (c.moveToNext()) found += c.getString(1) to android.content.ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(0))
+        }
+        found.sortedByDescending { it.first }.drop(AUTO_KEPT).forEach { (_, uri) -> runCatching { context.contentResolver.delete(uri, null, null) } }
     }
 
     /** Replaces settings, learning, history, favourites and playlists with the backup's; returns a short summary. */

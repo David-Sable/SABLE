@@ -33,9 +33,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
 /**
- * SABLE (M6): the designed app (library, now playing, queue, Why sheet, blind A/B, settings).
+ * SABLE (M6): the designed app (library, now playing, queue, Why sheet, settings).
  * adb automation (results logged under tags "SableBench" and "SablePlay"):
- *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | flows | sleep --ei sec N
+ *   adb shell am start -n app.sable/.ui.MainActivity --es cmd sync | scan | stats | cancel | diag | flows | backupnow | sleep --ei sec N
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd bench --es match "<title substring>"
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playalbum --es match "<album>" [--ei start N]
  *   adb shell am start -n app.sable/.ui.MainActivity --es cmd playsong --es match "<title>"
@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        app.sable.work.BackupWorker.schedule(applicationContext)
         app.sable.ui.theme.SableColors.light = false
         val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
                     Log.i(TAG, "ENSURE done")
                 }
                 "organizeplan" -> SableDatabase.get(applicationContext).library().observeRows(SableDatabase.MATH_VERSION).first().let { rows -> app.sable.library.Organizer.plan(rows).forEach { Log.i(TAG, "ORGANIZE ${it.mediaId} '${it.from}' -> '${it.to}'") }.also { Log.i(TAG, "ORGANIZE plan done") } }  // dry run: what Organize would move
+                "backupnow" -> app.sable.work.BackupWorker.saveNow(applicationContext)
                 "cancel" -> androidx.work.WorkManager.getInstance(applicationContext).cancelUniqueWork(ScanWorker.NAME).also { Log.i(TAG, "scan cancelled") }
                 "bench" -> bench(intent.getStringExtra("match") ?: "", intent.getBooleanExtra("mc", false))
                 "playalbum" -> {
