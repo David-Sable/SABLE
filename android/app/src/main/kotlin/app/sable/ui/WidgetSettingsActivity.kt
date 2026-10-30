@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.sable.R
 import app.sable.playback.SableWidget
 import app.sable.playback.WidgetLook
@@ -113,7 +114,10 @@ private fun Preview(look: WidgetLook.Look) {
     val art = s?.art
     val glow = remember(art) { art?.let { WidgetLook.glowOf(it).asImageBitmap() } }
     val a = look.opacity / 100f
-    val shadow = SableType.body.copy(shadow = Shadow(Color(0x73000000), androidx.compose.ui.geometry.Offset(0f, 2f), 12f))
+    // The widget's own type: serif title 19sp, artist 13sp, album 12sp, each with the soft shadow that keeps it readable on a wallpaper.
+    val shadow = Shadow(Color(0x73000000), androidx.compose.ui.geometry.Offset(0f, 2f), 12f)
+    val titleStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontSize = 19.sp, lineHeight = 23.sp, shadow = shadow)
+    val small = { size: Int -> androidx.compose.ui.text.TextStyle(fontSize = size.sp, shadow = shadow) }
     Box(Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(24.dp))) {
         if (look.glow && glow != null) Image(glow, null, Modifier.fillMaxSize().alpha(a), contentScale = ContentScale.Crop)
         else Box(Modifier.fillMaxSize().background(Color(0xFF0A0A09).copy(alpha = a)))
@@ -124,9 +128,9 @@ private fun Preview(look: WidgetLook.Look) {
                 Image(painterResource(R.drawable.widget_lion), null, Modifier.size(64.dp), colorFilter = ColorFilter.tint(SableColors.accent))
             }
             Column(Modifier.weight(1f).height(142.dp).padding(start = 16.dp)) {
-                Text(s?.title ?: "Sable", style = SableType.title.merge(shadow), color = Color(0xFFEDE8DF), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(s?.artist ?: "Tap play to resume", style = SableType.caption.merge(shadow), color = Color(0xFFA39D92), maxLines = 1, modifier = Modifier.padding(top = 4.dp))
-                if (look.album && !s?.album.isNullOrBlank()) Text(s!!.album, style = SableType.caption.merge(shadow), color = Color(0xFF7A756C), maxLines = 1)
+                Text(s?.title ?: "Sable", style = titleStyle, color = Color(0xFFEDE8DF), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(s?.artist ?: "Tap play to resume", style = small(13), color = Color(0xFFA39D92), maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+                if (look.album && !s?.album.isNullOrBlank()) Text(s!!.album, style = small(12), color = Color(0xFF7A756C), maxLines = 1)
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(painterResource(R.drawable.ic_w_prev), null, Modifier.size(44.dp).padding(10.dp))
