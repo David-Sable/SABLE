@@ -135,7 +135,9 @@ fun SableTheme(content: @Composable () -> Unit) {
         surfaceContainerLow = c.surface1, surfaceContainer = c.surface2, surfaceContainerHigh = c.surface3,
         outline = c.line, secondary = c.accentAlt,
     )
-    MaterialTheme(colorScheme = scheme, content = content)
+    MaterialTheme(colorScheme = scheme) {
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides app.sable.ui.QuietPress, content = content)
+    }
 }
 
 /** A fine, static film grain over matte surfaces (one 96 px tile, drawn at very low alpha). */

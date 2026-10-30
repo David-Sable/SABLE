@@ -4,7 +4,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -134,9 +137,22 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
             }
         }
     }
+    // A new song: the silhouette reshapes from the old one into it, on the panel spring (draw phase only); the anchor's glow fades in behind.
+    val before = remember { arrayOf<List<Float>?>(null) }
+    val from = remember(pts) { before[0]?.takeIf { it !== pts && it.size >= 2 }?.let { old -> FloatArray(pts.size) { i -> old[i * (old.size - 1) / maxOf(1, pts.size - 1)] } } }
+    val morph = remember(pts) { androidx.compose.animation.core.Animatable(if (from != null) 0f else 1f) }  // from the first frame: the new shape never flashes
+    androidx.compose.runtime.LaunchedEffect(pts) {
+        before[0] = pts
+        morph.animateTo(1f, app.sable.ui.theme.Motion.panel(0.001f))
+    }
+    // Under the finger the playhead firms up, so it is clear what is being moved.
+    var held by remember { mutableStateOf(false) }
+    val firm = androidx.compose.animation.core.animateFloatAsState(if (held) 1f else 0f, app.sable.ui.theme.Motion.page(0.01f), label = "playhead")
     val seekMod = if (onSeek == null) Modifier else Modifier
         .pointerInput(Unit) { detectTapGestures { onSeek((it.x / size.width).coerceIn(0f, 1f)) } }
-        .pointerInput(Unit) { detectHorizontalDragGestures { change, _ -> onSeek((change.position.x / size.width).coerceIn(0f, 1f)) } }
+        .pointerInput(Unit) {
+            detectHorizontalDragGestures(onDragStart = { held = true }, onDragEnd = { held = false }, onDragCancel = { held = false }) { change, _ -> onSeek((change.position.x / size.width).coerceIn(0f, 1f)) }
+        }
     Canvas(modifier.then(seekMod)) {
         if (pts.size < 2) return@Canvas
         val w = size.width
@@ -144,7 +160,8 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
         val dur = shape.durationSec.coerceAtLeast(0.5)
         val path = Path()
         val stepX = w / (pts.size - 1)
-        fun y(i: Int) = hgt - (0.06f + 0.94f * pts[i]) * hgt
+        val m = morph.value
+        fun y(i: Int) = hgt - (0.06f + 0.94f * (if (from != null && m < 1f) from[i] + (pts[i] - from[i]) * m else pts[i])) * hgt
         path.moveTo(0f, hgt)
         path.lineTo(0f, y(0))
         for (i in 1 until pts.size) {
@@ -159,7 +176,7 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
         for ((a, b) in shape.anchor) {
             val x0 = (a / dur * w).toFloat()
             val x1 = (b / dur * w).toFloat()
-            drawRect(SableColors.accent.copy(alpha = 0.06f), Offset(x0, 0f), Size(x1 - x0, hgt))
+            drawRect(SableColors.accent.copy(alpha = 0.06f * m), Offset(x0, 0f), Size(x1 - x0, hgt))
         }
         if (moodStops != null) drawPath(path, Brush.horizontalGradient(colorStops = moodStops, startX = 0f, endX = w))
         else drawPath(path, SableColors.textTertiary.copy(alpha = 0.35f))
@@ -167,12 +184,12 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
             clipRect(left = (a / dur * w).toFloat(), right = (b / dur * w).toFloat()) {
                 // While the song is in an anchor it glows a little brighter (anchorLit 0..1, eased by the caller).
                 val lit = anchorLit()
-                drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = 0.55f + 0.30f * lit), SableColors.accent.copy(alpha = 0.12f + 0.10f * lit))))
+                drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = (0.55f + 0.30f * lit) * m), SableColors.accent.copy(alpha = (0.12f + 0.10f * lit) * m))))
             }
         }
         val px = progress().coerceIn(0f, 1f) * w
         clipRect(right = px) { drawPath(path, SableColors.textPrimary.copy(alpha = 0.22f)) }
-        drawLine(SableColors.accent, Offset(px, 0f), Offset(px, hgt), strokeWidth = 2f, cap = StrokeCap.Round)
+        drawLine(SableColors.accent, Offset(px, 0f), Offset(px, hgt), strokeWidth = 2f + 3f * firm.value, cap = StrokeCap.Round)
         drawPath(path, SableColors.line, style = Stroke(1f))
     }
 }

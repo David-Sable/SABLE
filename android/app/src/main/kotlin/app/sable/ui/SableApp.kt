@@ -86,7 +86,16 @@ import app.sable.ui.theme.Space
 fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
     val byId = remember(rows) { rows.associateBy { it.mediaId } }
     val current = state.currentTrackId?.let { byId[it] }
-    BackHandler(enabled = state.back.size > 1) { state.pop() }
+    BackHandler(enabled = state.back.size > 1 && state.route !is Route.NowPlaying) { state.pop() }
+    androidx.activity.compose.PredictiveBackHandler(enabled = state.route is Route.NowPlaying) { gesture ->
+        try {
+            gesture.collect { state.backSheet(it.progress) }
+            state.pop()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            state.cancelBackSheet()
+            throw e
+        }
+    }
     SharedTransitionLayout(Modifier.fillMaxSize().background(SableColors.base)) {
     val sharedScope = this
     Box(Modifier.fillMaxSize()) {

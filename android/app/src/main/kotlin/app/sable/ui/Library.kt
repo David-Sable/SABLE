@@ -37,6 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -168,20 +171,41 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             if (rows.isEmpty()) "Looking for music…" else "${rows.size} songs · ${if (analysed == rows.size) "all listened to" else "$analysed of ${rows.size} listened to"}",
             style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(start = Space.gutter, top = 2.dp),
         )
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Space.gutter, end = Space.gutter, top = Space.l),
-            horizontalArrangement = Arrangement.spacedBy(Space.xl),
+        // The tabs are pages side by side: swipe between them or tap a name. One underline travels between the names with the page,
+        // stretching a little as it goes.
+        val pager = androidx.compose.foundation.pager.rememberPagerState(state.libraryTab) { tabs.size }
+        androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { state.libraryTab = it } }
+        androidx.compose.runtime.LaunchedEffect(state.libraryTab) {
+            if (pager.targetPage != state.libraryTab) pager.animateScrollToPage(state.libraryTab, animationSpec = Motion.page())
+        }
+        val tabLeft = remember { androidx.compose.runtime.mutableStateListOf(*Array(tabs.size) { 0f }) }
+        Box(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Space.gutter, end = Space.gutter, top = Space.l)
+                .drawBehind {
+                    val at = (pager.currentPage + pager.currentPageOffsetFraction).coerceIn(0f, tabs.size - 1f)
+                    val i = at.toInt().coerceAtMost(tabs.size - 2)
+                    val f = at - i
+                    val w = 22.dp.toPx()
+                    val stretch = 4f * f * (1f - f) * 18.dp.toPx()
+                    drawRect(SableColors.accent, androidx.compose.ui.geometry.Offset(tabLeft[i] + (tabLeft[i + 1] - tabLeft[i]) * f, size.height - 2.dp.toPx()), androidx.compose.ui.geometry.Size(w + stretch, 2.dp.toPx()))
+                },
         ) {
-            tabs.forEachIndexed { i, t -> TabLabel(t, state.libraryTab == i) { state.libraryTab = i } }
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
+                tabs.forEachIndexed { i, t ->
+                    TabLabel(t, pager.targetPage == i, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { state.libraryTab = i }
+                }
+            }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(SableColors.line))
         val pad = PaddingValues(bottom = bottomPad + Space.l)
         // Each tab keeps its own scroll position when you switch tabs and come back.
         val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-        // Switching tabs is instant: the old fade snapped the content to black and back, which read as the albums reloading.
-        Box {
-        tabState.SaveableStateProvider("tab${state.libraryTab}") {
-        when (state.libraryTab) {
+        androidx.compose.foundation.pager.HorizontalPager(
+            pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1,
+            flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapAnimationSpec = Motion.page()),
+        ) { page ->
+        tabState.SaveableStateProvider("tab$page") {
+        when (page) {
             0 -> HomeTab(state, rows, bottomPad)
             1 -> LazyVerticalGrid(
                 GridCells.Fixed(2), contentPadding = PaddingValues(start = Space.gutter, end = Space.gutter, top = Space.l, bottom = bottomPad + Space.l),
@@ -230,12 +254,11 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 }
 
 @Composable
-private fun TabLabel(text: String, selected: Boolean, onClick: () -> Unit) {
-    val w by animateDpAsState(if (selected) 22.dp else 0.dp, Motion.slow(), label = "tab")
+private fun TabLabel(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c by animateColorAsState(if (selected) SableColors.textPrimary else SableColors.textTertiary, Motion.medium(), label = "tabText")
-    Column(Modifier.softClick(pressedScale = 0.96f, onClick = onClick)) {
+    Column(modifier.softClick(pressedScale = 0.96f, onClick = onClick)) {
         Text(text, style = SableType.headline, color = c, modifier = Modifier.padding(vertical = Space.s))
-        Box(Modifier.width(w).height(2.dp).background(SableColors.accent))
+        Spacer(Modifier.height(2.dp))
     }
 }
 

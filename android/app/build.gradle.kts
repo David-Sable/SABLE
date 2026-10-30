@@ -15,7 +15,7 @@ android {
         targetSdk = 37
         // Minutes since 2026-01-01 UTC: every build (this PC or GitHub) installs over the previous one.
         versionCode = ((System.currentTimeMillis() - 1767225600000L) / 60000L).toInt()
-        versionName = "0.41.0"
+        versionName = "0.42.0"
         ndk { abiFilters += listOf("arm64-v8a") }
         externalNativeBuild {
             cmake {

@@ -95,6 +95,19 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.key
+import androidx.compose.runtime.SideEffect
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.snap
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -157,6 +170,14 @@ fun songSwipe(state: AppState): Modifier {
     val dragX = remember { Animatable(0f) }
     var width by remember { mutableIntStateOf(1) }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    var swiping by remember { mutableStateOf(false) }
+    // Next, or a song ending: the bar's contents arrive from the same side as a swipe's would.
+    LaunchedEffect(state.currentQueueId, state.queueIndex) {
+        if (!swiping && state.songStep != 0) {
+            dragX.snapTo(state.songStep * width * 0.3f)
+            dragX.animateTo(0f, settle)
+        }
+    }
     return Modifier
         .onSizeChanged { width = maxOf(1, it.width) }
         .graphicsLayer {
@@ -176,11 +197,13 @@ fun songSwipe(state: AppState): Modifier {
                 }
                 if (dir == 0) dragX.animateTo(0f, settle, initialVelocity = velocity)
                 else {
+                    swiping = true
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)  // the song changes: a soft tick
                     dragX.animateTo(-dir * w, tween(160, easing = LinearOutSlowInEasing), initialVelocity = velocity)
                     state.withController { c -> if (dir > 0) c.seekToNextMediaItem() else if (c.hasPreviousMediaItem()) c.seekToPreviousMediaItem() else c.seekTo(0L) }
                     dragX.snapTo(dir * w * 0.6f)  // the new song comes in from the other side
                     dragX.animateTo(0f, settle)
+                    swiping = false
                 }
             },
         )
@@ -203,7 +226,16 @@ fun CoverDeck(state: AppState, row: LibraryRow, rowOf: (Long) -> LibraryRow?, pr
     val corner = with(density) { Radius.art.toPx() }
     var width by remember { mutableIntStateOf(1) }
     val step = width + gap
-    val dragX = remember(state.currentQueueId, state.queueIndex) { Animatable(0f) }
+    // Every song change moves the same way: the new offset is the old one plus one step along the queue, so a landed swipe arrives at
+    // rest and Next, Previous or a song ending glide the new cover in with the old one going out beside it.
+    val last = remember { arrayOfNulls<Animatable<Float, *>>(1) }
+    val onScreen = LocalOnScreen.current
+    val dragX = remember(state.currentQueueId, state.queueIndex) {
+        val from = last[0]?.value ?: 0f
+        Animatable(if (onScreen.value && last[0] != null) (from + state.songStep * step).coerceIn(-step, step) else 0f)
+    }
+    SideEffect { last[0] = dragX }
+    LaunchedEffect(dragX) { if (dragX.value != 0f) dragX.animateTo(0f, Motion.panel(0.5f)) }
     var leaving by remember { mutableIntStateOf(0) }  // the side a released cover is on its way out to (+1 next, -1 previous)
     fun neighbour(i: Int) = if (i == state.queueIndex) null else state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf)
     val next = neighbour(state.nextIndex)
@@ -386,6 +418,7 @@ fun NowPlayingScreen(
         for (i in listOf(state.nextIndex, state.previousIndex)) {
             val r = state.queueIds.getOrNull(i)?.let(QueueId::trackId)?.let(rowOf) ?: continue
             ArtCache.load(context, r.albumId, r.uri, 1024)
+            SongViews.load(context, r.mediaId)  // and its shape, so the silhouette reshapes straight away
         }
     }
     if (row == null) {
@@ -429,20 +462,38 @@ fun NowPlayingScreen(
             val compact = maxHeight < 440.dp
             val gap = if (compact) Space.s else Space.xl
             val shapeH = if (compact) 40.dp else 56.dp
-            val info: @Composable ColumnScope.() -> Unit = {
+            val words: @Composable ColumnScope.() -> Unit = {
+            // The words change with the cover, moving the same way: the old ones leave quickly, the new ones settle in behind them.
+            AnimatedContent(
+                row, contentKey = { it.mediaId }, label = "words",
+                transitionSpec = {
+                    val d = state.songStep
+                    (fadeIn(tween(220, delayMillis = 30)) + slideInHorizontally(Motion.page(IntOffset.VisibilityThreshold)) { d * it / 10 }) togetherWith
+                        (fadeOut(tween(110)) + slideOutHorizontally(Motion.page(IntOffset.VisibilityThreshold)) { -d * it / 16 }) using SizeTransform(clip = false) { _, _ -> snap() }
+                },
+            ) { row ->
+            Column {
             // Tap the title for its album, the artist line for the artist; the heart keeps the song in Favourites.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(row?.let(::songTitle) ?: "", style = SableType.title, color = SableColors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).clickable(enabled = row != null) { row?.let { state.go(Route.Album(albumKey(it))) } })
                 if (row != null) {
                     val fav = row.mediaId in favorites
-                    IconButton(if (fav) Glyph.HEART_FILLED else Glyph.HEART, { Favorites.set(context, row.mediaId, !fav) }, size = 22.dp,
-                        color = if (fav) SableColors.accent else SableColors.textTertiary)
+                    val pop = remember { Animatable(1f) }  // a kept song gets a small lift
+                    Box(Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
+                        IconButton(if (fav) Glyph.HEART_FILLED else Glyph.HEART, {
+                            Favorites.set(context, row.mediaId, !fav)
+                            if (!fav) scope.launch { pop.snapTo(0.72f); pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 520f)) }
+                        }, size = 22.dp, color = if (fav) SableColors.accent else SableColors.textTertiary)
+                    }
                 }
             }
             CreditLine(row?.let(::songSubtitle).orEmpty(), SableType.body, SableColors.textSecondary,
                 Modifier.padding(top = 2.dp).clickable(enabled = row != null) { row?.let { state.go(Route.Artist(artistOf(it))) } })
-            Spacer(Modifier.height(gap))
+            }
+            }
+            }
+            val playback: @Composable ColumnScope.() -> Unit = {
             if (shape != null) {
                 LoudnessShape(shape, { tick; state.progress() }, anchorLit = { anchorLit }, modifier = Modifier.fillMaxWidth().height(shapeH).graphicsLayer(), mood = settings.mood, view = view) { state.seekFraction(it) }  // own layer
             } else {
@@ -469,7 +520,11 @@ fun NowPlayingScreen(
                     Modifier.size(if (compact) 48.dp else 72.dp).softClick(pressedScale = 0.93f) { state.withController { c -> if (c.isPlaying) c.pause() else c.play() } }
                         .background(SableColors.accent, CircleShape),
                     contentAlignment = Alignment.Center,
-                ) { androidx.compose.animation.Crossfade(state.playing, animationSpec = androidx.compose.animation.core.tween(140), label = "playPause") { p -> Icon(if (p) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) } }
+                ) {
+                    AnimatedContent(state.playing, label = "playPause", transitionSpec = {
+                        (fadeIn(tween(150)) + scaleIn(Motion.page(), initialScale = 0.7f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(120), targetScale = 0.7f))
+                    }) { p -> Icon(if (p) Glyph.PAUSE else Glyph.PLAY, size = 30.dp, color = SableColors.onAccent) }
+                }
                 IconButton(Glyph.NEXT, { state.withController { it.seekToNext() } }, size = 26.dp)
                 IconButton(Glyph.MOON, { state.sleepSheet = true }, size = 20.dp, color = if (sleep != null) SableColors.accent else SableColors.textTertiary)
             }
@@ -479,14 +534,22 @@ fun NowPlayingScreen(
                     CoverDeck(state, row, rowOf, pressScale, compact = true, Modifier.weight(0.3f).aspectRatio(1f))
                     Column(
                         Modifier.weight(0.7f).padding(start = Space.m).graphicsLayer { alpha = arrive(0.55f) },
-                        verticalArrangement = Arrangement.Center, content = info,
-                    )
+                        verticalArrangement = Arrangement.Center,
+                    ) { words(); Spacer(Modifier.height(gap)); playback() }
                 }
             } else {
-                Column(Modifier.fillMaxSize().padding(horizontal = Space.xl), verticalArrangement = Arrangement.Center) {
-                    CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.fillMaxWidth().aspectRatio(1f))
-                    Spacer(Modifier.height(gap))
-                    Column(Modifier.graphicsLayer { alpha = arrive(0.55f) }) { info() }  // arrives after the cover
+                // The cover stays at the top and the controls at the bottom whatever the song; the words sit centred in what is left,
+                // which always holds the longest case (two title lines, three credit lines). Before, a long credit pushed everything
+                // and squeezed the play button into an oval. Only a phone too short for that gets a smaller cover.
+                val longestWords = with(LocalDensity.current) { (SableType.title.lineHeight * 2).toDp() + (SableType.body.lineHeight * 3).toDp() } + 2.dp
+                val controls = shapeH + 21.dp + Space.l + 72.dp  // the shape, the clock line, the play row
+                val side = minOf(maxWidth - Space.xl * 2, maxHeight - Space.m - controls - longestWords)
+                Column(Modifier.fillMaxSize().padding(horizontal = Space.xl).padding(top = Space.m)) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CoverDeck(state, row, rowOf, pressScale, compact = false, Modifier.size(side))
+                    }
+                    Column(Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = arrive(0.55f) }, verticalArrangement = Arrangement.Center, content = words)  // arrives after the cover
+                    Column(Modifier.graphicsLayer { alpha = arrive(0.55f) }, content = playback)
                 }
             }
         }
@@ -533,7 +596,8 @@ fun NowPlayingScreen(
                     },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(if (holding) "Original" else "%+.1f dB".format(gain.gainDb), style = SableType.headline, color = if (holding) SableColors.textPrimary else SableColors.accent)
+                    val shownGain by animateFloatAsState(gain.gainDb.toFloat(), Motion.panel(0.01f), label = "gain")  // the figure counts over to the new song's
+                    Text(if (holding) "Original" else "%+.1f dB".format(shownGain), style = SableType.headline, color = if (holding) SableColors.textPrimary else SableColors.accent)
                     val line = when {
                         holding -> originalNote(gain.gainDb)
                         nudgeNote != null -> nudgeNote!!

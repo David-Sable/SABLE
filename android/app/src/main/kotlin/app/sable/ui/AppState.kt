@@ -67,6 +67,12 @@ class AppState {
         sheetLeaving = leaving
         sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo((sheet.value + dpx / sheetTravel).coerceIn(0f, 1f)) }
     }
+    /** Android's back gesture on Now Playing: the sheet follows the thumb part of the way, and the rest happens when it lets go. */
+    fun backSheet(progress: Float) {
+        sheetLeaving = true
+        sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo(1f - 0.3f * progress) }
+    }
+    fun cancelBackSheet() { sheetScope?.launch { sheet.animateTo(1f, app.sable.ui.theme.Motion.sheetSpring) } }
     /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */
     fun releaseSheet(vpx: Float) {
         val v = vpx / sheetTravel
@@ -134,7 +140,18 @@ class AppState {
         pending.clear()
     }
 
+    /** How the last song change moved along the queue: +1 forward, -1 back, 0 a jump. The cover, the words and the mini player go that way. */
+    var songStep = 0
+        private set
+
     fun refresh(p: Player) {
+        val id = p.currentMediaItem?.mediaId
+        val index = p.currentMediaItemIndex
+        if (id != currentQueueId || index != queueIndex) songStep = when {
+            index == nextIndex && queueIds.getOrNull(index) == id -> 1
+            index == previousIndex && queueIds.getOrNull(index) == id -> -1
+            else -> 0
+        }
         playing = p.isPlaying
         currentQueueId = p.currentMediaItem?.mediaId
         durationMs = p.duration.coerceAtLeast(0L)
