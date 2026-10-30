@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -71,22 +70,6 @@ object ArtCache {
         }?.asImageBitmap()?.also { it.prepareToDraw() }  // upload to the GPU now, not in the first frame that shows it
         if (bmp != null) cache.put(key, bmp) else synchronized(missing) { missing.add(key) }
         return bmp
-    }
-}
-
-/** A cover shrunk to a few pixels: only its colours are left. Stretched out, it is a soft wash of the album (Now Playing). */
-object ArtWash {
-    private val cache = LruCache<Long, ImageBitmap>(32)
-    fun peek(albumId: Long): ImageBitmap? = cache.get(albumId)
-    suspend fun load(context: Context, albumId: Long, trackUri: String?): ImageBitmap? {
-        peek(albumId)?.let { return it }
-        val art = ArtCache.load(context, albumId, trackUri, 128) ?: return null
-        return withContext(Dispatchers.Default) {
-            runCatching {
-                val soft = art.asAndroidBitmap().copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-                android.graphics.Bitmap.createScaledBitmap(soft, 6, 3, true).asImageBitmap()
-            }.getOrNull()?.also { cache.put(albumId, it) }
-        }
     }
 }
 
