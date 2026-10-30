@@ -406,14 +406,11 @@ fun NowPlayingScreen(
                         eff.mode.label, eff.mode.targetLufs, shape?.bodyLufs, gain.albumRun, hint = !heldOnce,  // the hint goes once tried
                     ))
                 }
-                // One line every 8 s of the song, turning slowly through all of them (paused, it stays). Reaching the anchor
-                // says so for one turn, in time with its glow.
-                var anchorNote by remember { mutableStateOf(false) }
-                LaunchedEffect(inAnchor) { if (inAnchor && state.position() > 2_000L) { anchorNote = true; delay(8_000); anchorNote = false } }
-                val thought by produceState(thoughts.first(), thoughts, anchorNote) {
+                // One line every 8 s of the song, turning slowly through all of them (paused, it stays). The anchor is shown
+                // by its glow alone (a words note for it stuck on screen when paused there, and was clutter).
+                val thought by produceState(thoughts.first(), thoughts) {
                     while (true) {
-                        value = if (anchorNote) "now in the part Sable balanced to"
-                            else thoughts[((state.position() / 8_000L) % thoughts.size).toInt()]
+                        value = thoughts[((state.position() / 8_000L) % thoughts.size).toInt()]
                         delay(500)
                     }
                 }
