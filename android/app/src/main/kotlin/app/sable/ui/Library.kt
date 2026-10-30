@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -181,13 +182,13 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         val pager = androidx.compose.foundation.pager.rememberPagerState(state.libraryTab) { tabs.size }
         // state.libraryTab says where we are going; only a finger's swipe writes it from the pager. Writing every settled page back
         // made a quick second tap stop the first scroll halfway, and that halfway page then won (David, 2026-10-30: landed on Songs).
-        val swiped = remember { booleanArrayOf(false) }
+        var swiped by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
         androidx.compose.runtime.LaunchedEffect(pager) {
-            pager.interactionSource.interactions.collect { if (it is androidx.compose.foundation.interaction.DragInteraction.Start) swiped[0] = true }
+            pager.interactionSource.interactions.collect { if (it is androidx.compose.foundation.interaction.DragInteraction.Start) swiped = true }
         }
         androidx.compose.runtime.LaunchedEffect(pager) {
             androidx.compose.runtime.snapshotFlow { pager.isScrollInProgress }.collect { moving ->
-                if (!moving && swiped[0]) { swiped[0] = false; state.libraryTab = pager.settledPage }
+                if (!moving && swiped) { swiped = false; state.libraryTab = pager.settledPage }
             }
         }
         // One slide by pixels, however far: animateScrollToPage first jumps to within three pages of the target, a full layout
@@ -213,7 +214,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
                 tabs.forEachIndexed { i, t ->
-                    TabLabel(t, { (if (swiped[0]) pager.targetPage else state.libraryTab) == i }, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { swiped[0] = false; state.libraryTab = i }
+                    TabLabel(t, { (if (swiped) pager.targetPage else state.libraryTab) == i }, Modifier.onPlaced { tabLeft[i] = it.positionInParent().x }) { swiped = false; state.libraryTab = i }
                 }
             }
         }
@@ -221,6 +222,8 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         val pad = PaddingValues(bottom = bottomPad + Space.l)
         // Each tab keeps its own scroll position when you switch tabs and come back.
         val tabState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+        val dragged by pager.interactionSource.collectIsDraggedAsState()
+        val landing by androidx.compose.runtime.remember { androidx.compose.runtime.derivedStateOf { pager.isScrollInProgress && !dragged && kotlin.math.abs(pager.currentPageOffsetFraction) < 0.4f } }
         // Every tab stays built, so a tap on a far tab only slides finished pages past. They are built one at a time just after the
         // library appears, while nothing is moving; the pages between used to be built in the middle of the slide (David, 2026-10-30).
         var built by androidx.compose.runtime.mutableIntStateOf(1)
@@ -230,7 +233,10 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
         }
         androidx.compose.foundation.pager.HorizontalPager(
             pager, Modifier.fillMaxSize(), beyondViewportPageCount = built,
-            flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapAnimationSpec = Motion.page()),
+            // A touch on a pager still moving is taken as a sideways drag, whichever way the finger goes: while a page lands, the
+            // pager lets go of touches so the page's own list can scroll at once (David, 2026-10-30).
+            userScrollEnabled = !landing,
+            flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapAnimationSpec = Motion.page(1f)),
         ) { page ->
         tabState.SaveableStateProvider("tab$page") {
         when (page) {

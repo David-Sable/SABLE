@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.45.2, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.45.3, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
-- **Next:** David judges the tabs on 0.45.2; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
+- **Next:** David judges the tabs on 0.45.3; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
 - **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
 - **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, the mood colours, targets -14 and -19.
@@ -26,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.45.3:** swiping tabs: the name lights at once again and an up or down scroll works straight after a swipe; slowest swipe frame 25 ms.
 - **2026-10-30 0.45.2:** frame rate, batch 1: tabs stay built, library lists worked out once in the background, far tabs one slide, own code in the baseline profile; launch screen holds until Home is ready. Slowest tab frame 166 ms to 47 ms once the phone has optimised Sable; filmed and measured.
 - **2026-10-30 0.45.1:** light mode residue gone: black launch screen with the phone in light mode, the phone switching theme no longer rebuilds the screen, light palette deleted from the code; filmed on the phone.
 - **2026-10-30 0.45.0:** brass is the signature: the play button on Now Playing, the mini player and the widget, no colour option; the mini player lost its skip button (swipe does that).
