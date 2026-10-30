@@ -1,109 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home-screen widget, about two rows tall but short: the cover as tall as the card allows (sized in SableWidget), title, artist
-     and album top-aligned beside it, the controls at the bottom of that column. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Home-screen widget from two rows up (the main size): one editorial grid. The cover fills the card's height (sized in
+     SableWidget); beside it the title, artist and album hang from the cover's top edge and the controls sit on its bottom edge.
+     Behind everything, the card: Sable black or the cover's own glow (a soft, dark blur of the art), at the opacity set in the
+     widget's settings, down to clear (the wallpaper). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="14dp">
+    android:clipToOutline="true">
 
-    <FrameLayout
-        android:id="@+id/widget_art_box"
-        android:layout_width="96dp"
-        android:layout_height="96dp"
-        android:background="@drawable/widget_art_bg"
-        android:clipToOutline="true">
-
-        <ImageView
-            android:id="@+id/widget_art"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="centerCrop" />
-
-        <ImageView
-            android:id="@+id/widget_lion"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:contentDescription="@null"
-            android:scaleType="centerInside"
-            android:src="@drawable/widget_lion"
-            android:tint="@color/w_accent" />
-    </FrameLayout>
+    <ImageView
+        android:id="@+id/widget_ambient"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:paddingStart="14dp">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <FrameLayout
+            android:id="@+id/widget_art_box"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@drawable/widget_art_bg"
+            android:clipToOutline="true">
+
+            <ImageView
+                android:id="@+id/widget_art"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="centerCrop" />
+
+            <ImageView
+                android:id="@+id/widget_lion"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="centerInside"
+                android:src="@drawable/widget_lion"
+                android:tint="@color/w_accent" />
+        </FrameLayout>
 
         <LinearLayout
-            android:id="@+id/widget_text"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:id="@+id/widget_column"
+            android:layout_width="0dp"
+            android:layout_height="96dp"
             android:layout_weight="1"
-            android:gravity="top"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingStart="16dp">
 
-            <TextView
-                android:id="@+id/widget_title"
+            <LinearLayout
+                android:id="@+id/widget_text"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="serif"
-                android:maxLines="2"
-                android:text="@string/widget_idle_title"
-                android:textColor="@color/w_text"
-                android:textSize="18sp" />
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:gravity="top"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/widget_artist"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="@string/widget_idle_artist"
-                android:textColor="@color/w_text2"
-                android:textSize="13sp" />
-        </LinearLayout>
+                <TextView
+                    android:shadowColor="#73000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="6"
+                    android:id="@+id/widget_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="serif"
+                    android:includeFontPadding="false"
+                    android:maxLines="2"
+                    android:text="@string/widget_idle_title"
+                    android:textColor="@color/w_text"
+                    android:textSize="19sp" />
 
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="48dp"
-            android:layout_marginStart="-10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+                <TextView
+                    android:shadowColor="#73000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="6"
+                    android:id="@+id/widget_artist"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/widget_idle_artist"
+                    android:textColor="@color/w_text2"
+                    android:textSize="13sp" />
 
-            <ImageButton
-                android:id="@+id/widget_prev"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@null"
-                android:contentDescription="@string/widget_prev"
-                android:src="@drawable/ic_w_prev" />
+                <TextView
+                    android:shadowColor="#73000000"
+                    android:shadowDy="1"
+                    android:shadowRadius="6"
+                    android:id="@+id/widget_album"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/w_text3"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/widget_play"
-                android:layout_width="46dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="46dp"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/widget_play_bg"
-                android:contentDescription="@string/widget_play"
-                android:src="@drawable/ic_w_play" />
+                android:layout_marginStart="-10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <ImageButton
-                android:id="@+id/widget_next"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@null"
-                android:contentDescription="@string/widget_next"
-                android:src="@drawable/ic_w_next" />
+                <ImageButton
+                    android:id="@+id/widget_prev"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@null"
+                    android:contentDescription="@string/widget_prev"
+                    android:src="@drawable/ic_w_prev" />
+
+                <ImageButton
+                    android:id="@+id/widget_play"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_play_bg"
+                    android:contentDescription="@string/widget_play"
+                    android:src="@drawable/ic_w_play" />
+
+                <ImageButton
+                    android:id="@+id/widget_next"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@null"
+                    android:contentDescription="@string/widget_next"
+                    android:src="@drawable/ic_w_next" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>

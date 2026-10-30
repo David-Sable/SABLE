@@ -1,10 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home-screen widget, one row: cover, title and artist (tap to open Sable), previous, play/pause, next. Colours follow light/dark (values/widget_colors.xml). -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
+    android:clipToOutline="true">
+
+    <!-- The card's glow from the cover, when chosen in the widget's settings (SableWidget). -->
+    <ImageView
+        android:id="@+id/widget_ambient"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="12dp"
@@ -44,6 +58,9 @@
         android:paddingEnd="2dp">
 
         <TextView
+            android:shadowColor="#73000000"
+            android:shadowDy="1"
+            android:shadowRadius="6"
             android:id="@+id/widget_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -55,6 +72,9 @@
             android:textSize="16sp" />
 
         <TextView
+            android:shadowColor="#73000000"
+            android:shadowDy="1"
+            android:shadowRadius="6"
             android:id="@+id/widget_artist"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -90,3 +110,4 @@
         android:contentDescription="@string/widget_next"
         android:src="@drawable/ic_w_next" />
 </LinearLayout>
+</FrameLayout>

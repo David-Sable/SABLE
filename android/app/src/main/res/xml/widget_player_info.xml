@@ -11,4 +11,6 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:configure="app.sable.ui.WidgetSettingsActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

@@ -26,6 +26,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- The widget's settings (long-press the widget, Settings): see-through to the wallpaper. -->
+        <activity
+            android:name=".ui.WidgetSettingsActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Sable.WidgetSettings">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
         <!-- WorkManager's foreground service needs the matching type (MATH M4: background analysis). -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

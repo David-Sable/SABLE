@@ -65,33 +65,41 @@ class SableWidget : AppWidgetProvider() {
          * under 100 dp tall the one-row card; narrow (2x2) the full-bleed cover; under 170 dp the cover beside the text
          * with the controls under the text; taller, the cover and text on top and the controls across the bottom.
          */
+        /** Every placed widget again, after its settings changed (WidgetSettingsActivity). */
+        fun refresh(context: Context) = show(context, last)
+
+        /** The last song shown, for the settings screen's live preview. */
+        fun lastState(): State? = last
+
         private fun views(context: Context, s: State?, manager: AppWidgetManager, id: Int): RemoteViews {
             val sizes = manager.getAppWidgetOptions(id)
                 .getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)
                 ?.takeIf { it.isNotEmpty() } ?: listOf(SizeF(250f, 56f), SizeF(250f, 110f), SizeF(250f, 180f), SizeF(150f, 150f))
-            return RemoteViews(sizes.associateWith { layout(context, s, it) })
+            val look = WidgetLook.get(context, id)
+            return RemoteViews(sizes.associateWith { layout(context, s, it, look) })
         }
 
-        private fun layout(context: Context, s: State?, size: SizeF): RemoteViews {
+        private fun layout(context: Context, s: State?, size: SizeF, look: WidgetLook.Look): RemoteViews {
             val w = size.width
             val h = size.height
+            // One editorial grid from two rows up (the cover as tall as the card, text and controls beside it); one row; or the
+            // full-bleed cover when the card is narrow (2x2).
             val layoutId = when {
                 h < 100f -> R.layout.widget_player
                 w < 260f -> R.layout.widget_player_square
-                h < 170f -> R.layout.widget_player_large
-                else -> R.layout.widget_player_tall
+                else -> R.layout.widget_player_large
             }
             return layout(context, s, layoutId).apply {
-                // The cover as big as the card allows: the card's height less padding (and the control row when it sits below).
-                val cover = when (layoutId) {
-                    R.layout.widget_player_large -> h - 28f
-                    R.layout.widget_player_tall -> minOf(h - 32f - 68f, w * 0.42f)
-                    else -> 0f
-                }
-                if (cover > 0f) {
+                if (layoutId == R.layout.widget_player_large) {
+                    // The cover as big as the card allows (its height less padding), never more than ~45 % of its width; the
+                    // column beside it is exactly as tall, so the text hangs from the cover's top and the controls sit on its bottom.
+                    val cover = minOf(h - 28f, w * 0.45f).coerceAtLeast(72f)
                     setViewLayoutWidth(R.id.widget_art_box, cover, TypedValue.COMPLEX_UNIT_DIP)
                     setViewLayoutHeight(R.id.widget_art_box, cover, TypedValue.COMPLEX_UNIT_DIP)
-                }
+                    setViewLayoutHeight(R.id.widget_column, cover, TypedValue.COMPLEX_UNIT_DIP)
+                    setViewVisibility(R.id.widget_album, if (look.album && !s?.album.isNullOrBlank()) View.VISIBLE else View.GONE)
+                } else setViewVisibility(R.id.widget_album, View.GONE)
+                WidgetLook.apply(this, look, s?.art, square = layoutId == R.layout.widget_player_square)
                 if (layoutId == R.layout.widget_player_square) {
                     // On a cover the text sits on the dark shade; without one, the shade goes and the text takes the theme's colours.
                     val onArt = s?.art != null
@@ -106,7 +114,6 @@ class SableWidget : AppWidgetProvider() {
             setTextViewText(R.id.widget_title, s?.title ?: context.getString(R.string.widget_idle_title))
             setTextViewText(R.id.widget_artist, s?.artist ?: context.getString(R.string.widget_idle_artist))
             setTextViewText(R.id.widget_album, s?.album.orEmpty())
-            setViewVisibility(R.id.widget_album, if (s?.album.isNullOrBlank()) View.GONE else View.VISIBLE)
             // No cover (idle, or a song without art): the lion on the quiet tile, tinted by the theme (the cover view stays empty).
             if (s?.art != null) setImageViewBitmap(R.id.widget_art, s.art) else setImageViewBitmap(R.id.widget_art, null)
             setViewVisibility(R.id.widget_lion, if (s?.art != null) View.GONE else View.VISIBLE)
