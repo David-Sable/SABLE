@@ -58,6 +58,8 @@ object WhyText {
         }
         val why = when {
             "FLOW" in r -> "flows into the next track"
+            // A song's own tap lesson moves it off the album's gain (David, 2026-10-31: taps stay per song), so say so.
+            x.albumRun && abs(x.learnedDb) >= 0.05 -> "album gain, your ${if (x.learnedDb > 0) "+" else "−"}${f(x.learnedDb)} dB"
             x.albumRun -> "one gain for the album"
             else -> shortCharacter(x.character)
         }
