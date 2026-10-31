@@ -317,7 +317,7 @@ private fun Modifier.stepBack(state: AppState): Modifier = this
     }
 
 /** The MATH.md version this build implements (keep equal to the header of MATH.md). */
-const val MATH_DOC_VERSION = "MATH-1.38"
+const val MATH_DOC_VERSION = "MATH-1.39"
 
 @Composable
 fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.compose.ui.unit.Dp, onRescan: () -> Unit, onAnalyseWhileCharging: () -> Unit) {
@@ -414,7 +414,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("Reset ${route.label}", false) { PlaybackPrefs.update(context) { it.copy(routeCal = it.routeCal - route.key, routeCeiling = it.routeCeiling - route.key) } }
                     }
                     Group("Learning")
-                    Hint("Turning the volume in a song's first 20 seconds teaches Sable, up to 2 dB per song, separately for each place. It halves each month; each song's Why sheet shows and resets it.")
+                    Hint("Turning the volume in a song's first 20 seconds teaches Sable, up to 2 dB per song (the Quieter and Louder buttons, up to 4 dB), separately for each place. It halves each month; each song's Why sheet shows and resets it.")
                     Row(Modifier.padding(top = Space.m)) { Pill("Forget everything learned", false) { app.sable.playback.ListenerLearning(context, android.os.Handler(android.os.Looper.getMainLooper())).resetAll() } }
                     Group("About")
                     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "" }

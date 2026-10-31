@@ -95,7 +95,11 @@ struct LearnedOffset {
   double updatedDays = 0.0;  // timestamp in days
 };
 double decayedOffset(const LearnedOffset& o, double nowDays);                 // §19.2 decay
-void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double nowDays);  // §19.2 update + clamp
+// §19.2 / §19.4 (MATH-1.39): a learned offset is clamped to +-kLearnCeilingDb (volume presses, and the artist always); the
+// song's own tap can take the song to +-kTapCeilingDb. appliedOffset clamps to kTapCeilingDb, the widest value that can exist.
+constexpr double kLearnCeilingDb = 2.0;
+constexpr double kTapCeilingDb = 4.0;
+void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double nowDays, double ceilingDb = kLearnCeilingDb);  // §19.2 update + clamp
 double sectionAdjustedDelta(double deltaDb, double sectionDevDb);                        // §19.1 (MATH-1.27) press minus what the section explains
 // §19.2 combination: a song's own lesson first; the artist's only for songs not taught yet, from >= 2 songs that agree.
 double appliedOffset(double trackDb, double artistDb, int artistTracks, bool trackTaught = false, bool artistAgrees = true);

@@ -247,14 +247,30 @@ TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)"
   CHECK(field(tapAfterTap, "omega") == 1.0);
   CHECK(field(tapAfterTap, "trackDb") == doctest::Approx(-1.0));
   CHECK(field(tapAfterTap, "artistDb") == doctest::Approx(-0.5));
-  // MATH-1.38: a tap needs no probation. The first tap on a new song is heard in full and confirms it; the second reaches the 2 dB ceiling.
+  // MATH-1.38: a tap needs no probation. The first tap on a new song is heard in full and confirms it.
   CHECK(tapAfterTap.find("\"trackConfirmed\":true") != std::string::npos);
-  const std::string secondTap = sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":true,\"nowDays\":10.0001}");
-  CHECK(field(secondTap, "trackDb") == doctest::Approx(-2.0).epsilon(1e-3));
-  // At the ceiling a tap the same way changes nothing, not even the artist, and the app says so; the first tap back is heard in full.
-  const std::string atLimit = "\"trackDb\":-2,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":true,\"artistDb\":-1,\"artistDays\":10,\"artistFirstDays\":10,\"nowDays\":10.0001}";
+  // MATH-1.39: taps go on to +-4 dB, 1 dB each; a tap past the first two is still a tap (no probation, no environment weight).
+  auto tapAt = [&](double from, double delta, double nowD) {
+    return sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":" + std::to_string(delta) + ",\"trackDb\":" + std::to_string(from) +
+                                  ",\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":true,\"artistDb\":-0.5,\"artistDays\":10,\"artistFirstDays\":10,\"nowDays\":" + std::to_string(nowD) + "}");
+  };
+  CHECK(field(tapAt(-1.0, -2, 10.0001), "trackDb") == doctest::Approx(-2.0).epsilon(1e-3));
+  CHECK(field(tapAt(-2.0, -2, 10.0001), "trackDb") == doctest::Approx(-3.0).epsilon(1e-3));
+  CHECK(field(tapAt(-3.0, -2, 10.0001), "trackDb") == doctest::Approx(-4.0).epsilon(1e-3));
+  CHECK(field(tapAt(2.5, 2, 10.0001), "trackDb") == doctest::Approx(3.5).epsilon(1e-3));
+  // The artist never goes past 2 dB, whatever the song does: -1.9 plus a tap of -0.5 stays at -2.
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-12,\"trackDb\":-3,\"trackDays\":10,\"trackFirstDays\":5,\"trackConfirmed\":true,\"artistDb\":-1.9,\"artistDays\":10,\"nowDays\":10}"), "artistDb") == doctest::Approx(-2.0));
+  // At the 4 dB ceiling a tap the same way changes nothing, not even the artist, and the app says so; the first tap back is heard in full.
+  const std::string atLimit = "\"trackDb\":-4,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":true,\"artistDb\":-1,\"artistDays\":10,\"artistFirstDays\":10,\"nowDays\":10.0001}";
   CHECK(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2," + atLimit).find("\"ignored\":\"limit\"") != std::string::npos);
-  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":2," + atLimit), "trackDb") == doctest::Approx(-1.0).epsilon(1e-3));
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":2," + atLimit), "trackDb") == doctest::Approx(-3.0).epsilon(1e-3));
+  // MATH-1.39: a volume press keeps its 2 dB ceiling, and a song a tap took beyond it is neither deepened nor pulled over by a press.
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"trackFirstDays\":0,\"trackConfirmed\":true,\"nowDays\":5}"), "trackDb") == doctest::Approx(-2.0));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-3,\"trackDays\":5,\"trackFirstDays\":0,\"trackConfirmed\":true,\"nowDays\":5}"), "trackDb") == doctest::Approx(-3.0));  // not deepened
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":2,\"trackDb\":-3,\"trackDays\":5,\"trackFirstDays\":0,\"trackConfirmed\":true,\"nowDays\":5}"), "trackDb") == doctest::Approx(-2.0));  // lessened: -3 + 1
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":12,\"trackDb\":-3,\"trackDays\":5,\"trackFirstDays\":0,\"trackConfirmed\":true,\"nowDays\":5}"), "trackDb") == doctest::Approx(2.0));  // carried over: only to +2
+  // Whatever was stored, no event leaves a song beyond 4 dB (a hand-edited -9 is brought to -4 by a press, not kept).
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-2,\"trackDb\":-9,\"trackDays\":5,\"trackFirstDays\":0,\"trackConfirmed\":true,\"nowDays\":5}"), "trackDb") == doctest::Approx(-4.0));
   // A song a press left unconfirmed at -1 (heard as -1): a tap takes it to -2 at once, no waiting for 12 h.
   CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.01}"), "trackDb") == doctest::Approx(-2.0).epsilon(1e-3));
   // A press stored past what was heard (-2, unconfirmed): a tap back moves from where the song stands, to -1.
@@ -358,6 +374,10 @@ TEST_CASE("learn: a first lesson is a hint until another day confirms it (MATH-1
   CHECK(learned("{\"trackDb\":-0.4,\"trackTaught\":true,\"trackConfirmed\":false}") == doctest::Approx(-0.4));
   CHECK(learned("{\"trackDb\":2.0,\"trackTaught\":true,\"trackConfirmed\":true}") == doctest::Approx(2.0));
   CHECK(learned("{\"trackDb\":2.0,\"trackTaught\":true}") == doctest::Approx(2.0));  // before 1.30
+  // MATH-1.39: a song a tap took past 2 dB is applied as it stands, and nothing above 4 dB can be applied.
+  CHECK(learned("{\"trackDb\":-3.0,\"trackTaught\":true,\"trackConfirmed\":true}") == doctest::Approx(-3.0));
+  CHECK(learned("{\"trackDb\":9.0,\"trackTaught\":true,\"trackConfirmed\":true}") == doctest::Approx(4.0));
+  CHECK(learned("{\"trackDb\":3.0,\"trackTaught\":true,\"trackConfirmed\":false}") == doctest::Approx(1.0));  // unconfirmed (a press) is still held to 1
   // The artist's offset waits for events on two different days (owner's session: two songs in five minutes taught
   // Danny Brown +1.16 dB for every other song).
   const std::string art = "\"artistDb\":-0.9,\"artistTrackDbs\":[-1.5,-0.4],\"artistFirstDays\":10,";

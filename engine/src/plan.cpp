@@ -180,7 +180,6 @@ constexpr double kJitTpMargin = 1.0;        // §22.2 M_jitTP
 constexpr double kPerceptualBound = 3.0;    // §16.2 B_p
 constexpr double kProbationDb = 1.0;        // §19.2 (MATH-1.30): most an unconfirmed first lesson applies
 constexpr double kConfirmDays = 0.5;        // §19.2 (MATH-1.30): "another day" = at least this far apart (12 h)
-constexpr double kOffsetCeilingDb = 2.0;    // §19.2: the most a song's learned offset can reach (the clamp of §19.2)
 constexpr double kTapLimitBandDb = 0.02;    // §19.4: a song within this of the ceiling reads as at it (the margin covers a little decay)
 constexpr double kFlowGap = 0.5;          // §17.3 G_flow: most silence (s) a track may hold and still flow
 
@@ -320,7 +319,7 @@ std::string planQueueJson(const std::string& input) {
           agree = agree && l->num("artistDays", nowDays) - *first >= kConfirmDays;
         it.learnedDb = appliedOffset(tApplied, a, n, l->flag("trackTaught"), agree);
       } else {
-        it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -2.0, 2.0);  // §19.2 clamp (a value frozen at item start)
+        it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -kTapCeilingDb, kTapCeilingDb);  // §19.2 clamp (a value frozen at item start)
       }
       const std::string key = x.str("album");
       it.albumKey = key;
@@ -481,16 +480,20 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   if (!tConfirmed && tBefore != 0.0 && std::signbit(tBefore) == std::signbit(dvEff) && now - tFirst >= kConfirmDays) tConfirmed = true;
   if (tBefore == 0.0 && !legacy) { tFirst = now; tConfirmed = false; }  // nothing standing (new, or decayed/cancelled away): a fresh first lesson
   // §19.4 (MATH-1.38): a tap is the listener's own word for this song, not a mood, so it needs no probation: it counts as
-  // confirmed at once and the song takes it in full, up to the ±2 dB ceiling. At the ceiling a tap the same way changes
+  // confirmed at once and the song takes it in full, up to the ±4 dB tap ceiling (a volume press and the artist stay at ±2). At the ceiling a tap the same way changes
   // nothing (song or artist) and the app says so; a tap back moves from where the song stands.
   if (tap) {
     tConfirmed = true;
     t.valueDb = tBefore;
     t.updatedDays = now;
-    if (std::fabs(tBefore) >= kOffsetCeilingDb - kTapLimitBandDb && std::signbit(tBefore) == std::signbit(dvEff)) return "{\"ignored\":\"limit\"}";
+    if (std::fabs(tBefore) >= kTapCeilingDb - kTapLimitBandDb && std::signbit(tBefore) == std::signbit(dvEff)) return "{\"ignored\":\"limit\"}";
   }
   const double aFirst = in.num("artistFirstDays").value_or(a.valueDb != 0.0 ? a.updatedDays - kConfirmDays : now);  // a pre-1.30 artist is trusted: it dates from before its last event
-  learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
+  // MATH-1.39: a tap may take the song to kTapCeilingDb. A press only reaches kLearnCeilingDb: on a song a tap already took
+  // beyond that, a press may lessen it but never deepen it, and never carry it to the other side beyond kLearnCeilingDb.
+  double ceiling = tap ? kTapCeilingDb : kLearnCeilingDb;
+  if (!tap && std::fabs(tBefore) > kLearnCeilingDb && std::signbit(tBefore + 0.5 * omega * dvEff) == std::signbit(tBefore)) ceiling = std::min(kTapCeilingDb, std::fabs(tBefore));
+  learnEvent(t, 0.5, omega * dvEff, now, ceiling);  // eta_t
   learnEvent(a, 0.25, omega * dvEff, now);  // eta_a
   return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
          ",\"artistDays\":" + num(a.updatedDays) + ",\"trackFirstDays\":" + num(tFirst) + ",\"trackConfirmed\":" + (tConfirmed ? "true" : "false") +

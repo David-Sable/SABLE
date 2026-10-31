@@ -71,7 +71,7 @@ for it in range(1500):
     if not finite(j): bad.append(('LEARN NONFINITE',case)); continue
     for k in('trackDb','artistDb'):
         v=j.get(k)
-        if isinstance(v,(int,float)) and abs(v)>2.0000001: bad.append(('LEARN OUT OF CLAMP %s=%s'%(k,v),case))
+        if isinstance(v,(int,float)) and abs(v)>(4.0000001 if k=='trackDb' else 2.0000001): bad.append(('LEARN OUT OF CLAMP %s=%s'%(k,v),case))
 # raw garbage
 for raw in ['','{','}','[]','null','{"items":[]}','{"items":null}','{"items":[null]}','{"items":[{}]}','{"items":[[]]}','{"items":'+'['*200+']'*200+'}','{"items":[{"analysis":'+'{"a":'*300+'1'+'}'*300+'}]}','\x00','{"targetLufs":"a"}','{"items":[{"learn":null}]}','{"items":[{"learn":5}]}','{"albums":5,"items":[]}','{"albums":{"k":5},"items":[{"album":"k","analysis":{}}]}']:
     for mode in('plan','learn'):

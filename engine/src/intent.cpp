@@ -701,8 +701,8 @@ double decayedOffset(const LearnedOffset& o, double nowDays) {  // §19.2: o * 2
   return o.valueDb * dm::pow(2.0, -dt / 30.0);
 }
 
-void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double nowDays) {  // §19.2
-  o.valueDb = std::clamp(decayedOffset(o, nowDays) + eta * weightedDeltaDb, -2.0, 2.0);
+void learnEvent(LearnedOffset& o, double eta, double weightedDeltaDb, double nowDays, double ceilingDb) {  // §19.2
+  o.valueDb = std::clamp(decayedOffset(o, nowDays) + eta * weightedDeltaDb, -ceilingDb, ceilingDb);
   o.updatedDays = nowDays;
 }
 
@@ -716,8 +716,8 @@ double sectionAdjustedDelta(double deltaDb, double sectionDevDb) {  // §19.1 (M
 }
 
 double appliedOffset(double trackDb, double artistDb, int artistTracks, bool trackTaught, bool artistAgrees) {  // §19.2
-  if (trackTaught) return std::clamp(trackDb, -2.0, 2.0);  // the song's own lesson is the most specific: it wins
-  return std::clamp(trackDb + (artistTracks >= 2 && artistAgrees ? artistDb : 0.0), -2.0, 2.0);
+  if (trackTaught) return std::clamp(trackDb, -kTapCeilingDb, kTapCeilingDb);  // the song's own lesson is the most specific: it wins
+  return std::clamp(trackDb + (artistTracks >= 2 && artistAgrees ? artistDb : 0.0), -kLearnCeilingDb, kLearnCeilingDb);  // no lesson of its own: the prior stays within 2 dB
 }
 
 double finalGain(double seamedDb, double learnedDb, double outputCalDb, double capEffDb) {  // §21

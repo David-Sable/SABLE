@@ -50,7 +50,7 @@ for it in range(N):
         chk('quiet-standard>=-5',y['manualGainDb']>=x['manualGainDb']-5-1e-9,(seq[i][0]['title'],y['manualGainDb'],x['manualGainDb']))
         chk('stricter ceiling never raises',z['manualGainDb']<=x['manualGainDb']+1e-9,(seq[i][0]['title'],z['manualGainDb'],x['manualGainDb']))
         chk('cal +1 raises by <=1',w['manualGainDb']-x['manualGainDb']<=1+1e-9 and w['manualGainDb']>=x['manualGainDb']-1e-9,(seq[i][0]['title'],w['manualGainDb'],x['manualGainDb']))
-        chk('learned in +-2',abs(x.get('learnedDb',0))<=2+1e-9,None)
+        chk('learned in +-4',abs(x.get('learnedDb',0))<=4+1e-9,None)
         chk('finite gains',all(abs(v)<100 for v in (x['gainDb'],x['manualGainDb'])),None)
     runs=[(i,x) for i,x in enumerate(a['items']) if x['albumRun']]
     if len(runs)>1:
