@@ -140,17 +140,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MESSAGE: ${{ github.event.head_commit.message }}
         run: |
+          fail() { echo "::error::keep: $1" | tr '\n' ' '; echo; exit 1; }  # annotations are public, logs need sign-in
           N=$(printf '%s' "$MESSAGE" | grep -oE '\[keep build-[0-9]+\]' | head -1 | grep -oE '[0-9]+')
-          if [ -z "$N" ]; then echo "::error::no [keep build-N] in the commit message"; exit 1; fi
+          [ -n "$N" ] || fail "no [keep build-N] in the commit message"
           mkdir kept
-          gh release download "build-$N" --repo "${{ github.repository }}" --pattern '*.apk' --dir kept
+          out=$(gh release download "build-$N" --repo "${{ github.repository }}" --pattern '*.apk' --dir kept 2>&1) || fail "download: $out"
           APK=$(ls kept/*.apk)
           VERSION=$(basename "$APK" | sed -E 's/^SABLE-(.*)-build[0-9]+\.apk$/\1/')
-          COMMIT=$(gh api "repos/${{ github.repository }}/commits/build-$N" --jq .sha)
+          COMMIT=$(gh api "repos/${{ github.repository }}/commits/build-$N" --jq .sha 2>&1) || fail "commit: $COMMIT"
           SUM=$(sha256sum "$APK" | cut -d' ' -f1)
-          gh release create "keep-$VERSION" "$APK" --repo "${{ github.repository }}" --target "$COMMIT" --latest=false \
+          out=$(gh release create "keep-$VERSION" "$APK" --repo "${{ github.repository }}" --target "$COMMIT" --latest=false \
             --title "SABLE $VERSION (kept, known good)" \
-            --notes "A version kept on purpose to go back to: build $N, the exact APK proven on the phone. Built from $COMMIT. SHA-256 $SUM."
+            --notes "A version kept on purpose to go back to: build $N, the exact APK proven on the phone. Built from $COMMIT. SHA-256 $SUM." 2>&1) || fail "create: $out"
       - name: Keep only the newest releases
         # The newest three build-N releases stay (this one and two to go back to); older ones and their tags are deleted.
         # Kept releases (keep-<version>) are never deleted.
