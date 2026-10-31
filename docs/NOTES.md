@@ -14,11 +14,11 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.48.0, MATH-1.37. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.48.1, MATH-1.37. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
-- **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
+- **Waiting on David:** allow Nearby devices when 0.48.1 asks, then listen on the JBL and the car; Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
 - **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, targets -14 and -19.
 - **Learning so far (2026-10-29):** corrected plays: JBL 19 %, car 7 %, speaker 7 %. The JBL figure is largely David riding the volume in the garage on purpose. Too few taught songs replayed to judge yet.
 - **Cleanup (0.48.0):** Home is rows of covers; no info icon on song rows (Why is in the long-press menu and on Now Playing); the song count only shows while Sable is working. David to judge.
@@ -30,6 +30,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-31 0.48.1:** Sable now asks for Nearby devices (Bluetooth), as Spotify does; a candidate fix for the Bluetooth trouble, untested on the phone.
 - **2026-10-30 0.48.0:** cleanup: Home in one layout, 50-odd info icons gone, header status only when it has news, headings 18.
 - **2026-10-30 0.47.0:** Now Playing's serif on every page for names, tabs and Home's headings; no row moved.
 - **2026-10-30 0.46.2:** David picked Patina from six packages drawn on real songs; the Advanced note no longer mentions brass.

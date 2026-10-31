@@ -73,7 +73,8 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         app.sable.work.BackupWorker.schedule(applicationContext)
-        val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
+        // Nearby devices (BLUETOOTH_CONNECT) lets Android hand over a Bluetooth output's real name and state.
+        val needed = listOf(Manifest.permission.READ_MEDIA_AUDIO, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.BLUETOOTH_CONNECT)
             .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) askPermissions.launch(needed.toTypedArray())
         PlaybackPrefs.load(this)
