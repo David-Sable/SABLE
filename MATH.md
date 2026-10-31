@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.36 (2026-10-30)
+**Version:** MATH-1.37 (2026-10-30)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -299,8 +299,13 @@ Over the gated frames `R_g` (frames whose sub-block lies in a gated block of §4
 ### 8.5 Tilt over time and the mood read-out [DESIGN, MATH-1.32 / 1.33, display only]
 For the Now Playing silhouette's colour and caption (it never touches a gain): for every 0.5 s of the track (five 100 ms frames, the same grid as the `shape` loudness series), `Ē_b` is the mean of `E_{r,b}` over those frames and the tilt is the §8.3 slope over bands 63 Hz … 8 kHz, in dB/octave, rounded to 0.1 (fewer than 6 usable bands → absent). Unlike §8.3 the frames are not gated: it describes what that moment sounds like.
 **[MATH-1.33] Against the song's own usual.** Measured on 9 corpus songs the per-song median tilt ranges −3.0 … +0.7 dB/oct, so one fixed scale would paint most songs the same colour. The app smooths the series over ±4 s (9 values, ignoring absent ones), takes the song's median `m` and spread `s = max(1, (p90 − p10)/2)` of the smoothed values, and uses `tone = clamp((tilt − m)/s, −1, +1)`. `energy` is the silhouette height (§ LoudnessShape: the 0.5 s short-term loudness scaled to the song's own range) averaged over ±2 s, and `E_mid` its median.
-- Colour: ivory (the accent) mixed with a soft brass for `tone > 0`, or a cool grey-blue for `tone < 0`, by `min(0.9, |tone|)`; alpha `0.26 + 0.30·energy`. Under about 30 % saturation.
-- Words (two, under the strip, at the playhead): energy `full` if `energy − E_mid > 0.06`, `soft` if `< −0.08`, else `steady`; tone `bright` if `tone > 0.25`, `dark` if `< −0.25`, else `even`. A flat song stays "steady · even" because the spread is floored at 1 dB/oct. Changes at most every 0.5 s.
+**[MATH-1.37] What the owner's 420 songs showed.** The words changed 14 times a minute (median length 2 s); the anchor glow, ivory at 55 %, covers 85 % of a typical song, so it hid the colours; `steady · even` was the most common caption. All of this uses the stored series: nothing is rescanned.
+- `tone = 0.55·clamp((tilt − m)/s, −1, +1) + 0.45·clamp((tilt + 1.1)/2, −1, +1)`: half against the song's own usual, half against the library (−1.1 dB/oct is the median song), so songs differ from each other too.
+- `level = (energy − E_mid)·span` in dB, `span` being the silhouette's height in LU; `move` = mean height of the 6 s ahead minus the 6 s behind, in dB.
+- Colour: `x = clamp(1.7·tone, −1, +1)`, `y = clamp(level/6, −1, +1)`. A corner colour mixes slate `#7B93B8` (quiet, dark), sage `#A3BE9E` (quiet, bright), plum `#B084AC` (loud, dark) and clay `#DEA07A` (loud, bright) by `x` and `y`, then ivory mixes with it by `min(0.95, max(|x|,|y|)^0.6)`. Alpha `0.42 + 0.50·energy`. Brass stays the play button's alone. With mood colours on, the anchor glow is a light veil (alpha `0.06 + 0.14·lit` at the top, fading to nothing).
+- Words (two): first `rising` if `move > 2` and `level < 0.8`, `easing` if `move < −2` and `level > −5`, else `hushed` (`level < −5`), `soft` (`< −1.5`), `full` (`> 0.8`), `steady`. Second `bright` (`tone > 0.4`), `warm` (`> 0.12`), `dark` (`< −0.4`), `deep` (`< −0.12`), `clear`.
+- **Hold:** each word, then the pair, is held at least 6 s: a shorter run joins the run before it (the first run joins the next). Measured on the 420 songs: 3 changes a minute, median caption 14 s, none under 3 s, about 7 different captions a song.
+All thresholds are **[DESIGN]**, display only.
 
 ---
 
@@ -927,7 +932,7 @@ The analysis result carries `engineVersion` and `mathVersion`. A MATH version bu
 | Learning window t_w | 20 | s | 19.1 | TUNE |
 | Quieter / Louder tap N | 2 | dB | 19.4 | TUNE |
 | Flow gap G_flow (trailing + leading silence at the join) | 0.5 | s | 17.3 | DESIGN |
-| Mood: tilt spread floor / smoothing / word thresholds | 1 dB/oct / ±4 s / ±0.25 tone, +0.06 / −0.08 energy | | 8.5 | DESIGN (display) |
+| Mood: tilt spread floor / smoothing / word hold | 1 dB/oct / ±4 s / 6 s | | 8.5 | DESIGN (display) |
 | Learning η_t, η_a | 0.5, 0.25 | | 19.2 | TUNE |
 | Learning half-life | 30 | days | 19.2 | TUNE |
 | Learning clamp | ±2 | dB | 19.2 | DESIGN (spec) |

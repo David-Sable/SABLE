@@ -629,7 +629,7 @@ fun NowPlayingScreen(
     }
 }
 
-/** The mood of the moment in two plain words ("full · bright"), in its own colour; changes at most every half second (MATH §8.5). */
+/** The mood of the moment in two plain words ("rising · warm"), in its own colour; each lasts at least 6 s (MATH §8.5). */
 @Composable
 private fun MoodCaption(state: AppState, mood: SongMood) {
     val onScreen = LocalOnScreen.current

@@ -14,19 +14,21 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.45.5, MATH-1.36. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.46.0, MATH-1.37. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
 - **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
-- **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, the mood colours, targets -14 and -19.
+- **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, targets -14 and -19.
 - **Learning so far (2026-10-29):** corrected plays: JBL 19 %, car 7 %, speaker 7 %. The JBL figure is largely David riding the volume in the garage on purpose. Too few taught songs replayed to judge yet.
+- **Mood bar (0.46.0):** new colours and calmer words, built because David asked; David to judge them. The numbers for tuning: `docs/HISTORY.md`, MATH §8.5.
 - **Taps (0.45.5):** every Quieter or Louder tap now counts in full (1 dB), held at ±1 until repeated 12 h or more later, and tapped plays count as corrected on the scoreboard from now on. David to judge in the car. The car's 3 % predates this, so read it as new weeks build up.
 - **Known limits:** ALAC from iTunes/XLD untested; USB-C output untested; 5.1 files up to ~3 dB too loud (the library is stereo); EBU's official test files never downloaded (compliance uses generated signals).
 
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.46.0, MATH-1.37:** mood bar: four muted colours around ivory, the ivory glow no longer covers them, words last at least 6 s and can say rising, easing, hushed, warm, deep. Measured on all 420 songs.
 - **2026-10-30 0.45.5, MATH-1.36:** taps are never the room: full weight, a clear limit during probation, counted on the scoreboard. Verified on the phone. GitHub tidied: `main` only.
 - **2026-10-30 car check (no code):** read diag, learned and scoreboard after David's drive. Taps and sound fine; quarter-weight taps and the scoreboard's blind spot found, see HISTORY.
 - **2026-10-30 0.45.4:** widget (two rows and up): previous, play and next centred under the text; they sat 61 px left of the middle. Measured on the phone: play at 770.5, column middle 770.5.
