@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Home-screen widget from two rows up (the main size): one editorial grid. The cover fills the card's height (sized in
-     SableWidget); beside it the title, artist and album hang from the cover's top edge and the controls sit on its bottom edge.
+     SableWidget); beside it the title, artist and album hang from the cover's top edge and the controls, centred in the column,
+     sit on its bottom edge.
      Behind everything, the card: Sable black or the cover's own glow (a soft, dark blur of the art), at the opacity set in the
      widget's settings, down to clear (the wallpaper). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -110,10 +111,9 @@
             </LinearLayout>
 
             <LinearLayout
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="46dp"
-                android:layout_marginStart="-10dp"
-                android:gravity="center_vertical"
+                android:gravity="center"
                 android:orientation="horizontal">
 
                 <ImageButton

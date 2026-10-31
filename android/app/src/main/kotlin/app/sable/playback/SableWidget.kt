@@ -60,17 +60,17 @@ class SableWidget : AppWidgetProvider() {
             for (id in ids) manager.updateAppWidget(id, views(context, state, manager, id))
         }
 
-        /**
-         * One layout per size the launcher may show (portrait and landscape), chosen and sized for that size:
-         * under 100 dp tall the one-row card; narrow (2x2) the full-bleed cover; under 170 dp the cover beside the text
-         * with the controls under the text; taller, the cover and text on top and the controls across the bottom.
-         */
         /** Every placed widget again, after its settings changed (WidgetSettingsActivity). */
         fun refresh(context: Context) = show(context, last)
 
         /** The last song shown, for the settings screen's live preview. */
         fun lastState(): State? = last
 
+        /**
+         * One layout per size the launcher may show (portrait and landscape), chosen and sized for that size:
+         * under 100 dp tall the one-row card; narrow (2x2) the full-bleed cover; otherwise the cover beside the text
+         * with the controls centred under the text.
+         */
         private fun views(context: Context, s: State?, manager: AppWidgetManager, id: Int): RemoteViews {
             val sizes = manager.getAppWidgetOptions(id)
                 .getParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, SizeF::class.java)

@@ -14,9 +14,9 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.45.3, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.45.4, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
-- **Next:** David judges the tabs on 0.45.3; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
+- **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
 - **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
 - **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, the mood colours, targets -14 and -19.
@@ -26,6 +26,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.45.4:** widget (two rows and up): previous, play and next centred under the text; they sat 61 px left of the middle. Measured on the phone: play at 770.5, column middle 770.5.
 - **2026-10-30 0.45.3:** swiping tabs: the name lights at once again and an up or down scroll works straight after a swipe; slowest swipe frame 25 ms.
 - **2026-10-30 0.45.2:** frame rate, batch 1: tabs stay built, library lists worked out once in the background, far tabs one slide, own code in the baseline profile; launch screen holds until Home is ready. Slowest tab frame 166 ms to 47 ms once the phone has optimised Sable; filmed and measured.
 - **2026-10-30 0.45.1:** light mode residue gone: black launch screen with the phone in light mode, the phone switching theme no longer rebuilds the screen, light palette deleted from the code; filmed on the phone.
@@ -33,16 +34,3 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 - **2026-10-30 0.44.4:** Why sheet: Hide details is one slide into place; it used to drop off the screen and climb back.
 - **2026-10-30 0.44.3:** David chose the framed look from his own screenshot: NOW PLAYING bar back, cover 344 dp with rounded corners on black; edge-to-edge dropped.
 - **2026-10-30 0.44.2:** cover back at the very top, all black again (album colour removed, which also removes the black square behind a paused cover), larger title and taller shape.
-- **2026-10-30 0.44.1:** cover moved just under the clock; pause shrink (94 %, soft spring, corners rounding) and the song-change bounce are back and stronger.
-- **2026-10-30 0.44.0:** Now Playing edge to edge from the top of the screen with a faint album colour beneath; sheets slide away on every action; all sheets, Search and Settings filmed.
-- **2026-10-30 0.43.0:** premium pass, batch 2: Now Playing cover 360 dp, album cover flight, back gesture on pages, mini player neighbours (fixes the stuck bar), wrong-tab bug, Home top, solid page arrival, queue opening; filmed and measured.
-- **2026-10-30 0.42.1:** Now Playing's cover at 28 dp margins with air above it (David to judge the size); the signature landing back on every song change; song changes after the cover lands.
-- **2026-10-30 0.42.0:** premium pass, batch 1: every song change moves as one, Library tabs swipe, back gesture on Now Playing, quiet press, steady Now Playing layout; filmed and measured on the phone.
-- **2026-10-30 0.41.0:** Now Playing's swipe shows the next and previous album covers beside the playing one (`CoverDeck`); checked on the phone, 5.0 % late frames in cover swipes.
-- **2026-10-30 0.40.0:** Quieter / Louder on the notification, lock screen and Android Auto; automatic weekly backups; the lion as the notification icon; checked on the phone.
-- **2026-10-30 0.39.2:** Recently played keeps a steady height, so the page below stays still while swiping; measured on the phone.
-- **2026-10-30 0.39.1:** mini player bar stays solid while its contents fade (page words no longer show through on open/close).
-- **2026-10-30 0.39.0:** Organize (Folders tab): moves songs into Music/Artist/Album after Sable's question and Android's permission, with Undo; done on the phone, nothing lost.
-- **2026-10-30 0.38.0:** widget redesign and widget Settings (clear-to-solid, cover glow, brass, album line); checked on the phone.
-- **2026-10-29 0.37.0:** premium pass: 8 polish fixes (credits, covers on Artists/Folders, dates, device name, queue, track numbers, shorter Advanced text) and one spring family for sheets, sections and pages; measured and recorded.
-- **2026-10-29 0.36.1:** opening cover flies diagonally from the mini player again; closing rides the sheet.
