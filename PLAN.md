@@ -78,6 +78,7 @@ Each milestone ends with a test report. The next one does not start until it is 
 | 2026-10-30 | **A Quieter or Louder tap is never the room** (MATH-1.36 §19.4): every tap counts in full, held at ±1 dB until repeated 12 h or more later, and past that limit it changes nothing and says so; taps count on the scoreboard | In the car a repeat tap moved 0.25 dB, too little to hear, while one tap back undid four. The car's own knob handles the room. David agreed |
 | 2026-10-30 | **Mood bar refined** (MATH-1.37 §8.5, display only): four muted colours around ivory, the anchor glow stops covering them, words held at least 6 s with movement words. Brass stays the play button's | David found the old read-out incomplete and asked for more colour, still minimal. Measured on all 420 songs |
 | 2026-10-30 | **Names are serif, facts are sans** across the app, using the phone's own serif; Now Playing's title stays the largest. **Mood bar colours: Patina** | David found the other pages basic next to Now Playing, and chose Patina from six packages drawn on real songs |
+| 2026-10-30 | **Home is rows of covers**, one layout; song rows drop the info icon (Why stays in the long-press menu and on Now Playing); status under the logo only while Sable is working | David found the app and Home a little messy without being able to say why; the cause was repetition and mixed layouts |
 
 ## Known risks / blind spots
 1. Perceived loudness depends on real playback SPL, which the phone doesn't know. Mitigated by the D_cal convention and per-output calibration (MATH §12, §20).

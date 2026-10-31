@@ -84,30 +84,12 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
     }
     LazyColumn(contentPadding = PaddingValues(bottom = bottomPad + Space.l)) {
         if (h.recent.isNotEmpty()) item(key = "recent") { RecentRow(h.recent, state) }
-        if (favs.isNotEmpty()) {
-            item(key = "favHead") {
-                Row(Modifier.fillMaxWidth().padding(end = Space.gutter), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { Heading("Favourites") }
-                    if (favs.size > 1) Pill("Shuffle", selected = false, Modifier.padding(top = Space.l)) { state.playSongWorld(favs.shuffled(), 0); state.go(Route.NowPlaying) }
-                }
-            }
-            val shown = favs.take(6)
-            items(shown.size, key = { "fav${shown[it].mediaId}" }) { i ->
-                val r = shown[i]
-                SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(favs, i) }, { state.menuTrack = r.mediaId }) {
-                    state.whyTrack = r.mediaId
-                }
-            }
+        if (favs.isNotEmpty()) item(key = "favs") {
+            SongTiles("Favourites", favs, state, if (favs.size > 1) ({ state.playSongWorld(favs.shuffled(), 0); state.go(Route.NowPlaying) }) else null) { artistOf(it) }
         }
-        if (h.most.isNotEmpty()) {
-            item(key = "mostHead") { Heading("Most played this month") }
-            val songs = h.most.map { it.first }
-            items(h.most.size, key = { "most${h.most[it].first.mediaId}" }) { i ->
-                val (r, n) = h.most[i]
-                SongRow(r, null, state.currentTrackId == r.mediaId, "${artistOf(r)} · $n plays", { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) {
-                    state.whyTrack = r.mediaId
-                }
-            }
+        if (h.most.isNotEmpty()) item(key = "most") {
+            val plays = h.most.associate { (r, n) -> r.mediaId to n }
+            SongTiles("Most played this month", h.most.map { it.first }, state) { "${artistOf(it)} · ${plays[it.mediaId]} plays" }
         }
         if (playlists.isNotEmpty()) {
             item(key = "plHead") { Heading("Playlists") }
@@ -137,7 +119,7 @@ private fun RecentRow(recent: List<Recent>, state: AppState) {
                     when (item) {
                         is RecentAlbum -> AlbumTile(item.album, captionLines) { state.go(Route.Album(item.album.key)) }
                         // A song plays from here, with the other recent songs after it (each in its own world).
-                        is RecentSong -> SongTile(item.row, captionLines) { state.playSongWorld(songs, songs.indexOf(item.row)) }
+                        is RecentSong -> SongTile(item.row, credit(item.row), captionLines, state) { state.playSongWorld(songs, songs.indexOf(item.row)) }
                     }
                 }
             }
@@ -145,12 +127,29 @@ private fun RecentRow(recent: List<Recent>, state: AppState) {
     }
 }
 
+/** A row of songs as covers, like every other row on Home; a long press opens the song's menu, as in a list. */
 @Composable
-private fun SongTile(r: LibraryRow, captionLines: Int, onClick: () -> Unit) {
-    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
+private fun SongTiles(title: String, songs: List<LibraryRow>, state: AppState, shuffle: (() -> Unit)? = null, caption: (LibraryRow) -> String) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(end = Space.gutter), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { Heading(title) }
+            if (shuffle != null) Text("Shuffle", style = SableType.label, color = SableColors.textSecondary,
+                modifier = Modifier.padding(top = Space.xl, bottom = Space.m).softClick(onClick = shuffle))
+        }
+        LazyRow(contentPadding = PaddingValues(horizontal = Space.gutter), horizontalArrangement = Arrangement.spacedBy(Space.l)) {
+            items(songs, key = { it.mediaId }) { r ->
+                Box(Modifier.width(136.dp)) { SongTile(r, caption(r), 1, state) { state.playSongWorld(songs, songs.indexOf(r)) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SongTile(r: LibraryRow, caption: String, captionLines: Int, state: AppState, onClick: () -> Unit) {
+    Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onLong = { state.menuTrack = r.mediaId }, onClick = onClick)) {
         AlbumArt(r.albumId, r.uri, r.album, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
-        Text(songTitle(r), style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
-        CreditLine(credit(r), SableType.caption, SableColors.textSecondary, maxLines = 2, minLines = captionLines)
+        Text(songTitle(r), style = SableType.name, color = if (state.currentTrackId == r.mediaId) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
+        CreditLine(caption, SableType.caption, SableColors.textSecondary, maxLines = captionLines, minLines = captionLines)
     }
 }
 

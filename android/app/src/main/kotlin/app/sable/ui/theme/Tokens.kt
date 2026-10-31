@@ -49,7 +49,7 @@ object SableType {
     val title = TextStyle(fontFamily = serif, fontWeight = FontWeight.Normal, fontSize = 23.sp, lineHeight = 29.sp)
     // Names are serif, facts are sans (David, 2026-10-30: Now Playing's type all round). A name in a list keeps body's line height, so no row moves; Now Playing's title stays the largest.
     val name = TextStyle(fontFamily = serif, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 22.sp)
-    val heading = TextStyle(fontFamily = serif, fontWeight = FontWeight.Normal, fontSize = 20.sp, lineHeight = 26.sp)
+    val heading = TextStyle(fontFamily = serif, fontWeight = FontWeight.Normal, fontSize = 18.sp, lineHeight = 24.sp)
     val tab = TextStyle(fontFamily = serif, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 22.sp)
     val headline = TextStyle(fontFamily = sans, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp)
     val body = TextStyle(fontFamily = sans, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp)

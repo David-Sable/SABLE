@@ -106,10 +106,10 @@ fun Pill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onClick: () -> Unit, onLong: (() -> Unit)? = null, onWhy: () -> Unit) {
+fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onClick: () -> Unit, onLong: (() -> Unit)? = null) {
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Row(
-        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong?.let { f -> { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); f() } }).padding(start = Space.gutter, end = Space.xs, top = 10.dp, bottom = 10.dp),
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong?.let { f -> { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); f() } }).padding(horizontal = Space.gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (index != null) {
@@ -120,7 +120,6 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
             if (subtitle.isNotBlank()) CreditLine(subtitle, SableType.caption, SableColors.textSecondary)
         }
         Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
-        IconButton(Glyph.INFO, onWhy, size = 18.dp, color = if (r.analysed) SableColors.textTertiary else SableColors.line)
     }
 }
 
@@ -172,9 +171,10 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
             IconButton(Glyph.SEARCH, { state.go(Route.Search) })
             IconButton(Glyph.SETTINGS, { state.go(Route.Settings) })
         }
+        // Only while Sable has something to say: the finished count lives in Settings.
         val analysed = rows.count { it.analysed }
-        Text(
-            if (rows.isEmpty()) "Looking for music…" else "${rows.size} songs · ${if (analysed == rows.size) "all listened to" else "$analysed of ${rows.size} listened to"}",
+        if (rows.isEmpty() || analysed < rows.size) Text(
+            if (rows.isEmpty()) "Looking for music…" else "$analysed of ${rows.size} listened to",
             style = SableType.caption, color = SableColors.textTertiary, modifier = Modifier.padding(start = Space.gutter, top = 2.dp),
         )
         // The tabs are pages side by side: swipe between them or tap a name. One underline travels between the names with the page,
@@ -266,7 +266,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                     }
                     items(songs.size, key = { songs[it].mediaId }) { i ->
                         val r = songs[i]
-                        SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+                        SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId })
                     }
                 }
             }
@@ -351,7 +351,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
         }
         items(album.tracks.size, key = { album.tracks[it].mediaId }) { i ->
             val r = album.tracks[i]
-            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, credit(r), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+            SongRow(r, r.track.takeIf { it > 0 } ?: (i + 1), state.currentTrackId == r.mediaId, credit(r), { state.playSongWorld(album.tracks, i) }, { state.menuTrack = r.mediaId })
         }
     }
 }
@@ -387,7 +387,7 @@ fun FolderScreen(state: AppState, rows: List<LibraryRow>, path: String, bottomPa
         }
         items(songs.size, key = { songs[it].mediaId }) { i ->
             val r = songs[i]
-            SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) { state.whyTrack = r.mediaId }
+            SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId })
         }
     }
 }

@@ -154,9 +154,7 @@ fun PlaylistScreen(state: AppState, rows: List<LibraryRow>, id: Long, bottomPad:
             val (e, r) = items[i]
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId }) {
-                        state.whyTrack = r.mediaId
-                    }
+                    SongRow(r, null, state.currentTrackId == r.mediaId, songSubtitle(r), { state.playSongWorld(songs, i) }, { state.menuTrack = r.mediaId })
                 }
                 // Move up one place, or take it out of the playlist.
                 if (i > 0) IconButton(Glyph.UP, { Playlists.swap(context, e, items[i - 1].first) }, size = 16.dp, color = SableColors.textTertiary)
