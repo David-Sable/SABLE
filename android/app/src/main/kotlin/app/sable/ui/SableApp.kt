@@ -372,7 +372,7 @@ fun SettingsScreen(state: AppState, rows: List<LibraryRow>, bottomPad: androidx.
                         Pill("Off", !s.mood) { PlaybackPrefs.update(context) { it.copy(mood = false) } }
                         Pill("On", s.mood) { PlaybackPrefs.update(context) { it.copy(mood = true) } }
                     }
-                    Hint("Tints the strip on Now Playing: brass where the song is brighter, blue where it is darker. Display only; the sound never changes.")
+                    Hint("Colours the strip on Now Playing by how loud and how bright each moment is, with two words for what the song is doing. Display only; the sound never changes.")
                     Group("Albums")
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
                         for (a in PlaybackPrefs.AlbumMode.entries) Pill(a.label, s.albumMode == a) { PlaybackPrefs.update(context) { it.copy(albumMode = a) } }

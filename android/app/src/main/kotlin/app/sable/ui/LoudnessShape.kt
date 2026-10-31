@@ -25,11 +25,11 @@ import kotlin.math.abs
 import kotlin.math.pow
 
 private val MoodIvory = androidx.compose.ui.graphics.Color(0xFFE8E1D3)  // the accent
-// The four corners of the mood map (MATH §8.5), muted so they sit with the ivory; none is brass, which stays the play button's.
-private val MoodSlate = Color(0xFF7B93B8)  // quiet and dark
-private val MoodSage = Color(0xFFA3BE9E)   // quiet and bright
-private val MoodPlum = Color(0xFFB084AC)   // loud and dark
-private val MoodClay = Color(0xFFDEA07A)   // loud and bright
+// Patina, the four corners of the mood map (MATH §8.5, David's pick of six, 2026-10-30): aged metal, so they sit with the ivory; none is brass, which stays the play button's.
+private val MoodTeal = Color(0xFF4F8A8B)    // quiet and dark
+private val MoodGlass = Color(0xFF9CC4B2)   // quiet and bright: sea glass
+private val MoodCopper = Color(0xFFB8735A)  // loud and dark
+private val MoodSand = Color(0xFFE2C4A0)    // loud and bright
 private const val MoodColourGain = 1.7f    // a dense song's tone stays near the middle: lean on it a little
 private const val MoodLevelHalfDb = 6f
 
@@ -86,7 +86,7 @@ class SongMood(val tone: FloatArray, val energy: FloatArray, val level: FloatArr
         val k = at(i)
         val x = (tone[k] * MoodColourGain).coerceIn(-1f, 1f)
         val y = (level[k] / MoodLevelHalfDb).coerceIn(-1f, 1f)
-        val corner = lerp(lerp(MoodSlate, MoodSage, (x + 1f) / 2f), lerp(MoodPlum, MoodClay, (x + 1f) / 2f), (y + 1f) / 2f)
+        val corner = lerp(lerp(MoodTeal, MoodGlass, (x + 1f) / 2f), lerp(MoodCopper, MoodSand, (x + 1f) / 2f), (y + 1f) / 2f)
         return lerp(MoodIvory, corner, minOf(0.95f, maxOf(abs(x), abs(y)).pow(0.6f)))
     }
     /** Two plain words for the moment, e.g. "rising · warm". */
