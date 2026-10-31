@@ -36,7 +36,7 @@ lives in the engine. The app only gathers inputs and applies the outputs.
   song has its own lesson (then the artist's is not used); `artistTrackDbs` = the stored offsets of the artist's taught
   songs (the artist's applies only when there are ≥ 2 and they share one sign). MATH-1.30: `trackConfirmed` (absent = stored
   before 1.30 = trusted; false = at most 1 dB applies) and `artistFirstDays` (the artist's offset applies only once its
-  last event is ≥ 12 h after this). `learnUpdateJson` takes/returns `trackFirstDays`, `trackConfirmed`, `artistFirstDays`; it also takes `headroomDb` (MATH-1.31: room under the song's peak cap; under 0.5 dB a press up returns `{"ignored":"capped"}`).
+  last event is ≥ 12 h after this). `learnUpdateJson` takes/returns `trackFirstDays`, `trackConfirmed`, `artistFirstDays`; it also takes `headroomDb` (MATH-1.31: room under the song's peak cap; under 0.5 dB a press up returns `{"ignored":"capped"}`) and `tap` (MATH-1.36, §19.4: no environment weight; during probation `trackDb` stays within ±1 and a tap past it returns `{"ignored":"limit"}`).
   `learnedDb` instead = a value frozen
   when the item started.
 - `manual` = this item began, or will begin, by a user action. The seam chain follows the gain each item actually

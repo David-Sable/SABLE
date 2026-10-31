@@ -242,6 +242,23 @@ TEST_CASE("learn: event update, environment filter and clamp (MATH §19.1-19.2)"
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":3,\"prevDeltaDb\":-3,\"nowDays\":0}"), "omega") == 1.0);
   CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-12,\"trackDb\":-1.9,\"trackDays\":5,\"nowDays\":5}"), "trackDb") == -2.0);
   CHECK(sable::learnUpdateJson("{}") == "{\"error\":\"bad input\"}");
+  // MATH-1.36, owner's drive: a tap is never the room, whatever came before it or how the level got there.
+  const std::string tapAfterTap = sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"prevDeltaDb\":-2,\"prevDays\":9.998,\"prevEndDb\":0,\"startDb\":0,\"jumpDays\":9.998,\"jumpEndDb\":0,\"nowDays\":10}");
+  CHECK(field(tapAfterTap, "omega") == 1.0);
+  CHECK(field(tapAfterTap, "trackDb") == doctest::Approx(-1.0));
+  CHECK(field(tapAfterTap, "artistDb") == doctest::Approx(-0.5));
+  // During probation: at the limit a tap the same way changes nothing, not even the artist; the first tap back is heard in full.
+  const std::string atLimit = "\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"artistDb\":-0.5,\"artistDays\":10,\"artistFirstDays\":10,\"nowDays\":10.0001}";
+  CHECK(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2," + atLimit).find("\"ignored\":\"limit\"") != std::string::npos);
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":2," + atLimit), "trackDb") == doctest::Approx(0.0).epsilon(1e-3));
+  // Still at the limit just before 12 h; from 12 h the same way confirms, and the song may go on to 2 dB.
+  CHECK(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.49}").find("\"ignored\":\"limit\"") != std::string::npos);
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.5}"), "trackDb") < -1.9);
+  // A press stored past the limit: a tap back moves what is heard, not the unheard rest.
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":2,\"trackDb\":-2,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10.001}"), "trackDb") == doctest::Approx(0.0).epsilon(1e-3));
+  // A confirmed song keeps the plain update, and a press is unchanged by all this.
+  CHECK(field(sable::learnUpdateJson("{\"tap\":true,\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":5,\"trackConfirmed\":true,\"nowDays\":10}"), "trackDb") == doctest::Approx(-2.0));
+  CHECK(field(sable::learnUpdateJson("{\"deltaDb\":-2,\"trackDb\":-1,\"trackDays\":10,\"trackFirstDays\":10,\"trackConfirmed\":false,\"nowDays\":10}"), "trackDb") == doctest::Approx(-2.0));
 }
 
 TEST_CASE("plan: absurd targets and ceilings are bounded (MATH-1.29)") {

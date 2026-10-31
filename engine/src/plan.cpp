@@ -180,6 +180,7 @@ constexpr double kJitTpMargin = 1.0;        // §22.2 M_jitTP
 constexpr double kPerceptualBound = 3.0;    // §16.2 B_p
 constexpr double kProbationDb = 1.0;        // §19.2 (MATH-1.30): most an unconfirmed first lesson applies
 constexpr double kConfirmDays = 0.5;        // §19.2 (MATH-1.30): "another day" = at least this far apart (12 h)
+constexpr double kTapLimitBandDb = 0.02;    // §19.4 (MATH-1.36): 12 h of decay from the limit stays inside this, so a song at the limit reads as there
 constexpr double kFlowGap = 0.5;          // §17.3 G_flow: most silence (s) a track may hold and still flow
 
 struct Track {
@@ -448,6 +449,7 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   // the lesson would be stored but never heard, and would nudge the artist for nothing. A press down always counts.
   constexpr double kCappedRoomDb = 0.5;
   if (const auto room = in.num("headroomDb"); room && *room < kCappedRoomDb && dvEff > 0.0) return "{\"ignored\":\"capped\"}";
+  const bool tap = in.flag("tap");  // §19.4 (MATH-1.36): a tap names the song, so it is never the room: no environment weight
   double omega = 1.0;
   // The previous event is evidence of an environment change only while recent (T_env = 10 min, MATH-1.23).
   constexpr double kEnvWindowDays = 10.0 / 1440.0;
@@ -458,7 +460,7 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   const auto startDb = in.num("startDb");
   const auto prevEndDb = in.num("prevEndDb");
   const bool restored = startDb && prevEndDb && std::fabs(*startDb - *prevEndDb) >= 0.5;
-  if (prev && *prev != 0.0 && prevAt && now - *prevAt <= kEnvWindowDays && !restored) {
+  if (!tap && prev && *prev != 0.0 && prevAt && now - *prevAt <= kEnvWindowDays && !restored) {
     const double ratio = dv / *prev;
     if (ratio >= 0.5 && ratio <= 2.0) omega = 0.25;  // same sign, similar size: a change of environment
   }
@@ -467,7 +469,7 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   // other change of environment. Putting the volume back to a level of their own ends it.
   const auto jumpAt = in.num("jumpDays");
   const auto jumpEnd = in.num("jumpEndDb");
-  if (jumpAt && jumpEnd && startDb && now - *jumpAt <= kEnvWindowDays && std::fabs(*startDb - *jumpEnd) < 0.5) omega = std::min(omega, 0.25);
+  if (!tap && jumpAt && jumpEnd && startDb && now - *jumpAt <= kEnvWindowDays && std::fabs(*startDb - *jumpEnd) < 0.5) omega = std::min(omega, 0.25);
   LearnedOffset t{in.num("trackDb", 0.0), in.num("trackDays", now)}, a{in.num("artistDb", 0.0), in.num("artistDays", now)};
   // MATH-1.30: when the song was first taught and whether a second press on another day, the same way, has confirmed it.
   // A lesson stored before 1.30 (a value without these fields) counts as confirmed.
@@ -477,8 +479,15 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   bool tConfirmed = legacy || in.flag("trackConfirmed");
   if (!tConfirmed && tBefore != 0.0 && std::signbit(tBefore) == std::signbit(dvEff) && now - tFirst >= kConfirmDays) tConfirmed = true;
   if (tBefore == 0.0 && !legacy) { tFirst = now; tConfirmed = false; }  // nothing standing (new, or decayed/cancelled away): a fresh first lesson
+  // §19.4 (MATH-1.36): during probation a tap works from what is heard, so every tap either moves the level or says it cannot.
+  if (tap && !tConfirmed) {
+    t.valueDb = std::clamp(tBefore, -kProbationDb, kProbationDb);
+    t.updatedDays = now;
+    if (std::fabs(t.valueDb) >= kProbationDb - kTapLimitBandDb && std::signbit(t.valueDb) == std::signbit(dvEff)) return "{\"ignored\":\"limit\"}";
+  }
   const double aFirst = in.num("artistFirstDays").value_or(a.valueDb != 0.0 ? a.updatedDays - kConfirmDays : now);  // a pre-1.30 artist is trusted: it dates from before its last event
   learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
+  if (tap && !tConfirmed) t.valueDb = std::clamp(t.valueDb, -kProbationDb, kProbationDb);
   learnEvent(a, 0.25, omega * dvEff, now);  // eta_a
   return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
          ",\"artistDays\":" + num(a.updatedDays) + ",\"trackFirstDays\":" + num(tFirst) + ",\"trackConfirmed\":" + (tConfirmed ? "true" : "false") +

@@ -19,7 +19,7 @@ interface CounterStore {
  * The learning scoreboard: a private, on-device tally of whether listener learning (MATH §19) is working. It only counts;
  * it never changes a gain, and nothing leaves the phone. Per week and per place (the output device, §19.3) it keeps:
  *  - plays that could teach (a learning window opened), split into songs Sable already had a lesson for and new songs;
- *  - plays where the listener corrected the volume (a net change of 0.5 dB or more), same split, and which way;
+ *  - plays where the listener corrected the volume (a net change of 0.5 dB or more, or a Quieter or Louder tap), same split, and which way;
  *  - what became of those corrections: counted as a lesson, or ignored and why (the same reasons as §19.1);
  *  - plays that could not teach at all (put back where it was left, started mid-song, provisional gain);
  *  - touches that were put back, and touches outside the learning window (approximate: Android does not always report them).
@@ -70,7 +70,7 @@ class LearningScoreboard(
         }
         if (cells.isEmpty()) return listOf("SCOREBOARD nothing recorded yet (it counts from the first song played after this version was installed)")
         val lines = ArrayList<String>()
-        lines += "SCOREBOARD private tally on this phone. Corrected = volume changed 0.5 dB or more in a song's first 20 s. Touches outside the window are approximate."
+        lines += "SCOREBOARD private tally on this phone. Corrected = volume changed 0.5 dB or more in a song's first 20 s, or Quieter or Louder tapped (once a play). Touches outside the window are approximate."
         val total = HashMap<String, MutableMap<String, Int>>()
         for ((wp, c) in cells) c.forEach { (k, v) -> total.getOrPut(wp.second) { HashMap() }.merge(k, v, Int::plus) }
         for (place in total.keys.sortedByDescending { total.getValue(it).values.sum() }) lines += "SCOREBOARD all weeks · ${labelOf(place)}: ${describe(total.getValue(place))}"
@@ -122,7 +122,7 @@ class LearningScoreboard(
         private const val OFF_MIDSONG = "off_midsong"
         private const val OFF_PROVISIONAL = "off_provisional"
         private const val IGN_OTHER = "ign_other"
-        private val IGNORED = listOf("ign_route", "ign_paused", "ign_original", "ign_jump", "ign_section", "ign_capped", IGN_OTHER)
+        private val IGNORED = listOf("ign_route", "ign_paused", "ign_original", "ign_jump", "ign_section", "ign_capped", "ign_limit", IGN_OTHER)
         private val OUTCOMES = setOf(TAUGHT) + IGNORED
     }
 }

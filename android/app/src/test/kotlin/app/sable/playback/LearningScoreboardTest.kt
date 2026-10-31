@@ -56,13 +56,14 @@ class LearningScoreboardTest {
         board.moved(id, label, known = false, up = false); board.outcome(id, label, "ign_section")
         board.moved(id, label, known = false, up = true); board.outcome(id, label, "ign_capped")
         board.moved(id, label, known = true, up = false); board.outcome(id, label, "ign_paused")
+        board.outcome(id, label, "ign_limit")  // MATH-1.36: a second tap on one play, past the 1 dB limit
         board.undone(id, label)
         board.off(id, label, "resumed"); board.off(id, label, "midsong"); board.off(id, label, "provisional"); board.off(id, label, "provisional")
         board.outside(id, label)
         val line = board.report().first { it.startsWith("SCOREBOARD all weeks") }
         assertEquals(
             "SCOREBOARD all weeks · Bluetooth · JBL Charge 5: 12 plays could teach, 4 corrected (33%); corrections: 3 down, 1 up; " +
-                "1 counted as lessons, ignored: paused 1, section 1, capped 1; songs already taught: 1 of 4 corrected (25%); " +
+                "1 counted as lessons, ignored: paused 1, section 1, capped 1, limit 1; songs already taught: 1 of 4 corrected (25%); " +
                 "new songs: 3 of 8 corrected (38%); 4 plays could not teach (put back where left 1, mid-song 1, provisional gain 2); " +
                 "1 touches put back; 1 touches outside the window", line)
     }

@@ -55,6 +55,7 @@ David may need to start a new chat when the context fills up, so never leave sta
 - Logo: the white lion (David's choice). Regenerate icon and mark only with `tools/branding/trace_logo.py`; Android caps a resource string at 32,767 chars, so keep one `<path>` per shape. Keep the app minimal: the mark appears only beside the title, in About and on empty states.
 
 ## 5. Build, test, release
+- **GitHub stays tidy:** `main` is the only long-lived branch. Once a side branch is merged, delete it on GitHub and here; only CI's three `build-N` releases and tags stay (`git fetch --prune --prune-tags` clears stale local tags).
 - **Line endings are mixed** (some files LF, some CRLF). Python text mode on Windows rewrites a whole file's endings: edit with the Edit tool, or keep the file's own endings, and check `git diff --stat` for churn before committing.
 - Engine: `cmake -S engine -B build -DCMAKE_CXX_COMPILER=clang++ -DSABLE_SANITIZE=ON && cmake --build build -j && ./build/sable_tests`
   (on the PC: `source ~/dev/sable-toolchain/env.sh` first; existing build dirs `engine/build-host`, `engine/build-asan`).

@@ -14,20 +14,21 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.45.4, MATH-1.35. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.45.5, MATH-1.36. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
 - **Waiting on David:** Android Auto's Unknown sources setting (needed before the car test); his word on the mid-song output switch on the JBL.
 - **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, the mood colours, targets -14 and -19.
 - **Learning so far (2026-10-29):** corrected plays: JBL 19 %, car 7 %, speaker 7 %. The JBL figure is largely David riding the volume in the garage on purpose. Too few taught songs replayed to judge yet.
-- **Car check (2026-10-30, 19:00-19:13 drive):** all 12 Quieter/Louder taps worked and the sound was clean. Two faults, not fixed, waiting on David's yes: a tap on the same or next song within 10 min counts a quarter (0.25 dB, cannot be heard; §19.4 environment filter), while the first opposite tap counts in full; and taps never reach the scoreboard's "corrected" figure (car shows 3 %).
+- **Taps (0.45.5):** every Quieter or Louder tap now counts in full (1 dB), held at ±1 until repeated 12 h or more later, and tapped plays count as corrected on the scoreboard from now on. David to judge in the car. The car's 3 % predates this, so read it as new weeks build up.
 - **Known limits:** ALAC from iTunes/XLD untested; USB-C output untested; 5.1 files up to ~3 dB too loud (the library is stereo); EBU's official test files never downloaded (compliance uses generated signals).
 
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
-- **2026-10-30 car check (no code):** read diag, learned and scoreboard after David's drive. Taps and sound fine; quarter-weight taps and the scoreboard's blind spot found, see Now and HISTORY.
+- **2026-10-30 0.45.5, MATH-1.36:** taps are never the room: full weight, a clear limit during probation, counted on the scoreboard. Verified on the phone. GitHub tidied: `main` only.
+- **2026-10-30 car check (no code):** read diag, learned and scoreboard after David's drive. Taps and sound fine; quarter-weight taps and the scoreboard's blind spot found, see HISTORY.
 - **2026-10-30 0.45.4:** widget (two rows and up): previous, play and next centred under the text; they sat 61 px left of the middle. Measured on the phone: play at 770.5, column middle 770.5.
 - **2026-10-30 0.45.3:** swiping tabs: the name lights at once again and an up or down scroll works straight after a swipe; slowest swipe frame 25 ms.
 - **2026-10-30 0.45.2:** frame rate, batch 1: tabs stay built, library lists worked out once in the background, far tabs one slide, own code in the baseline profile; launch screen holds until Home is ready. Slowest tab frame 166 ms to 47 ms once the phone has optimised Sable; filmed and measured.

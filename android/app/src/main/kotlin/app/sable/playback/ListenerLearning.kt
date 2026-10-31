@@ -147,6 +147,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     private var startIndex = 0
     private var firstPressPosMs = -1L  // playback position at the window's first press (§19.1, MATH-1.27)
     private var knownAtStart = false   // the song already had a lesson at this place when the window opened (scoreboard)
+    private var correctedThisPlay = false  // the scoreboard counts one correction a play, press or tap
     private var lastPlayKey: String? = null
     private var lastPlayAt = 0L
     private var lastOutsideAt = -1_000_000L
@@ -231,6 +232,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     /** A song began (tap, skip or natural transition). Closes any open window; A/B rounds never teach (§19.1). */
     fun onItemStart(t: TrackEntity?) {
         closeWindow()
+        correctedThisPlay = false
         if (t == null) return
         track = t
         place = currentPlace()
@@ -292,11 +294,17 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val delta = volumeDb() - startDb  // presses in one window accumulate; an undone press nets to ~0
         note("LEARN window ${t.displayName} at ${place.label}: volume %.2f -> %.2f dB".format(startDb, startDb + delta))
         if (abs(delta) < MIN_EVENT_DB) { tally { board.undone(place.id, place.label) }; return }
-        tally { board.moved(place.id, place.label, knownAtStart, up = delta > 0) }
+        corrected(place, knownAtStart, up = delta > 0)
         if (routeChangedAt >= startAt - ROUTE_QUIET_MS) { tally { board.outcome(place.id, place.label, "ign_route") }; note("LEARN ignored (output changed) ${t.displayName}"); return }
         if (pressedWhilePaused) { tally { board.outcome(place.id, place.label, "ign_paused") }; note("LEARN ignored (paused) ${t.displayName}"); return }
         if (pressedDuringOriginal) { tally { board.outcome(place.id, place.label, "ign_original") }; note("LEARN ignored (original held) ${t.displayName}"); return }
         commit(t, delta, place)
+    }
+
+    private fun corrected(p: Place, known: Boolean, up: Boolean) {
+        if (correctedThisPlay) return
+        correctedThisPlay = true
+        tally { board.moved(p.id, p.label, known, up) }
     }
 
     /**
@@ -308,11 +316,13 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         val p = currentPlace()
         val delta = if (up) NUDGE_DB else -NUDGE_DB
         val before = offsets(t, p).trackDb
+        corrected(p, offsets(t, p).trackTaught, up)
         val result = runCatching { commit(t, delta, p, deliberateAt = volumeDb()) }.getOrDefault("error")
         val after = offsets(t, p).trackDb
         note("LEARN nudge ${if (up) "louder" else "quieter"} ${t.displayName} at ${p.label}: track %+.2f -> %+.2f dB".format(before, after))
         return when {
             result == "capped" -> "Already as loud as it can safely go"
+            result == "limit" -> "As far as it goes for now"
             result != null || after == before -> "Nothing changed"
             up -> "Louder from now on"
             else -> "Quieter from now on"
@@ -333,6 +343,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         prefs.getString("${p.id}|prevDays", null)?.toDoubleOrNull()?.let { input.put("prevDays", it) }  // §19.1 T_env
         prefs.getString("${p.id}|prevEndDb", null)?.toDoubleOrNull()?.let { input.put("prevEndDb", it) }  // §19.1 put back?
         input.put("startDb", startDb)
+        if (deliberate) input.put("tap", true)  // MATH-1.36: never the room
         val room = headroomOf(t)
         room?.let { input.put("headroomDb", it) }  // MATH-1.31: a press up on a song its peak cap already holds teaches nothing
         // MATH-1.28: the last ignored jump, so a press while the level is still where it left it counts as the room's
@@ -361,9 +372,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
             .apply { if (t.contentHash != null) remove("${p.id}|t:${idKey(t)}") }
             .putString("${p.id}|t:${trackKey(t)}", "${out.getDouble("trackDb")},${out.getDouble("trackDays")},${out.getDouble("trackFirstDays")},${if (out.getBoolean("trackConfirmed")) 1 else 0}")
             .apply { if (ak != null) putString("${p.id}|a:$ak", "${out.getDouble("artistDb")},${out.getDouble("artistDays")},${out.getDouble("artistFirstDays")}").putStringSet("${p.id}|ac:$ak", ac) }
-            .putFloat(prev, delta.toFloat())
-            .putString("${p.id}|prevDays", now.toString())
-            .putString("${p.id}|prevEndDb", (if (deliberate) startDb else startDb + delta).toString())
+            .apply { if (!deliberate) putFloat(prev, delta.toFloat()).putString("${p.id}|prevDays", now.toString()).putString("${p.id}|prevEndDb", (startDb + delta).toString()) }  // MATH-1.36: a tap says nothing about the room
             .apply()
         note("LEARN ${t.displayName} at ${p.label}: volume %+.1f dB, weight ${out.getDouble("omega")}, counted %+.1f dB -> track %+.2f dB, artist %+.2f dB"
             .format(delta, out.getDouble("effectiveDb"), out.getDouble("trackDb"), out.getDouble("artistDb")) + (room?.let { ", room %.1f dB".format(it) } ?: ""))

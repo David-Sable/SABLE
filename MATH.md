@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.35 (2026-10-30)
+**Version:** MATH-1.36 (2026-10-30)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -665,10 +665,11 @@ Offsets are visible on the Why sheet and resettable (per track, per artist, all)
 
 ### 19.4 A deliberate "quieter / louder for this song" tap [DESIGN, MATH-1.32, owner decision 2026-10-28]
 A car stereo's volume knob is invisible to Android (the phone's media volume stays where it was), so nothing can be learned there from §19.1. Now Playing can show two small buttons, **Quieter** and **Louder** (Advanced switch, on in the trial build). Nothing happens unless they are tapped; there is no new always-on processing.
-- A tap is a counted feedback event at the current place for the playing song, with `Δv = ∓N`, `N = 2 dB`, and it goes through exactly the same update as a press (§19.1 filters that still apply, §19.2, §19.2's hint-first rule MATH-1.30): the environment filter (a second tap the same way within 10 min is weighted 0.25), the peak-cap rule (`ignored: capped` for **Louder** on a song its cap already holds; the app says so), the ±2 dB clamp, the 1 dB probation until the same direction repeats 12 h or more later, and the artist rule (two songs agreeing on two different days).
+- A tap is a counted feedback event at the current place for the playing song, with `Δv = ∓N`, `N = 2 dB`, and it goes through exactly the same update as a press (§19.1 filters that still apply, §19.2, §19.2's hint-first rule MATH-1.30): the peak-cap rule (`ignored: capped` for **Louder** on a song its cap already holds; the app says so), the ±2 dB clamp, the 1 dB probation until the same direction repeats 12 h or more later, and the artist rule (two songs agreeing on two different days).
+- **[MATH-1.36] A tap is never the room:** the environment filter and the unsettled-level weight of §19.1 do not apply, so every tap has `ω = 1`, and a tap is not stored as the "previous event" of §19.1, so it says nothing about the next press. Before 1.36 a tap the same way within 10 min, on any song, moved 0.25 dB, which cannot be heard, while the first tap back moved 1 dB. Owner's drive: four Quieter on "It Ain't Hard to Tell" made −1 dB and one Louder undid all of it. The room belongs to the car's own knob, which Sable cannot see.
+- **[MATH-1.36] During probation a tap works from what is heard.** While the song is unconfirmed, `o_t` is clamped to `±P` before and after a tap, so a tap back is always heard (a press may have stored more than `P`). At the limit (`|o_t| ≥ P − 0.02 dB`, the margin covering 12 h of decay) a tap the same way changes nothing, song or artist, and the app says so (`ignored: limit`). From 12 h after `τ₀` the same tap confirms the lesson as usual and the song may go on to ±2.
 - The rules that decide whether a *press* was meant for the song do **not** apply, because a tap is: the 20 s window, "from the beginning", the full-analysis requirement is kept (a tap on a provisional gain still teaches, since the listener heard it), the section-aware correction `e` (§19.1), the mute and `|Δv| ≤ 12 dB` checks, and the paused and route-change ignores.
 - It acts on the playing song **now**, smoothly (the user-initiated in-track change of §23.3), because the tap is the listener's own correction; §28's "no double correction" does not apply (nothing else corrected this play).
-- The stored "previous event" for the environment filter records the tap and leaves the "level the previous event ended at" at the current volume (nothing was pressed).
 - **[MATH-1.35]** The same two buttons also sit on the media notification, the lock screen and Android Auto, under the same switch. Same `N`, same rules, same update; only the place the finger lands changes, and a short message replaces the words on Now Playing.
 
 
