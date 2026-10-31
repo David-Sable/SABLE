@@ -38,8 +38,8 @@ David may need to start a new chat when the context fills up, so never leave sta
   applies outputs; it never re-implements a rule.
 - **Portable C++:** it must build with libc++ (Android, llvm-mingw) **and** libstdc++ (Linux CI). Include what you use.
 - **Never commit audio, licensed references or keys.** David's corpus (copyrighted) and the standards PDFs stay on the
-  PC (`~/dev/sable-corpus`, `~/dev/sable-refs`). `.gitignore` blocks audio and keystores. The signing key exists only
-  on the PC (`~/.android/debug.keystore`) and in the GitHub secret `SABLE_KEYSTORE_B64`. Never print, copy or move it.
+  PC (`~/dev/sable-corpus`, `~/dev/sable-refs`). `.gitignore` blocks audio and keystores. The signing key exists
+  on the PC (`~/.android/debug.keystore`), in the GitHub secret `SABLE_KEYSTORE_B64`, and in David's own backup. Never print, copy or move it.
 - Commit identity: `David-Sable <327186142+David-Sable@users.noreply.github.com>` (the account was renamed from craigdavid209-design on 2026-10-29; GitHub forwards the old address, but use the new one).
 - **Ask David first** before a major new dependency or a change to the product's philosophy: one static gain per song by
   default; the Quiet contour (on by default in Quiet, switchable in Advanced) is the only non-flat processing; the music in files is never modified (audio and tags; the gain is applied at play time). Files may only be moved, by Organize into Music/Artist/Album, when the owner asks: Sable's question, then Android's permission, always with Undo (David, 2026-10-30).
