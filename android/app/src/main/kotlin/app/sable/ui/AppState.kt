@@ -63,9 +63,21 @@ class AppState {
     /** Which path the cover takes: closing rides the sheet down; opening flies straight out of the mini player (SableApp). */
     var sheetLeaving = false
     /** The finger moved the sheet by [dpx] px (up is positive), from Now Playing ([leaving]) or from the mini player. */
+    /** When the last drag step arrived (ns), to know how long the step took; 0 when no drag is going on. */
+    private var lastDragNs = 0L
+    /**
+     * The sheet follows the finger, but never faster than [sheetVmax] (David, 2026-10-31: Now Playing looks right when the swipe is
+     * slow, too fast and "too much control" when the finger is quick: the sheet was gone in about six frames while the cover was
+     * still on its way). A slow finger is followed exactly; a quick one is followed at the sheet's own best pace, and what the
+     * finger did beyond that is dropped, so the spring that takes over on release does the rest at its designed pace.
+     */
     fun dragSheet(dpx: Float, leaving: Boolean) {
         sheetLeaving = leaving
-        sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo((sheet.value + dpx / sheetTravel).coerceIn(0f, 1f)) }
+        val now = System.nanoTime()
+        val dt = if (lastDragNs != 0L && now - lastDragNs < 100_000_000L) ((now - lastDragNs) / 1e9f).coerceIn(0.004f, 0.05f) else 0.008f
+        lastDragNs = now
+        val step = (dpx / sheetTravel).let { if (it.isFinite()) it else 0f }.coerceIn(-sheetVmax * dt, sheetVmax * dt)
+        sheetScope?.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { sheet.snapTo((sheet.value + step).coerceIn(0f, 1f)) }
     }
     /** Android's back gesture on Now Playing: the sheet follows the thumb part of the way, and the rest happens when it lets go. */
     fun backSheet(progress: Float) {
@@ -77,13 +89,19 @@ class AppState {
     var backing by mutableStateOf<Route?>(null)
     var backP by androidx.compose.runtime.mutableFloatStateOf(0f)
     /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */
+    /** The fastest the sheet may move (progress per second), dragged by a finger or let go onto its spring. 3 = the whole screen in about a third of a second. */
+    var sheetVmax = 3f
     fun releaseSheet(vpx: Float) {
-        val v = vpx / sheetTravel
+        lastDragNs = 0L
+        val raw = vpx / sheetTravel
+        val v = raw
         val p = sheet.value
         val open = if (kotlin.math.abs(v) > 1f) v > 0f else p + 0.15f * v > 0.5f
         val isOpen = back.any { it is Route.NowPlaying }
-        if (open != isOpen) { sheetVelocity = v; if (open) go(Route.NowPlaying) else pop() }
-        else sheetScope?.launch { sheet.animateTo(if (open) 1f else 0f, app.sable.ui.theme.Motion.sheetSpring, initialVelocity = v) }
+        val handed = v.coerceIn(-sheetVmax, sheetVmax)
+        android.util.Log.i("SableAnim", "release p=%.2f v=%.2f/s handed=%.2f open=$open".format(p, raw, handed))
+        if (open != isOpen) { sheetVelocity = handed; if (open) go(Route.NowPlaying) else pop() }
+        else sheetScope?.launch { sheet.animateTo(if (open) 1f else 0f, app.sable.ui.theme.Motion.sheetSpring, initialVelocity = handed) }
     }
     fun coverFlying(): Boolean = !debugNoFlight && miniCover != null && npCover != null && sheetProgress().let { it > 0f && it < 1f }
     var whyTrack by mutableStateOf<Long?>(null)

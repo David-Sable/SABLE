@@ -190,7 +190,9 @@ fun SableApp(state: AppState, rows: List<LibraryRow>, onRescan: () -> Unit, onAn
         LaunchedEffect(npOpen) {
             val v = state.sheetVelocity; state.sheetVelocity = 0f
             state.sheetLeaving = !npOpen
+            val t0 = android.os.SystemClock.uptimeMillis(); val p0 = state.sheet.value
             state.sheet.animateTo(if (npOpen) 1f else 0f, Motion.sheetSpring, initialVelocity = v)
+            android.util.Log.i("SableAnim", "sheet %s from %.2f at %.2f/s settled in %d ms".format(if (npOpen) "open" else "close", p0, v, android.os.SystemClock.uptimeMillis() - t0))
         }
         // The first opening after a start (or a new song) drew the sheet for the first time: its cover upload and first draw stalled
         // about five frames while the mini player's cover had already gone. So it is drawn once, invisibly, as soon as a song is there.

@@ -28,6 +28,8 @@ What was run in the 2026-10-27 blind-spot pass, so a later session can repeat it
 ## Frame rate: measure what David runs
 A normal install is `verify` until the phone compiles the profile when idle. `cmd package compile -m speed` hides that. Measure right after `adb install`, then again after `cmd package compile -m speed-profile -f app.sable`. Use `tools/perf/tab_frames.py` on one framestats file per gesture: the slowest frame is what the eye catches, and a late-frame share over repeats hides it.
 
+**Now Playing swipe:** the app logs every release and settle under tag `SableAnim` (progress, finger speed, speed handed to the spring). Swipe with `adb shell input swipe 540 500 540 1700 <ms>` (1000 slow .. 50 flick); film with `adb shell screenrecord --time-limit 3` and tile frames with `ffmpeg -vf fps=60,scale=150:-1,tile=11x4`. The speed limit is live-tunable: `--es cmd animflag --es name vmax --ei value 300` (hundredths of progress per second).
+
 **Test lessons:** erase them with `purgeplace --es place speaker --ei hours N`, never `forgetsong` (it clears the song in every place, including David's) and never `forget` (everything). Check the taught-song count before and after (`learned`, lines `LEARNED speaker · song`).
 
 **Muted playback tests:** `media volume` is not on this phone's shell path. Read the volume back as 0 from `dumpsys audio` before any play command, and stop the script if it is not (2026-10-30: a failed mute let 4 s of a song play aloud).

@@ -242,6 +242,7 @@ class MainActivity : ComponentActivity() {
                         "nocapture" -> state.debugNoCapture = v != 0
                         "norecord" -> state.debugNoRecord = v != 0
                         "capdelay" -> state.debugCaptureDelayMs = v.toLong()
+                        "vmax" -> state.sheetVmax = v / 100f      // the fastest the finger may hand the sheet to its spring, in hundredths of progress per second
                         "dur" -> state.animDur = v / 100f          // percent: 100 as designed, 200 twice as slow
                         "depth" -> state.animDepth = v != 0
                         "corners" -> state.animCorners = v != 0
