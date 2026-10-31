@@ -7,6 +7,7 @@
 #include "sable/audio_source.h"
 #include "sable/pipeline.h"
 #include "sable/contour.h"
+#include "sable/intent.h"
 #include "sable/plan.h"
 
 namespace {
@@ -83,6 +84,10 @@ JNIEXPORT jstring JNICALL Java_app_sable_engine_SableEngine_learnUpdate(JNIEnv* 
   std::string in(c ? c : "");
   if (c) env->ReleaseStringUTFChars(input, c);
   return str(env, sable::learnUpdateJson(in));
+}
+
+JNIEXPORT jdouble JNICALL Java_app_sable_engine_SableEngine_decayedDb(JNIEnv*, jclass, jdouble valueDb, jdouble updatedDays, jdouble nowDays) {
+  return sable::decayedOffset({valueDb, updatedDays}, nowDays);
 }
 
 // Quiet-mode contour (MATH §24): design for a calibration offset, with biquads at the playback rate.

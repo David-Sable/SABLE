@@ -102,7 +102,7 @@ object Backup {
 
         val prefs = root.getJSONObject("prefs")
         for (name in PREFS) prefs.optJSONObject(name)?.let { jsonToPrefs(context, name, it) }
-        PlaybackPrefs.load(context)
+        PlaybackPrefs.reload(context)
 
         val plays = root.getJSONArray("plays").objects().mapNotNull { o ->
             map[o.getLong("track")]?.let { PlayEntity(trackId = it, playedAt = o.getLong("at"), albumWorld = o.optBoolean("album")) }

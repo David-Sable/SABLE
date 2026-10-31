@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import app.sable.data.LibraryRow
 import app.sable.data.SableDatabase
 import app.sable.data.TrackEntity
+import app.sable.engine.SableEngine
 import app.sable.library.GainTags
 import app.sable.playback.ListenerLearning
 import kotlinx.coroutines.Dispatchers
@@ -157,7 +158,7 @@ fun WhySheet(state: AppState, row: LibraryRow, onDismiss: () -> Unit) {
                 if (rules.isEmpty()) Text("None", style = SableType.caption, color = SableColors.textTertiary)
                 if (isPlaying && (live.learnedDb != 0.0 || live.outputCalDb != 0.0 || live.contourOn)) {
                     Section("Your settings")
-                    if (live.learnedDb != 0.0) Measure("Learned from your volume keys", "%+.1f dB".format(live.learnedDb))
+                    if (live.learnedDb != 0.0) Measure("Learned from you", "%+.1f dB".format(live.learnedDb))
                     if (live.outputCalDb != 0.0) Measure("Level offset for ${live.route}", "%+.1f dB".format(live.outputCalDb))
                     if (live.contourOn) Measure("Quiet-mode contour", "on")
                 }
@@ -196,10 +197,12 @@ private fun Learned(row: LibraryRow) {
     val o = remember(t, version) { learning.offsets(t, place) }
     if (o.trackDb == 0.0 && o.artistDb == 0.0) return
     Section("Learned for ${place.label}")
-    if (o.trackDb != 0.0) Measure("This song (set ${daysAgo(ListenerLearning.nowDays() - o.trackDays)})", "%+.1f dB".format(o.trackDb))
+    // What each lesson is worth today (§19.2): the stored figures are from the day they were set and halve each month.
+    val now = ListenerLearning.nowDays()
+    if (o.trackDb != 0.0) Measure("This song (set ${daysAgo(now - o.trackDays)})", "%+.1f dB".format(SableEngine.decayedDb(o.trackDb, o.trackDays, now)))
     if (o.trackDb != 0.0 && o.trackConfirmed == false) Text("A first hint: it counts up to 1 dB until you do the same on another day.", style = SableType.caption, color = SableColors.textTertiary)
     if (o.artistDb != 0.0) {
-        Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(o.artistDb))
+        Measure("${clean(t.artist)} (${o.artistTracks} song${if (o.artistTracks == 1) "" else "s"})", "%+.1f dB".format(SableEngine.decayedDb(o.artistDb, o.artistDays, now)))
         // §19.2 (MATH-1.23): when the artist's offset is not part of this song's gain, say why.
         val unused = when {
             o.trackTaught -> "Not used here: this song has its own."

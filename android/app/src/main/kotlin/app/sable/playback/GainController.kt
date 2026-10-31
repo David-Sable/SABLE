@@ -78,9 +78,10 @@ class GainController(
     private val audioManager = context.getSystemService(AudioManager::class.java)
     val learning = ListenerLearning(context, main)
     private val frozenLearned = HashMap<String, Double>()  // §28: learning applies from the next play, never mid-track
+    private val frozenSeam = HashMap<String, Double>()     // §18 (MATH-1.40): the seam an item started with; it stays for that play
     private val refreeze = HashSet<String>()  // main thread: started items to re-freeze from the next plan (new place, §19.3)
     private var placeId: String? = null       // §19.3: the device playing now (two Bluetooth devices are two places)
-    private var placeGen = 0                  // main thread: bumped on every change of place
+    private var freezeGen = 0                 // main thread: bumped whenever a frozen offset is dropped (new place, tap, replay)
     private var contourKey: Pair<Boolean, Double>? = null
     private var contourVersion = 0L
     private var contourHeadroom = 0.0
@@ -140,7 +141,9 @@ class GainController(
     private fun replay(id: String) {
         onReplay?.invoke(id)
         frozenLearned.remove(id)
+        frozenSeam.remove(id)
         refreeze += id
+        freezeGen++
         resumedIds -= id
         QueueId.trackId(id)?.let { trackCache[it] }?.let { PlaybackDiag.log("REPLAY ${it.displayName}") }
         openWindow(id)
@@ -172,8 +175,7 @@ class GainController(
     }
 
     /**
-     * MATH-1.32 §19.4: the "quieter / louder for this song" tap. Teaches like a press (same rules, hint first), and the
-     * playing song takes it now, smoothly, like a change of place (§23.3): the tap is the listener's own correction, so
+     * MATH-1.32 §19.4: the "quieter / louder for this song" tap. Teaches like a press, in full, and the playing song takes it now, smoothly, like a change of place (§23.3): the tap is the listener's own correction, so
      * §28's "no double correction" does not apply. Returns what to tell the listener.
      */
     fun nudge(up: Boolean): String {
@@ -183,6 +185,7 @@ class GainController(
         if (say.endsWith("from now on")) {
             refreeze += id
             frozenLearned.remove(id)
+            freezeGen++  // a plan already running read the lesson before this tap: it must not freeze that older value
             replan(user = true)
         }
         return say
@@ -208,7 +211,10 @@ class GainController(
             val firstStart = !manualByItem.containsKey(id)
             val changed = manualByItem.put(id, manual) != manual
             if (firstStart) {
-                lastPlan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
+                lastPlan[id]?.let { p ->
+                    frozenLearned[id] = p.optDouble("learnedDb", 0.0)
+                    if (!manual) frozenSeam[id] = p.optDouble("seamDb", 0.0)
+                }
                 // §19.1 (MATH-1.25): a song teaches only when it starts from its beginning, with its full-analysis gain.
                 openWindow(id)
             }
@@ -275,7 +281,8 @@ class GainController(
         updateContour(settings.contour && settings.mode == PlaybackPrefs.Mode.QUIET, cal)
         val headroom = if (gains.contour != null) contourHeadroom else 0.0
         val frozen = HashMap(frozenLearned)
-        val gen = placeGen  // a plan begun before a change of place must not re-freeze the old place's lessons
+        val seams = HashMap(frozenSeam)
+        val gen = freezeGen  // a plan begun before a change of place, a tap or a replay must not re-freeze older lessons
         val result = withContext(Dispatchers.IO) {
             val items = JSONArray()
             val albums = JSONObject()
@@ -306,6 +313,7 @@ class GainController(
                 o.put("albumIntent", QueueId.albumIntent(id))
                 o.put("manual", manual[i])
                 if (t != null) frozen[id]?.let { o.put("learnedDb", it) } ?: o.put("learn", learning.learnJson(t))
+                if (i <= cur) seams[id]?.let { o.put("seamDb", it) }  // after the wrap of repeat all an item begins anew
                 items.put(o)
             }
             val input = JSONObject()
@@ -328,7 +336,7 @@ class GainController(
         gains.retain(ids.toSet())
         lastPlan = plan
         NowPlaying.plan.value = plan.mapValues { (_, p) -> p.optDouble("gainDb") }
-        if (refreeze.isNotEmpty() && gen == placeGen) {
+        if (refreeze.isNotEmpty() && gen == freezeGen) {
             for (id in refreeze) plan[id]?.let { frozenLearned[id] = it.optDouble("learnedDb", 0.0) }
             refreeze.clear()
         }
@@ -448,7 +456,7 @@ class GainController(
             // plan re-freezes them (§28 still holds: no lesson from this play is in them).
             refreeze += frozenLearned.keys
             frozenLearned.clear()
-            placeGen++
+            freezeGen++
             replan(user = true)
         }
     }

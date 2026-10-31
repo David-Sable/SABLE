@@ -182,6 +182,7 @@ constexpr double kProbationDb = 1.0;        // §19.2 (MATH-1.30): most an uncon
 constexpr double kConfirmDays = 0.5;        // §19.2 (MATH-1.30): "another day" = at least this far apart (12 h)
 constexpr double kTapLimitBandDb = 0.02;    // §19.4: a song within this of the ceiling reads as at it (the margin covers a little decay)
 constexpr double kFlowGap = 0.5;          // §17.3 G_flow: most silence (s) a track may hold and still flow
+constexpr double kSeamBoundDb = 0.5;      // §18: a seam stays within this of the item's own gain
 
 struct Track {
   LoudnessResult r;
@@ -234,6 +235,7 @@ struct Item {
   int disc = 0, trackNo = 0;
   double baseDb = 0.0, capDb = std::numeric_limits<double>::infinity();
   double naturalSeamedDb = 0.0, manualSeamedDb = 0.0, learnedDb = 0.0;
+  std::optional<double> frozenSeamDb;  // §18 (MATH-1.40): the seam this item started with
   std::vector<Rule> rules;
 };
 
@@ -321,6 +323,7 @@ std::string planQueueJson(const std::string& input) {
       } else {
         it.learnedDb = std::clamp(x.num("learnedDb", 0.0), -kTapCeilingDb, kTapCeilingDb);  // §19.2 clamp (a value frozen at item start)
       }
+      if (const auto seam = x.num("seamDb")) it.frozenSeamDb = std::clamp(*seam, -kSeamBoundDb, kSeamBoundDb);
       const std::string key = x.str("album");
       it.albumKey = key;
       it.disc = static_cast<int>(x.num("disc", 0.0));
@@ -348,12 +351,15 @@ std::string planQueueJson(const std::string& input) {
         it.source = Item::Source::Jit;
         const double g = ctx.targetLufs - *j->num("jitLufs");
         // MATH-1.29: a quick estimate without a peak assumes a full-scale one rather than no cap.
-        it.capDb = ctx.ceilingDbtp - (j->num("jitTpDbtp").value_or(0.0) + kJitTpMargin);
+        // MATH-1.40: with the Quiet contour on, its boost counts towards the peak here too (§24.4).
+        it.capDb = ctx.ceilingDbtp - (j->num("jitTpDbtp").value_or(0.0) + kJitTpMargin + ctx.contourHeadroomDb);
         it.baseDb = std::min(g, it.capDb);
         it.rules.push_back({"JIT", it.baseDb});
         if (it.capDb < g) it.rules.push_back({"PEAK_CAP", it.capDb - g});
       } else {  // §22.1
-        it.baseDb = ctx.targetLufs + kProvisionalOffset;
+        // MATH-1.40: nothing is known yet, so a full-scale peak is assumed: a lesson or calibration can never lift this past the ceiling.
+        it.capDb = ctx.ceilingDbtp - ctx.contourHeadroomDb;
+        it.baseDb = std::min(ctx.targetLufs + kProvisionalOffset, it.capDb);
         it.rules.push_back({"PROVISIONAL", it.baseDb});
       }
       items.push_back(std::move(it));
@@ -393,7 +399,13 @@ std::string planQueueJson(const std::string& input) {
   for (std::size_t i = 0; i < items.size(); ++i) {
     Item& cur = items[i];
     cur.naturalSeamedDb = cur.manualSeamedDb = cur.baseDb;
-    if (cur.albumRun || cur.source != Item::Source::Full || i == 0) continue;
+    if (cur.albumRun || cur.source != Item::Source::Full) continue;
+    if (cur.frozenSeamDb) {  // MATH-1.40: an item that has started keeps its seam, even once its predecessor leaves the window
+      cur.naturalSeamedDb = std::min(cur.baseDb + *cur.frozenSeamDb, cur.capDb);
+      if (cur.naturalSeamedDb != cur.baseDb) cur.rules.push_back({"SEAM", cur.naturalSeamedDb - cur.baseDb});
+      continue;
+    }
+    if (i == 0) continue;
     const Item& prev = items[i - 1];
     SeamInput s;
     s.havePrev = true;
@@ -418,7 +430,7 @@ std::string planQueueJson(const std::string& input) {
     const double gMan = finalGain(it.manualSeamedDb, it.learnedDb, outputCal, it.capDb);
     if (i) o += ',';
     o += "{\"gainDb\":" + num(gNat) + ",\"manualGainDb\":" + num(gMan) + ",\"baseDb\":" + num(it.baseDb) +
-         ",\"learnedDb\":" + num(it.learnedDb) +
+         ",\"seamDb\":" + num(it.naturalSeamedDb - it.baseDb) + ",\"learnedDb\":" + num(it.learnedDb) +
          ",\"capDb\":" + num(it.capDb) + ",\"source\":\"" +
          (it.source == Item::Source::Full ? "full" : it.source == Item::Source::Jit ? "jit" : "provisional") +
          "\",\"albumRun\":" + (it.albumRun ? "true" : "false") + ",\"rules\":" + rulesJson(it.rules) + "}";

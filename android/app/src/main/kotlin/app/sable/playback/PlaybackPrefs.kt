@@ -60,6 +60,12 @@ object PlaybackPrefs {
         loaded = true
     }
 
+    /** The stored settings changed underneath (a restored backup): read them again, so playback follows and the next [update] cannot write the old ones back. */
+    fun reload(context: Context) {
+        loaded = false
+        load(context)
+    }
+
     fun update(context: Context, change: (Settings) -> Settings) {
         load(context)
         val s = change(state.value)

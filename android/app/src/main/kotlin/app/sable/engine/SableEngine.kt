@@ -34,6 +34,9 @@ object SableEngine {
     /** One volume-key feedback event (MATH §19). JSON in/out: engine/include/sable/plan.h. */
     @JvmStatic external fun learnUpdate(inputJson: String): String
 
+    /** MATH 19.2: what a stored lesson is worth today. */
+    @JvmStatic external fun decayedDb(valueDb: Double, updatedDays: Double, nowDays: Double): Double
+
     /** Quiet-mode contour design (MATH §24) with low/high shelf biquads {b0,b1,b2,a1,a2} at [sampleRate]. */
     @JvmStatic external fun contourDesign(calDb: Double, sampleRate: Double): String
 

@@ -113,6 +113,41 @@ TEST_CASE("plan: JIT, provisional, calibration never breaks the cap") {
   CHECK(field(sable::planQueueJson(ctx("{\"analysis\":" + capped + "}", "{}", "auto", 3.0)), "gainDb") == doctest::Approx(1.0).epsilon(1e-12));
 }
 
+TEST_CASE("plan: a provisional or quick-estimate gain obeys the ceiling and the contour's headroom (MATH-1.40)") {
+  // Provisional: a 4 dB lesson plus +3 calibration on -6 would be +1 dB on a song whose peak nobody has measured.
+  const std::string prov = sable::planQueueJson(ctx("{\"learnedDb\":4}", "{}", "auto", 3.0));
+  CHECK(field(prov, "capDb") == doctest::Approx(-1.0).epsilon(1e-12));
+  CHECK(field(prov, "gainDb") == doctest::Approx(-1.0).epsilon(1e-12));
+  const auto quiet = [](const std::string& item, double headroom) {
+    return "{\"targetLufs\":-19,\"ceilingDbtp\":-1,\"contourHeadroomDb\":" + std::to_string(headroom) + ",\"albumMode\":\"auto\",\"items\":[" + item + "]}";
+  };
+  // Quick estimate in Quiet: -30 LUFS wants +11; peak -10 + 1 margin caps it at +8, or +5.4 once the 2.6 dB contour counts.
+  const std::string jit = "{\"jit\":{\"jitLufs\":-30,\"jitTpDbtp\":-10}}";
+  CHECK(field(sable::planQueueJson(quiet(jit, 0.0)), "gainDb") == doctest::Approx(8.0).epsilon(1e-12));
+  CHECK(field(sable::planQueueJson(quiet(jit, 2.6)), "gainDb") == doctest::Approx(5.4).epsilon(1e-12));
+  CHECK(field(sable::planQueueJson(quiet("{}", 2.6)), "capDb") == doctest::Approx(-3.6).epsilon(1e-12));
+}
+
+TEST_CASE("plan: an item that has started keeps its seam when its predecessor leaves the window (MATH-1.40)") {
+  const auto track = [](double end, double open) { return analysis(-14, -14, -14, -20, open, end); };
+  // Three songs in a row: a ends loud, so b is seamed up by 0.5; c opens 0.3 under where b ends. Ideal for c:
+  // b's end + b's gain - c's open = -14 + 0.5 - (-14.3) = 0.8, held at +0.5 with the full chain.
+  const std::string a = track(-10, -14), b = track(-14, -20), c = track(-14, -14.3);
+  const auto item = [](const std::string& x, const std::string& extra = "") { return "{\"analysis\":" + x + extra + "}"; };
+  const std::string chain = sable::planQueueJson(ctx(item(a, ",\"manual\":true") + "," + item(b) + "," + item(c)));
+  CHECK(field(chain, "gainDb", 1) == doctest::Approx(0.5).epsilon(1e-12));
+  CHECK(field(chain, "seamDb", 1) == doctest::Approx(0.5).epsilon(1e-12));
+  // b and c play on with a gone: without b's own seam c would be worked out from b at 0 dB.
+  CHECK(field(sable::planQueueJson(ctx(item(b) + "," + item(c))), "gainDb", 1) == doctest::Approx(0.3).epsilon(1e-9));
+  CHECK(field(sable::planQueueJson(ctx(item(b, ",\"seamDb\":0.5") + "," + item(c))), "gainDb", 1) == doctest::Approx(0.5).epsilon(1e-12));
+  // The kept seam holds on the item itself, under its cap, and within the 0.5 dB bound whatever is sent.
+  const std::string kept = sable::planQueueJson(ctx(item(b, ",\"seamDb\":9")));
+  CHECK(field(kept, "gainDb") == doctest::Approx(0.5).epsilon(1e-12));
+  CHECK(kept.find("\"SEAM\"") != std::string::npos);
+  CHECK(field(kept, "manualGainDb") == doctest::Approx(0.0).epsilon(1e-12));
+  CHECK(field(sable::planQueueJson(ctx(item(analysis(-14, -14, -14, -1, -14, -14), ",\"seamDb\":0.5"))), "gainDb") == doctest::Approx(0.0).epsilon(1e-12));
+}
+
 TEST_CASE("plan: malformed input is rejected, output is deterministic") {
   CHECK(sable::planQueueJson("{\"items\":[") == "{\"error\":\"bad input\"}");
   CHECK(sable::planQueueJson("[]") == "{\"error\":\"bad input\"}");

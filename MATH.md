@@ -1,6 +1,6 @@
 # SABLE — MATH.md
 
-**Version:** MATH-1.39 (2026-10-31)
+**Version:** MATH-1.40 (2026-10-31)
 **Status:** Milestone 1 complete. Two independent reviews (docs/reviews/MATH-1.0-draft-review.md and docs/reviews/MATH-1.1-review.md); all findings are resolved in 1.2. Nothing in the engine may contradict this file. If code and MATH.md disagree, that is a bug in one of them; fix the one that is wrong and bump the version.
 
 Every engine function cites the section it implements, e.g. `// MATH §4.2`.
@@ -628,6 +628,8 @@ Here `g_cap,cur` means the **effective** cap `g_cap_eff` (= `g_cap_lim` when the
 
 Because every `g_cur` stays within ±0.5 dB of its own `g_track`, errors cannot accumulate along a long queue. Rule `SEAM` fires with the applied delta.
 
+**[MATH-1.40] A started item keeps its seam.** The seam is decided once, for the play that starts with it: the app stores `g_seamed − g_track` when the item starts by a natural transition and sends it back (`seamDb`, clamped to ±0.5 dB) for every item that has started, until it plays again. Before 1.40 the planner kept only one song behind the playing one and took that song at its unseamed gain, so in a run of natural transitions the playing song's seam was worked out again from a different figure just after it began, and its gain drifted (up to 0.5 dB, at the §23.3 rate) though one static gain per song is the rule.
+
 ---
 
 ## 19. Listener learning [DESIGN]
@@ -670,7 +672,7 @@ Offsets are visible on the Why sheet and resettable (per track, per artist, all)
 
 ### 19.4 A deliberate "quieter / louder for this song" tap [DESIGN, MATH-1.32, owner decision 2026-10-28]
 A car stereo's volume knob is invisible to Android (the phone's media volume stays where it was), so nothing can be learned there from §19.1. Now Playing can show two small buttons, **Quieter** and **Louder** (Advanced switch, on in the trial build). Nothing happens unless they are tapped; there is no new always-on processing.
-- A tap is a counted feedback event at the current place for the playing song, with `Δv = ∓N`, `N = 2 dB`, and it goes through exactly the same update as a press (§19.1 filters that still apply, §19.2, §19.2's hint-first rule MATH-1.30): the peak-cap rule (`ignored: capped` for **Louder** on a song its cap already holds; the app says so), the ±2 dB clamp, and the artist rule (two songs agreeing on two different days). **[MATH-1.38]** The 1 dB probation does not apply to a tap (below).
+- A tap is a counted feedback event at the current place for the playing song, with `Δv = ∓N`, `N = 2 dB`, and it goes through exactly the same update as a press (§19.1 filters that still apply, §19.2, §19.2's hint-first rule MATH-1.30): the peak-cap rule (`ignored: capped` for **Louder** on a song its cap already holds; the app says so), the clamp (±4 dB for a tap, MATH-1.39), and the artist rule (two songs agreeing on two different days). **[MATH-1.38]** The 1 dB probation does not apply to a tap (below).
 - **[MATH-1.36] A tap is never the room:** the environment filter and the unsettled-level weight of §19.1 do not apply, so every tap has `ω = 1`, and a tap is not stored as the "previous event" of §19.1, so it says nothing about the next press. Before 1.36 a tap the same way within 10 min, on any song, moved 0.25 dB, which cannot be heard, while the first tap back moved 1 dB. Owner's drive: four Quieter on "It Ain't Hard to Tell" made −1 dB and one Louder undid all of it. The room belongs to the car's own knob, which Sable cannot see.
 - **[MATH-1.38] A tap needs no probation [owner decision 2026-10-31].** A tap is the listener's own word for this song, not a mood (§19.2's hint rule exists because a volume press follows mood as much as taste). A tap marks the song's lesson confirmed at once: the song takes it in full (`η_t·N` = 1 dB a tap) up to the tap ceiling (below), so two taps the same way reach 2 dB. At the ceiling (`|o_t| ≥ 4 − 0.02 dB`, MATH-1.39) a tap the same way changes nothing, song or artist, and the app says so (`ignored: limit`); a tap back moves from where the song stands. What stays: the peak cap (`ignored: capped` for Louder; nothing is ever played above a song's cap, §16.4), the artist rule above, and the press rules of §19.1-19.2 (a press is still a hint, at most 1 dB until repeated 12 h or more later on another day). Before 1.38 (MATH-1.36) a tap on an unconfirmed song was held to ±1 dB, so on the owner's JBL 21 taps were ignored as `limit`.
 - **[MATH-1.39] The tap ceiling is ±4 dB [owner decision 2026-10-31].** Only the song's own offset `o_t` can pass ±2, and only by taps (1 dB each). Everything else keeps §19.2's ±2: a volume press (`learnEvent` ceiling 2), the artist's offset `o_a` (always 2), and the prior for a song with no lesson of its own. A press on a song a tap took beyond 2 dB may lessen it but never deepen it, and never carries it to the other side beyond 2. The applied offset is clamped to ±4 (§21: `g = min(g_seamed + o + cal, g_cap_eff)`, so a Louder tap can never pass the peak cap, whatever the offset). Stored lessons are all within ±2 and stay valid. Owner's phone before the change: 31 of 84 taught songs sat at the ±2 wall (JBL 62 songs, speaker 15, car 7). Where 2 dB lived (all found and changed): `learnEvent` and `appliedOffset` in `intent.cpp`, the frozen-offset clamp and the tap limit in `plan.cpp`, the planner property check in `tools/validation/props_planner.py`; the app has no clamp of its own.
@@ -724,12 +726,13 @@ The Why sheet shows `g_track`, `g_final` and every rule that fired, with its del
 
 ### 22.1 Provisional gain
 Never play un-normalized audio at full level. Before any analysis exists, `g_prov = T + 8.0` dB, i.e. assume the track is a loud master at −8 LUFS: Standard −6 dB, Quiet −11 dB **[TUNE]**.
+**[MATH-1.40]** Nothing about its peak is known, so a full-scale peak is assumed (as §16.4 does for an unmeasurable one): `g_cap = C_out − H_contour`. Before 1.40 a provisional gain had no cap, so §21 let a lesson and a calibration take it above the ceiling (−6 + 4 + 3 = +1 dB, reachable once taps went to ±4 dB in 1.39).
 
 ### 22.2 JIT analysis
 Started when a never-analysed track is about to play (queue look-ahead: the next item is pre-analysed while the current one plays):
 - Excerpts: `[0, 10 s)` and three 15 s windows centred at 30%, 50% and 70% of the duration (clipped and merged). Decoded by seeking. **[MATH-1.29]** If the source does not know its length (a streamed FLAC has `total_samples = 0`), the engine first counts the frames by one decode pass; before 1.29 all three "middle" windows then landed at the start, and a song with a −30 LUFS intro and a −14 LUFS body was measured at −30 and lifted by about 16 dB until its full analysis arrived (found by testing a piped FLAC; none of the owner's 392 FLACs has a zero length).
 - Measures (§2–§6) on each excerpt. `L_jit` = the loudest middle-excerpt integrated loudness (§4.1 per excerpt). `TP_jit` = max over excerpts + `M_jitTP = 1.0 dB` (peaks not yet seen) **[TUNE]**.
-- `g_jit = min(T − L_jit, C_out − TP_jit)`. No perceptual model, no labels, no intimacy. Rule `JIT`.
+- `g_jit = min(T − L_jit, C_out − TP_jit − H_contour)`. No perceptual model, no labels, no intimacy. Rule `JIT`. **[MATH-1.40]** `H_contour` (§24.4, 0 when the contour is off) was missing before 1.40, so a quick estimate in Quiet could leave the contour's boost above the ceiling.
 - Wait budget: playback waits up to `W_jit = 1.5 s` for JIT. If it isn't ready, playback starts at `g_prov` and moves to `g_jit` when ready (§23.3).
 - The full analysis runs in the background. When it finishes, the gain moves to the full decision (§23.3).
 

@@ -17,8 +17,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Listener learning (MATH §19): volume-key presses in the first 20 s of a song are feedback. Small, bounded (±2 dB),
- * decaying (30-day half-life) offsets per track and per artist, kept per place (§19.3: the output device). The update
+ * Listener learning (MATH §19): volume-key presses in the first 20 s of a song are feedback, and so is a Quieter or Louder tap.
+ * Small, bounded (±2 dB; a song's own taps ±4), decaying (30-day half-life) offsets per track and per artist, kept per place (§19.3: the output device). The update
  * math is in the engine (learnUpdate); this class stores the offsets and decides when a press counts.
  */
 class ListenerLearning(private val context: Context, private val main: Handler) {
@@ -308,9 +308,9 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
     }
 
     /**
-     * MATH-1.32 §19.4: a deliberate "quieter" / "louder for this song" tap. It is the same lesson as a press of the volume
-     * key (§19.2, §19.1 environment filter, MATH-1.30 hint-first), minus the rules that guess whether a press was meant
-     * for the song: a tap is. Returns what to tell the listener.
+     * MATH-1.32 §19.4: a deliberate "quieter" / "louder for this song" tap. It is the same update as a press of the volume
+     * key (§19.2), minus the rules that guess whether a press was meant for the song: a tap is, so it has no environment
+     * weight and no probation, and goes up to ±4 dB (MATH-1.36, 1.38, 1.39). Returns what to tell the listener.
      */
     fun nudge(t: TrackEntity, up: Boolean): String {
         val p = currentPlace()
