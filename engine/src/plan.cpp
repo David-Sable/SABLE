@@ -180,7 +180,8 @@ constexpr double kJitTpMargin = 1.0;        // §22.2 M_jitTP
 constexpr double kPerceptualBound = 3.0;    // §16.2 B_p
 constexpr double kProbationDb = 1.0;        // §19.2 (MATH-1.30): most an unconfirmed first lesson applies
 constexpr double kConfirmDays = 0.5;        // §19.2 (MATH-1.30): "another day" = at least this far apart (12 h)
-constexpr double kTapLimitBandDb = 0.02;    // §19.4 (MATH-1.36): 12 h of decay from the limit stays inside this, so a song at the limit reads as there
+constexpr double kOffsetCeilingDb = 2.0;    // §19.2: the most a song's learned offset can reach (the clamp of §19.2)
+constexpr double kTapLimitBandDb = 0.02;    // §19.4: a song within this of the ceiling reads as at it (the margin covers a little decay)
 constexpr double kFlowGap = 0.5;          // §17.3 G_flow: most silence (s) a track may hold and still flow
 
 struct Track {
@@ -479,15 +480,17 @@ std::string learnUpdateJson(const std::string& input) {  // §19.1 environment f
   bool tConfirmed = legacy || in.flag("trackConfirmed");
   if (!tConfirmed && tBefore != 0.0 && std::signbit(tBefore) == std::signbit(dvEff) && now - tFirst >= kConfirmDays) tConfirmed = true;
   if (tBefore == 0.0 && !legacy) { tFirst = now; tConfirmed = false; }  // nothing standing (new, or decayed/cancelled away): a fresh first lesson
-  // §19.4 (MATH-1.36): during probation a tap works from what is heard, so every tap either moves the level or says it cannot.
-  if (tap && !tConfirmed) {
-    t.valueDb = std::clamp(tBefore, -kProbationDb, kProbationDb);
+  // §19.4 (MATH-1.38): a tap is the listener's own word for this song, not a mood, so it needs no probation: it counts as
+  // confirmed at once and the song takes it in full, up to the ±2 dB ceiling. At the ceiling a tap the same way changes
+  // nothing (song or artist) and the app says so; a tap back moves from where the song stands.
+  if (tap) {
+    tConfirmed = true;
+    t.valueDb = tBefore;
     t.updatedDays = now;
-    if (std::fabs(t.valueDb) >= kProbationDb - kTapLimitBandDb && std::signbit(t.valueDb) == std::signbit(dvEff)) return "{\"ignored\":\"limit\"}";
+    if (std::fabs(tBefore) >= kOffsetCeilingDb - kTapLimitBandDb && std::signbit(tBefore) == std::signbit(dvEff)) return "{\"ignored\":\"limit\"}";
   }
   const double aFirst = in.num("artistFirstDays").value_or(a.valueDb != 0.0 ? a.updatedDays - kConfirmDays : now);  // a pre-1.30 artist is trusted: it dates from before its last event
   learnEvent(t, 0.5, omega * dvEff, now);   // eta_t
-  if (tap && !tConfirmed) t.valueDb = std::clamp(t.valueDb, -kProbationDb, kProbationDb);
   learnEvent(a, 0.25, omega * dvEff, now);  // eta_a
   return "{\"trackDb\":" + num(t.valueDb) + ",\"trackDays\":" + num(t.updatedDays) + ",\"artistDb\":" + num(a.valueDb) +
          ",\"artistDays\":" + num(a.updatedDays) + ",\"trackFirstDays\":" + num(tFirst) + ",\"trackConfirmed\":" + (tConfirmed ? "true" : "false") +

@@ -322,7 +322,7 @@ class ListenerLearning(private val context: Context, private val main: Handler) 
         note("LEARN nudge ${if (up) "louder" else "quieter"} ${t.displayName} at ${p.label}: track %+.2f -> %+.2f dB".format(before, after))
         return when {
             result == "capped" -> "Already as loud as it can safely go"
-            result == "limit" -> "As far as it goes for now"
+            result == "limit" -> "As far as it goes"
             result != null || after == before -> "Nothing changed"
             up -> "Louder from now on"
             else -> "Quieter from now on"
