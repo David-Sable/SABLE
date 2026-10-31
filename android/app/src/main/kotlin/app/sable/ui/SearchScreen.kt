@@ -85,7 +85,7 @@ fun SearchScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
                         ) {
                             AlbumArt(a.albumId, a.coverUri, a.title, 48.dp, Modifier.size(48.dp), px = 128)
                             Column(Modifier.weight(1f).padding(start = Space.m)) {
-                                Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(a.title, style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text("${a.artist} · ${count(a.tracks.size, "song")}", style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -113,7 +113,7 @@ private fun Heading(text: String) {
 @Composable
 private fun ResultRow(title: String, subtitle: String, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.gutter, vertical = 12.dp)) {
-        Text(title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

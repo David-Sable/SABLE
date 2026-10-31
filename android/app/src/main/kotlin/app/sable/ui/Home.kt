@@ -122,7 +122,7 @@ fun HomeTab(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 
 @Composable
 private fun Heading(text: String) =
-    Text(text, style = SableType.headline, color = SableColors.textPrimary, modifier = Modifier.padding(start = Space.gutter, top = Space.xl, bottom = Space.m))
+    Text(text, style = SableType.heading, color = SableColors.textPrimary, modifier = Modifier.padding(start = Space.gutter, top = Space.xl, bottom = Space.m))
 
 @Composable
 private fun RecentRow(recent: List<Recent>, state: AppState) {
@@ -149,7 +149,7 @@ private fun RecentRow(recent: List<Recent>, state: AppState) {
 private fun SongTile(r: LibraryRow, captionLines: Int, onClick: () -> Unit) {
     Column(Modifier.softClick(pressedScale = 0.97f, haptic = false, onClick = onClick)) {
         AlbumArt(r.albumId, r.uri, r.album, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f), px = 384)
-        Text(songTitle(r), style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
+        Text(songTitle(r), style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
         CreditLine(credit(r), SableType.caption, SableColors.textSecondary, maxLines = 2, minLines = captionLines)
     }
 }

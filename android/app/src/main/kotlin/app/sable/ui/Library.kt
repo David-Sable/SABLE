@@ -116,7 +116,7 @@ fun SongRow(r: LibraryRow, index: Int?, playing: Boolean, subtitle: String, onCl
             Text("$index", style = SableType.caption, color = if (playing) SableColors.accent else SableColors.textTertiary, modifier = Modifier.width(30.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(songTitle(r), style = SableType.body, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(songTitle(r), style = SableType.name, color = if (playing) SableColors.accent else SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) CreditLine(subtitle, SableType.caption, SableColors.textSecondary)
         }
         Text(mmss(r.durationMs), style = SableType.caption, color = SableColors.textTertiary)
@@ -288,7 +288,7 @@ fun LibraryScreen(state: AppState, rows: List<LibraryRow>, bottomPad: Dp) {
 private fun TabLabel(text: String, selected: () -> Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c by animateColorAsState(if (selected()) SableColors.textPrimary else SableColors.textTertiary, Motion.medium(), label = "tabText")
     Column(modifier.softClick(pressedScale = 0.96f, onClick = onClick)) {
-        Text(text, style = SableType.headline, color = c, modifier = Modifier.padding(vertical = Space.s))
+        Text(text, style = SableType.tab, color = c, modifier = Modifier.padding(vertical = Space.s))
         Spacer(Modifier.height(2.dp))
     }
 }
@@ -300,7 +300,7 @@ internal fun AlbumTile(a: AlbumGroup, captionLines: Int = 1, onClick: () -> Unit
         AlbumArt(a.albumId, a.coverUri, a.title, 170.dp, Modifier.fillMaxWidth().aspectRatio(1f)
             .onGloballyPositioned { spot[0] = it.boundsInRoot() }
             .graphicsLayer { alpha = if (AlbumFlight.hides(a.key)) 0f else 1f }, px = 384)
-        Text(a.title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
+        Text(a.title, style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s))
         Text(if (a.single) "${a.artist} · Single" else a.artist, style = SableType.caption, color = SableColors.textSecondary, maxLines = captionLines, minLines = captionLines, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -315,7 +315,7 @@ internal fun ListRow(title: String, subtitle: String, cover: AlbumGroup? = null,
         if (cover != null) AlbumArt(cover.albumId, cover.coverUri, cover.title, 48.dp,
             Modifier.size(48.dp).then(if (round) Modifier.clip(androidx.compose.foundation.shape.CircleShape) else Modifier), px = 128)
         Column(Modifier.weight(1f).padding(start = if (cover != null) Space.m else 0.dp)) {
-            Text(title, style = SableType.body, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = SableType.name, color = SableColors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = SableType.caption, color = SableColors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -333,7 +333,7 @@ fun AlbumScreen(state: AppState, rows: List<LibraryRow>, key: String, bottomPad:
             Column(Modifier.padding(horizontal = Space.gutter)) {
                 AlbumArt(album.albumId, album.coverUri, album.title, 300.dp, Modifier.fillMaxWidth().aspectRatio(1f).albumHeader(album.key), px = 1024)
                 Text(album.title, style = SableType.display, color = SableColors.textPrimary, modifier = Modifier.padding(top = Space.xl))
-                Text(album.artist, style = SableType.headline, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.xs))
+                Text(album.artist, style = SableType.name, color = SableColors.textSecondary, modifier = Modifier.padding(top = Space.xs))
                 Text(if (album.single) "Single · ${mmss(album.tracks.sumOf { it.durationMs })}" else "${album.tracks.size} songs · ${mmss(album.tracks.sumOf { it.durationMs })}", style = SableType.caption, color = SableColors.textTertiary,
                     modifier = Modifier.padding(top = Space.xs))
                 Row(Modifier.padding(top = Space.l), horizontalArrangement = Arrangement.spacedBy(Space.s)) {

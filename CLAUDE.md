@@ -52,6 +52,7 @@ David may need to start a new chat when the context fills up, so never leave sta
 - Phone first (Galaxy A17 5G, Android 16, One UI, 90 Hz). **Easy mode is the default UI**; Advanced is one switch.
 - Quiet mode includes the gentle contour by default (MATH-1.14 §24); Advanced can turn it off.
 - Look: true black, warm ivory accent `#E8E1D3`, tokens in `ui/theme/Tokens.kt`. Brass `#B5975A` is Sable's signature on the big play button and the widget's, always on, no setting (David, 2026-10-30).
+- Type: names are serif, facts are sans; Now Playing's title stays the largest (David, 2026-10-30). The mood bar's colours are Patina (David, 2026-10-30).
 - Logo: the white lion (David's choice). Regenerate icon and mark only with `tools/branding/trace_logo.py`; Android caps a resource string at 32,767 chars, so keep one `<path>` per shape. Keep the app minimal: the mark appears only beside the title, in About and on empty states.
 
 ## 5. Build, test, release
