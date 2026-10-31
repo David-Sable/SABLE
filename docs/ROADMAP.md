@@ -19,7 +19,6 @@ Done means: numbers in NOTES and a clear yes or no on each question.
 - The Why sheet's details still have a few 44-56 ms gaps while opening (render side).
 - Organize leaves non-audio files (cover images) in the old folders.
 - ALAC from iTunes/XLD is untested; ffmpeg-made ALAC plays but cannot be analysed.
-- The mid-song output switch (0.17.4) was never confirmed by David on the JBL.
 - USB-C output is untested on the phone.
 
 ## Parked
