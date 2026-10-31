@@ -11,9 +11,10 @@ Android Auto browsing is built (0.25.0) but has never been run. David's car is t
 Done means: browsing and playing from the Android Auto screen works, or what fails is known.
 
 ## 1b. Keeping Sable safe (David asked Claude to own this, 2026-10-31)
-- The signing key lives only on the PC and in a GitHub secret. Lose both and installed copies can never be updated. Needs a safe second copy (David chooses where; Claude never prints it).
-- CI keeps only the newest three releases. Decide how to keep older, known-good versions findable (a kept "stable" release or tag list) before the first public release.
-- Before a public release: a licence decision, a clean-install test, and a check that nothing private (audio, keys, paths) is in the repo history.
+- The signing key lives only on the PC (`~/.android/debug.keystore`) and in a GitHub secret. Lose both and installed copies can never be updated. Needs a safe second copy: David copies the file himself (Claude never prints, copies or moves it); waiting on David (2026-10-31 he plans Google Drive; advised 2-step verification on and a second copy in a password manager).
+- Known-good versions: done 2026-10-31. A commit with `[keep]` in its message gets a permanent `keep-<version>` release (CI never deletes it). First one: 0.48.1. Add `[keep]` to the build of each version David has judged good.
+- History check: done 2026-10-31. No key, audio or large file was ever committed; the signing password in `build.gradle.kts` is Android's public debug default, so the key file is the only secret. Repeat before a public release.
+- Before a public release: a licence decision and a clean-install test.
 
 ## 2. Is learning really working?
 Wait until David says he has listened enough (2026-10-30).
