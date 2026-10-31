@@ -30,7 +30,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
-- **2026-10-31 0.50.1:** Now Playing's swipe is capped at 3 screens a second: a flick can no longer outrun the cover; slow swipes unchanged. David to feel it; tune with `animflag vmax`.
+- **2026-10-31 0.50.1:** Now Playing's swipe is capped at 3 screens a second: a flick can no longer outrun the cover; slow swipes unchanged. David felt it: right. Tune with `animflag vmax` only if he says otherwise.
 - **2026-10-31 0.50.0, MATH-1.39:** the Quieter and Louder buttons go to +-4 dB per song; volume keys and the artist stay at 2. Traced every place the 2 dB lived, tested on the phone muted. David to listen.
 - **2026-10-31 0.49.1:** album mode's line says "album gain, your -1.0 dB" when a song carries a tap lesson; the numbers were right, the words were not.
 - **2026-10-31 0.49.0, MATH-1.38:** Quieter and Louder taps need no probation: a song takes a tap in full up to the +-2 dB ceiling. 31 of 84 taught songs already sit at that ceiling. David to test.

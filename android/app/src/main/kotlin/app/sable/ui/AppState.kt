@@ -89,7 +89,7 @@ class AppState {
     var backing by mutableStateOf<Route?>(null)
     var backP by androidx.compose.runtime.mutableFloatStateOf(0f)
     /** The finger let go at [vpx] px/s (up is positive): open or close, decided by where it is and where it was heading. */
-    /** The fastest the sheet may move (progress per second), dragged by a finger or let go onto its spring. 3 = the whole screen in about a third of a second. */
+    /** The fastest the sheet may move (progress per second), dragged by a finger or let go onto its spring. 3 = the whole screen in about a third of a second (David, 2026-10-31: "feels right"). */
     var sheetVmax = 3f
     fun releaseSheet(vpx: Float) {
         lastDragNs = 0L
