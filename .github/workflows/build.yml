@@ -135,6 +135,7 @@ jobs:
           make_latest: false
       - name: Keep the exact build proven on the phone (commit message contains [keep build-N])
         # The same APK David listened to, byte for byte, not a rebuild. Runs before the cleanup, so build-N is still there.
+        # The tag sits on this commit: the workflow token may not tag an older one whose workflow file differs. The notes name the commit it was built from.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.SIGNED == '1' && contains(github.event.head_commit.message, '[keep build-')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -149,7 +150,7 @@ jobs:
           VERSION=$(basename "$APK" | sed -E 's/^SABLE-(.*)-build[0-9]+\.apk$/\1/')
           COMMIT=$(gh api "repos/${{ github.repository }}/commits/build-$N" --jq .sha 2>&1) || fail "commit: $COMMIT"
           SUM=$(sha256sum "$APK" | cut -d' ' -f1)
-          out=$(gh release create "keep-$VERSION" "$APK" --repo "${{ github.repository }}" --target "$COMMIT" --latest=false \
+          out=$(gh release create "keep-$VERSION" "$APK" --repo "${{ github.repository }}" --target "${{ github.sha }}" --latest=false \
             --title "SABLE $VERSION (kept, known good)" \
             --notes "A version kept on purpose to go back to: build $N, the exact APK proven on the phone. Built from $COMMIT. SHA-256 $SUM." 2>&1) || fail "create: $out"
       - name: Keep only the newest releases
