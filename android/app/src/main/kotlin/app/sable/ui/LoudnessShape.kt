@@ -255,8 +255,11 @@ fun LoudnessShape(shape: SongShape, progress: () -> Float, modifier: Modifier = 
             clipRect(left = (a / dur * w).toFloat(), right = (b / dur * w).toFloat()) {
                 // While the song is in an anchor it glows a little brighter (anchorLit 0..1, eased by the caller).
                 val lit = anchorLit()
-                // With mood colours the glow is a light veil, or it would paint ivory over most of the song (the anchor is 85 % of a typical one).
-                if (moodStops != null) drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = (0.06f + 0.14f * lit) * m), Color.Transparent)))
+                // With mood colours the section glows in the song's own colours, or ivory would paint over most of the song (the anchor is 85 % of a typical one).
+                if (moodStops != null) {
+                    drawPath(path, Brush.horizontalGradient(colorStops = moodStops, startX = 0f, endX = w), alpha = (0.35f + 0.65f * lit) * m)
+                    drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = (0.10f + 0.22f * lit) * m), Color.Transparent)))
+                }
                 else drawPath(path, Brush.verticalGradient(listOf(SableColors.accent.copy(alpha = (0.55f + 0.30f * lit) * m), SableColors.accent.copy(alpha = (0.12f + 0.10f * lit) * m))))
             }
         }

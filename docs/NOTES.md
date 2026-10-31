@@ -14,7 +14,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Now (keep this short: under 30 lines)
-- **Version:** 0.46.0, MATH-1.37. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
+- **Version:** 0.46.1, MATH-1.37. Library: 419 songs on the phone, all analysed, tidied into Music/Artist/Album. Dark only.
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
@@ -28,6 +28,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-30 0.46.1:** the highlighted sections glow again, in the song's own colours, while the song plays through them; the first 0.46.0 veil was too faint.
 - **2026-10-30 0.46.0, MATH-1.37:** mood bar: four muted colours around ivory, the ivory glow no longer covers them, words last at least 6 s and can say rising, easing, hushed, warm, deep. Measured on all 420 songs.
 - **2026-10-30 0.45.5, MATH-1.36:** taps are never the room: full weight, a clear limit during probation, counted on the scoreboard. Verified on the phone. GitHub tidied: `main` only.
 - **2026-10-30 car check (no code):** read diag, learned and scoreboard after David's drive. Taps and sound fine; quarter-weight taps and the scoreboard's blind spot found, see HISTORY.

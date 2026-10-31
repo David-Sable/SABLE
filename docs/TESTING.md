@@ -27,3 +27,5 @@ What was run in the 2026-10-27 blind-spot pass, so a later session can repeat it
 
 ## Frame rate: measure what David runs
 A normal install is `verify` until the phone compiles the profile when idle. `cmd package compile -m speed` hides that. Measure right after `adb install`, then again after `cmd package compile -m speed-profile -f app.sable`. Use `tools/perf/tab_frames.py` on one framestats file per gesture: the slowest frame is what the eye catches, and a late-frame share over repeats hides it.
+
+**Muted playback tests:** `media volume` is not on this phone's shell path. Read the volume back as 0 from `dumpsys audio` before any play command, and stop the script if it is not (2026-10-30: a failed mute let 4 s of a song play aloud).
