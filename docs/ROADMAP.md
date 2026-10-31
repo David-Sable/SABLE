@@ -6,9 +6,14 @@ What comes next, most useful first. Written 2026-10-30 by Claude; David picks th
 Measured per gesture with `tools/perf/tab_frames.py` (slowest frame per gesture). After the phone optimises Sable: tab switches 20 to 47 ms, were up to 166. Left: tab slides still spend 20 to 37 ms in a frame where a page boundary is crossed; album back has one 60 ms frame while the Library is rebuilt under it (keeping the Library alive under other pages would remove it); a fresh install stays near 100 ms until the phone compiles the profile, overnight on charge.
 Done means: David finds it smooth.
 
-## 1. Sable in the car
-Android Auto browsing is built (0.25.0) but has never been run. David turns on Android Auto settings -> tap Version ~10 times -> developer settings -> Unknown sources, then drives once; afterwards read `diag`.
-Done means: browsing and playing from the car's screen works, or what fails is known.
+## 1. Sable in the car (Android Auto, parked 2026-10-31)
+Android Auto browsing is built (0.25.0) but has never been run. David's car is too old for Android Auto, so there is no hurry. The test that needs no car is Google's Desktop Head Unit on the PC over the USB cable (needs Android Auto's developer settings -> Unknown sources on the phone). Do it when convenient; David said we will get to it.
+Done means: browsing and playing from the Android Auto screen works, or what fails is known.
+
+## 1b. Keeping Sable safe (David asked Claude to own this, 2026-10-31)
+- The signing key lives only on the PC and in a GitHub secret. Lose both and installed copies can never be updated. Needs a safe second copy (David chooses where; Claude never prints it).
+- CI keeps only the newest three releases. Decide how to keep older, known-good versions findable (a kept "stable" release or tag list) before the first public release.
+- Before a public release: a licence decision, a clean-install test, and a check that nothing private (audio, keys, paths) is in the repo history.
 
 ## 2. Is learning really working?
 Wait until David says he has listened enough (2026-10-30).

@@ -4,6 +4,7 @@ SABLE is a local Android music player built around the Sable Intent Engine. Made
 (architecture and engineering; David delegates most technical decisions).
 **Decision authority (David, 2026-10-28):** Claude decides technical and engineering matters alone when sure it is better, and tells David afterwards in plain words; David and Claude work together and no other AI works on SABLE. **Merging to `main` is allowed (David, 2026-10-28):** a cloud session may merge its branch into `main` to get a release built, without asking each time; it still tells David which release to install. The "Ask David first" items in section 3 still apply.
 **This repo's organisation is Claude's (David, 2026-10-30):** David does not read the docs or code layout; they exist for the next Claude. Reorganise this file, the docs and the structure however serves you best from chat to chat, without asking, as long as the rules below keep holding and nothing is lost.
+**Claude is Sable's steward (David, 2026-10-31):** when Sable is released, Claude is still the only one working on it, and the repo is Claude's to run. David asked Claude to protect Sable: keep it safe, organised and recoverable (old versions, backups, the signing key), and not let any change break what works. Decide that alone and tell David in plain words. Do not wait to be asked.
 You start with no memory of earlier chats, so:
 
 ## 1. Start of every session
