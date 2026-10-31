@@ -114,13 +114,25 @@ jobs:
             On the phone: open this page, tap **${{ steps.apk.outputs.name }}**, then open the download to install it over the current SABLE (your library and settings are kept).
           files: ${{ steps.apk.outputs.name }}
           make_latest: true
+      - name: Keep this version for good (commit message contains [keep])
+        # Known-good versions to go back to: a permanent release keep-<version> that the cleanup below never touches.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.SIGNED == '1' && contains(github.event.head_commit.message, '[keep]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: keep-${{ steps.apk.outputs.version }}
+          name: SABLE ${{ steps.apk.outputs.version }} (kept, known good)
+          body: |
+            A version kept on purpose to go back to. Built from ${{ github.sha }}.
+          files: ${{ steps.apk.outputs.name }}
+          make_latest: false
       - name: Keep only the newest releases
-        # The newest three stay (this one and two to go back to); older releases and their tags are deleted.
+        # The newest three build-N releases stay (this one and two to go back to); older ones and their tags are deleted.
+        # Kept releases (keep-<version>) are never deleted.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && env.SIGNED == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/${{ github.repository }}/releases?per_page=100" --jq 'sort_by(.created_at) | reverse | .[3:][] | .tag_name' |
+          gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.tag_name | startswith("build-"))] | sort_by(.created_at) | reverse | .[3:][] | .tag_name' |
           while read -r tag; do
             echo "deleting $tag"
             gh release delete "$tag" --repo "${{ github.repository }}" --cleanup-tag --yes || echo "::warning::could not delete $tag"
