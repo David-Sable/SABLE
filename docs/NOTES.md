@@ -18,6 +18,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 - **Phone:** Galaxy A17 5G. Animator scale 1x. Install from `https://github.com/David-Sable/SABLE/releases/latest`.
 - **Next:** David judges the tabs and the centred widget controls on 0.45.4; Android Auto when David drives, then `docs/ROADMAP.md`. The learning deep dive waits until David says he has listened enough. Lyrics are parked.
 - **Backups:** by themselves weekly into Downloads/Sable (`sable-auto-…json`, newest 4 kept); first one saved 2026-10-30 02:37, restore proved on the phone.
+- **GitHub rule (David, signed in):** Settings -> Rules -> Rulesets -> New branch ruleset, name "protect main", Enforcement Active, target the default branch, tick only Restrict deletions and Block force pushes. Then New tag ruleset, name "protect kept", Active, include pattern `keep-*`, tick Restrict deletions, Restrict updates. Nothing else ticked: CI must still push and delete `build-*`.
 - **Waiting on David:** allow Nearby devices when 0.48.1 asks, then listen on the JBL and the car; Android Auto's Unknown sources setting (needed before the car test).
 - **Keep as they are (David approved):** Now Playing's framed cover (344 dp on black under the NOW PLAYING bar), its pause shrink and skip bounce, its open and close, targets -14 and -19.
 - **Learning so far (2026-10-29):** corrected plays: JBL 19 %, car 7 %, speaker 7 %. The JBL figure is largely David riding the volume in the garage on purpose. Too few taught songs replayed to judge yet.
@@ -30,6 +31,7 @@ That is all the next session needs: CLAUDE.md has the rules and workflow, this f
 ---
 
 ## Log (newest first; keep about 10 lines, older sessions move to `docs/HISTORY.md`)
+- **2026-10-31 protection pass:** David judged 0.50.2 good; build 124 itself is kept as `keep-0.50.2`. Build workflow hardened: actions pinned to hashes, signing key removed from the runner after Gradle, write access only where needed, runs on main no longer cancelled mid-publish. History scanned again: clean. App unchanged. Waiting on David: a GitHub rule against force-push and delete on `main` and `keep-*` tags.
 - **2026-10-31 0.50.2, MATH-1.40 (deep audit):** math and code read end to end. The 4 dB change is right. Six things fixed: a started song keeps its seam (it could drift up to 0.5 dB just after starting), quick taps could lose the second tap on the playing song, Restore did not reach the running settings, unanalysed songs now have a peak cap, the quick estimate counts the Quiet contour, the Why sheet shows a lesson's value today. Tests and library checks pass on 424 files, and the fixes passed on the phone (seams on 6 readable songs of 8 transitions, not the rare drift itself).
 - **2026-10-31 0.50.1:** Now Playing's swipe is capped at 3 screens a second: a flick can no longer outrun the cover; slow swipes unchanged. David felt it: right. Tune with `animflag vmax` only if he says otherwise.
 - **2026-10-31 0.50.0, MATH-1.39:** the Quieter and Louder buttons go to +-4 dB per song; volume keys and the artist stay at 2. Traced every place the 2 dB lived, tested on the phone muted. David to listen.
